@@ -40,7 +40,18 @@ export default function Services() {
                 maxWidth: '640px',
               }}
             >
-              End-to-End Digital Solutions
+              End-to-End{' '}
+              <span
+                style={{
+                  background: 'linear-gradient(135deg, #00B7FF 0%, #5EE9FF 100%)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Digital
+              </span>{' '}
+              Solutions
             </GradientText>
           </motion.div>
           <motion.p

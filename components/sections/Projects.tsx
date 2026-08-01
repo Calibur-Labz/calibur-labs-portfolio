@@ -1,22 +1,13 @@
 ﻿'use client'
 
-import { useState } from 'react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fadeUp, stagger } from '@/lib/motion'
-import { projects, type Project } from '@/lib/data'
+import { projects } from '@/lib/data'
 import SectionLabel from '@/components/ui/SectionLabel'
 import GradientText from '@/components/ui/GradientText'
 
-type Filter = 'All' | 'Web' | 'Mobile' | 'Design'
-const filters: Filter[] = ['All', 'Web', 'Mobile', 'Design']
-
 export default function Projects() {
-  const [active, setActive] = useState<Filter>('All')
-
-  const filtered: Project[] =
-    active === 'All' ? projects : projects.filter((p) => p.category === active)
-
   return (
     <section
       id="work"
@@ -66,31 +57,6 @@ export default function Projects() {
           </motion.p>
         </motion.div>
 
-        {/* Filter Tabs */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '48px', flexWrap: 'wrap' }}>
-          {filters.map((f) => (
-            <button
-              key={f}
-              onClick={() => setActive(f)}
-              style={{
-                padding: '8px 20px',
-                borderRadius: '8px',
-                border: 'none',
-                background: active === f ? 'rgba(0,183,255,0.12)' : 'transparent',
-                color: active === f ? '#E9F1F8' : '#6E8399',
-                fontSize: '14px',
-                fontWeight: 600,
-                fontFamily: 'var(--font-poppins), system-ui, sans-serif',
-                cursor: 'pointer',
-                borderBottom: active === f ? '2px solid #00B7FF' : '2px solid transparent',
-                transition: 'all 0.2s',
-              }}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-
         {/* Grid */}
         <motion.div
           layout
@@ -102,7 +68,7 @@ export default function Projects() {
           className="projects-grid"
         >
           <AnimatePresence mode="popLayout">
-            {filtered.map((project) => (
+            {projects.map((project) => (
               <motion.div
                 key={project.id}
                 layout

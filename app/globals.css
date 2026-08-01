@@ -199,3 +199,64 @@ h1, h2, h3, h4, h5, h6 {
   90%  { opacity: 1; }
   100% { left: 200%; opacity: 0; }
 }
+
+/* ── Premium global polish ─────────────────────────────── */
+
+/* Silky anchor navigation with room for the fixed navbar */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 96px;
+}
+
+/* Buttons get a tactile press + travel into their hover glow */
+.btn-primary,
+.btn-ghost {
+  transition:
+    color 0.25s ease,
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.3s ease,
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-primary:hover,
+.btn-ghost:hover {
+  transform: translateY(-2px);
+}
+.btn-primary:active,
+.btn-ghost:active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* The arrow icon glides forward as its button is hovered */
+.btn-primary svg,
+.btn-ghost svg {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-primary:hover svg,
+.btn-ghost:hover svg {
+  transform: translateX(4px);
+}
+
+/* Ambient float — opt-in via .float for hero accents */
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+.float {
+  animation: floatY 6s ease-in-out infinite;
+}
+
+/* Honor the user's motion preference — disable non-essential motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -44,7 +44,18 @@ export default function About() {
                 textAlign: 'center',
               }}
             >
-              A Team Built to Solve Hard Problems.
+              A Team Built{' '}
+              <span
+                style={{
+                  background: 'linear-gradient(135deg, #00B7FF 0%, #5EE9FF 100%)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                to Solve
+              </span>{' '}
+              Hard Problems.
             </GradientText>
           </motion.div>
 
