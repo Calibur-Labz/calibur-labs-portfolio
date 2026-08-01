@@ -2,6 +2,9 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { MailIcon, PhoneIcon, MapPinIcon } from '@/components/ui/icons'
+
+const LINKEDIN_URL = 'https://www.linkedin.com/company/calibur-labs'
 
 const navLinks = [
   { label: 'Services', href: '#services' },
@@ -21,7 +24,7 @@ const serviceLinks = [
 const socialLinks = [
   {
     label: 'LinkedIn',
-    href: '#',
+    href: LINKEDIN_URL,
     path: 'M4.98 3.5C4.98 4.88 3.87 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM.24 8h4.52v14H.24V8zm7.5 0h4.33v1.92h.06c.6-1.14 2.07-2.34 4.26-2.34 4.56 0 5.4 3 5.4 6.9V22h-4.52v-6.6c0-1.57-.03-3.6-2.19-3.6-2.2 0-2.53 1.72-2.53 3.49V22H7.74V8z',
   },
   {
@@ -96,13 +99,22 @@ export default function Footer() {
               Software that drives real business results built with precision, shipped with care.
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              {socialLinks.map((s) => (
-                <a key={s.label} href={s.href} aria-label={s.label} className="social-btn">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d={s.path} />
-                  </svg>
-                </a>
-              ))}
+              {socialLinks.map((s) => {
+                const external = s.href.startsWith('http')
+                return (
+                  <a
+                    key={s.label}
+                    href={s.href}
+                    aria-label={s.label}
+                    className="social-btn"
+                    {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d={s.path} />
+                    </svg>
+                  </a>
+                )
+              })}
             </div>
           </div>
 
@@ -129,19 +141,27 @@ export default function Footer() {
           {/* Contact */}
           <div>
             <p className="footer-heading">Get in touch</p>
-            <a href="mailto:caliburlabz@gmail.com" className="footer-link footer-row">
+
+            <a href="mailto:caliburlabz@gmail.com" className="contact-row">
+              <span className="contact-ico"><MailIcon size={16} /></span>
               caliburlabz@gmail.com
             </a>
-            <a href="tel:+94765831021" className="footer-link footer-row">
+            <a href="tel:+94765831021" className="contact-row">
+              <span className="contact-ico"><PhoneIcon size={16} /></span>
               +94 76 58 31021
             </a>
+            <div className="contact-row" style={{ cursor: 'default' }}>
+              <span className="contact-ico"><MapPinIcon size={16} /></span>
+              Galle, Sri Lanka
+            </div>
+
             <Link
               href="#contact"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                marginTop: '14px',
+                marginTop: '18px',
                 color: '#00B7FF',
                 fontSize: '14px',
                 fontWeight: 600,
@@ -198,6 +218,33 @@ export default function Footer() {
           line-height: 1;
           padding: 8px 0;
           font-family: var(--font-poppins), system-ui, sans-serif;
+        }
+        .contact-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 14px;
+          line-height: 1;
+          padding: 9px 0;
+          color: var(--muted);
+          text-decoration: none;
+          font-family: var(--font-poppins), system-ui, sans-serif;
+          transition: color 0.2s ease;
+        }
+        a.contact-row:hover {
+          color: #E9F1F8;
+        }
+        .contact-ico {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 20px;
+          flex-shrink: 0;
+          color: #E9F1F8;
+          transition: color 0.2s ease;
+        }
+        a.contact-row:hover .contact-ico {
+          color: #5EE9FF;
         }
         @media (max-width: 900px) {
           .footer-grid { grid-template-columns: 1fr 1fr; gap: 40px; }

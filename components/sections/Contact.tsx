@@ -1,16 +1,85 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import type { ComponentType } from 'react'
 import { fadeUp, stagger } from '@/lib/motion'
 import SectionLabel from '@/components/ui/SectionLabel'
 import GradientText from '@/components/ui/GradientText'
 import GlassCard from '@/components/ui/GlassCard'
+import { MailIcon, PhoneIcon, ClockIcon } from '@/components/ui/icons'
 
-const contactDetails = [
-  { icon: '✉', label: 'Email', value: 'caliburlabz@gmail.com' },
-  { icon: '☎', label: 'Phone', value: '+94 76 58 31021' },
-  { icon: '⚡', label: 'Response', value: 'Within 24 hours' },
+type Detail = {
+  Icon: ComponentType<{ size?: number }>
+  label: string
+  value: string
+  href?: string
+}
+
+const contactDetails: Detail[] = [
+  { Icon: MailIcon, label: 'Email', value: 'caliburlabz@gmail.com', href: 'mailto:caliburlabz@gmail.com' },
+  { Icon: PhoneIcon, label: 'Phone', value: '+94 76 58 31021', href: 'tel:+94765831021' },
+  { Icon: ClockIcon, label: 'Response', value: 'Within 24 hours' },
 ]
+
+function ContactPill({ d }: { d: Detail }) {
+  const Wrapper = d.href ? motion.a : motion.div
+
+  return (
+    <Wrapper
+      {...(d.href ? { href: d.href } : {})}
+      variants={fadeUp}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '14px',
+        padding: '16px 22px',
+        borderRadius: '14px',
+        textDecoration: 'none',
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        cursor: d.href ? 'pointer' : 'default',
+      }}
+    >
+      {/* Icon */}
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          color: '#5EE9FF',
+        }}
+      >
+        <d.Icon size={20} />
+      </span>
+      <div>
+        <p
+          style={{
+            fontSize: '11px',
+            color: '#6E8399',
+            margin: '0 0 3px',
+            fontFamily: 'var(--font-poppins), system-ui, sans-serif',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            fontWeight: 600,
+          }}
+        >
+          {d.label}
+        </p>
+        <p
+          style={{
+            fontSize: '14px',
+            color: '#E9F1F8',
+            margin: 0,
+            fontFamily: 'var(--font-poppins), system-ui, sans-serif',
+          }}
+        >
+          {d.value}
+        </p>
+      </div>
+    </Wrapper>
+  )
+}
 
 export default function Contact() {
   return (
@@ -78,42 +147,7 @@ export default function Contact() {
           }}
         >
           {contactDetails.map((d) => (
-            <motion.div
-              key={d.label}
-              variants={fadeUp}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '14px 20px',
-                borderRadius: '12px',
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.07)',
-              }}
-            >
-              <span style={{ fontSize: '18px' }}>{d.icon}</span>
-              <div>
-                <p style={{
-                  fontSize: '11px',
-                  color: '#6E8399',
-                  margin: '0 0 2px',
-                  fontFamily: 'var(--font-poppins), system-ui, sans-serif',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  fontWeight: 600,
-                }}>
-                  {d.label}
-                </p>
-                <p style={{
-                  fontSize: '14px',
-                  color: '#93A6BC',
-                  margin: 0,
-                  fontFamily: 'var(--font-poppins), system-ui, sans-serif',
-                }}>
-                  {d.value}
-                </p>
-              </div>
-            </motion.div>
+            <ContactPill key={d.label} d={d} />
           ))}
         </motion.div>
 

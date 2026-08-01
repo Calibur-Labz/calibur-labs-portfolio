@@ -8,7 +8,7 @@ import GradientText from '@/components/ui/GradientText'
 const highlights = [
   { value: '2026', label: 'Founded this year' },
   { value: '2–10', label: 'UG Engineers' },
-  { value: '1', label: 'Real client project' },
+  { value: '3+', label: 'Real client project' },
 ]
 
 export default function About() {
@@ -107,7 +107,7 @@ export default function About() {
                 </p>
                 <p style={{
                   fontSize: '13px',
-                  color: '#6E8399',
+                  color: '#00b7ff', 
                   margin: 0,
                   fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                   fontWeight: 500,

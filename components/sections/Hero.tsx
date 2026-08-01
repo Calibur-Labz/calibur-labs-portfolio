@@ -7,7 +7,7 @@ import GradientText from '@/components/ui/GradientText'
 import BladeLight from '@/components/ui/BladeLight'
 
 const stats = [
-  { value: '1', label: 'Project Delivered' },
+  { value: '3+', label: 'Project Delivered' },
   { value: '2026', label: 'Year Founded' },
   { value: '10+', label: 'UG Engineers' },
   { value: '100%', label: 'Client Satisfaction' },
@@ -231,7 +231,7 @@ export default function Hero() {
                   </p>
                   <p
                     style={{
-                      fontSize: '12px',
+                      fontSize: '13px',
                       color: '#6E8399',
                       margin: 0,
                       fontFamily: 'var(--font-poppins), system-ui, sans-serif',
