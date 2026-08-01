@@ -4,9 +4,195 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { fadeUp, stagger } from "@/lib/motion";
-import { testimonials } from "@/lib/data";
+import { testimonials, type Testimonial } from "@/lib/data";
 import SectionLabel from "@/components/ui/SectionLabel";
 import GradientText from "@/components/ui/GradientText";
+
+function StarRating({ rating = 5 }: { rating?: number }) {
+  return (
+    <div style={{ display: "flex", gap: "3px" }} aria-label={`${rating} out of 5`}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <svg
+          key={i}
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill={i < rating ? "#00B7FF" : "rgba(255,255,255,0.14)"}
+          aria-hidden="true"
+        >
+          <path d="M12 2l2.9 6.26 6.9.6-5.2 4.52 1.56 6.74L12 16.9l-6.16 3.72 1.56-6.74L2.2 8.86l6.9-.6L12 2z" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
+function QuoteGlyph() {
+  return (
+    <svg
+      width="40"
+      height="40"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      <path
+        d="M9.5 5C6.5 5 4 7.6 4 10.9c0 3 2.1 5.1 4.8 5.1.3 0 .6 0 .8-.1-.6 1.5-2 2.7-3.9 3.3l.8 1.8c3.6-1.1 6.2-4.4 6.2-9C12.5 7.6 11.3 5 9.5 5zm9 0C15.5 5 13 7.6 13 10.9c0 3 2.1 5.1 4.8 5.1.3 0 .6 0 .8-.1-.6 1.5-2 2.7-3.9 3.3l.8 1.8c3.6-1.1 6.2-4.4 6.2-9C21.5 7.6 20.3 5 18.5 5z"
+        fill="url(#quoteGrad)"
+      />
+      <defs>
+        <linearGradient id="quoteGrad" x1="4" y1="5" x2="21" y2="21" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#00B7FF" />
+          <stop offset="1" stopColor="#7FDBFF" stopOpacity="0.5" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function FeedbackCard({
+  t,
+  isFeatured,
+}: {
+  t: Testimonial;
+  isFeatured: boolean;
+}) {
+  const [hover, setHover] = useState(false);
+
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: "relative",
+        background: hover
+          ? "linear-gradient(145deg, rgba(0,183,255,0.10) 0%, rgba(255,255,255,0.04) 100%)"
+          : "linear-gradient(145deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%)",
+        backdropFilter: "blur(32px)",
+        WebkitBackdropFilter: "blur(32px)",
+        border: hover
+          ? "1px solid rgba(0,183,255,0.45)"
+          : isFeatured
+          ? "1px solid rgba(255,255,255,0.28)"
+          : "1px solid rgba(255,255,255,0.12)",
+        borderRadius: "24px",
+        padding: "34px",
+        overflow: "hidden",
+        minHeight: "300px",
+        display: "flex",
+        flexDirection: "column",
+        transform: hover ? "translateY(-6px)" : "translateY(0)",
+        boxShadow: hover
+          ? "0 24px 60px -20px rgba(0,183,255,0.35), inset 0 1px 0 rgba(255,255,255,0.08)"
+          : "0 12px 40px -24px rgba(0,0,0,0.6)",
+        transition:
+          "transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s ease, border-color 0.35s ease, background 0.35s ease",
+      }}
+    >
+      {/* Top accent line */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: "8%",
+          width: "84%",
+          height: "1px",
+          background:
+            "linear-gradient(90deg, transparent, rgba(0,183,255,0.7), rgba(255,255,255,0.4), transparent)",
+          opacity: hover ? 1 : 0.6,
+          transition: "opacity 0.35s ease",
+        }}
+      />
+
+      {/* Corner glow */}
+      <div
+        style={{
+          position: "absolute",
+          top: "-70px",
+          right: "-70px",
+          width: "200px",
+          height: "200px",
+          borderRadius: "50%",
+          background:
+            "radial-gradient(circle, rgba(0,183,255,0.16) 0%, transparent 70%)",
+          opacity: hover ? 1 : 0.5,
+          transition: "opacity 0.35s ease",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Top row: quote glyph + stars */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "20px",
+        }}
+      >
+        <QuoteGlyph />
+        <StarRating rating={t.rating} />
+      </div>
+
+      {/* Quote text */}
+      <p
+        style={{
+          fontSize: "15px",
+          color: "#B4C4D6",
+          lineHeight: 1.7,
+          fontFamily: "var(--font-poppins), system-ui, sans-serif",
+          margin: "0 0 26px",
+          flexGrow: 1,
+          display: "-webkit-box",
+          WebkitLineClamp: 8,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        }}
+      >
+        {t.quote}
+      </p>
+
+      {/* Divider */}
+      <div
+        style={{
+          height: "1px",
+          background:
+            "linear-gradient(90deg, rgba(0,183,255,0.5), rgba(255,255,255,0.05), transparent)",
+          marginBottom: "22px",
+        }}
+      />
+
+      {/* Author row */}
+      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+        <Avatar src={t.avatar} name={t.author} />
+        <div>
+          <p
+            style={{
+              fontFamily: "var(--font-syne), system-ui, sans-serif",
+              fontWeight: 700,
+              fontSize: "15px",
+              color: "#E9F1F8",
+              margin: "0 0 3px",
+            }}
+          >
+            {t.author}
+          </p>
+          <p
+            style={{
+              fontSize: "13px",
+              color: "#6E8399",
+              margin: 0,
+              fontFamily: "var(--font-poppins), system-ui, sans-serif",
+            }}
+          >
+            {t.title}, {t.company}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function getInitials(name: string) {
   return name
@@ -29,14 +215,14 @@ function Avatar({ src, name }: { src?: string; name: string }) {
           height: "56px",
           borderRadius: "50%",
           flexShrink: 0,
-          background: "rgba(83,74,183,0.15)",
-          border: "1px solid rgba(83,74,183,0.35)",
+          background: "rgba(0,183,255,0.12)",
+          border: "1px solid rgba(0,183,255,0.25)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: "14px",
           fontWeight: 700,
-          color: "#F3F7F5",
+          color: "#E9F1F8",
           fontFamily: "var(--font-syne), system-ui, sans-serif",
           letterSpacing: "0.02em",
         }}
@@ -54,7 +240,7 @@ function Avatar({ src, name }: { src?: string; name: string }) {
         borderRadius: "50%",
         flexShrink: 0,
         overflow: "hidden",
-        border: "1px solid rgba(83,74,183,0.35)",
+        border: "1px solid rgba(0,183,255,0.25)",
         position: "relative",
       }}
     >
@@ -127,7 +313,7 @@ export default function Testimonials() {
           <motion.p
             variants={fadeUp}
             style={{
-              color: "#636972",
+              color: "#6E8399",
               fontSize: "16px",
               lineHeight: 1.8,
               marginTop: "16px",
@@ -154,139 +340,9 @@ export default function Testimonials() {
               marginBottom: "36px",
             }}
           >
-            {pageItems.map((t, idx) => {
-              const isFeatured = idx === 0;
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    position: "relative",
-                    background:
-                      "linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
-                    backdropFilter: "blur(32px)",
-                    WebkitBackdropFilter: "blur(32px)",
-                    border: isFeatured
-                      ? "1px solid rgba(255,255,255,0.35)"
-                      : "1px solid rgba(255,255,255,0.15)",
-                    borderRadius: "24px",
-                    padding: "36px",
-                    overflow: "hidden",
-                    minHeight: "300px",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  {/* Top accent line */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: "10%",
-                      width: "80%",
-                      height: "1px",
-                      background: isFeatured
-                        ? "linear-gradient(90deg, transparent, rgba(255,255,255,0.95), rgba(255,255,255,0.65), transparent)"
-                        : "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
-                    }}
-                  />
-
-                  {/* Corner glow */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "-60px",
-                      right: "-60px",
-                      width: "180px",
-                      height: "180px",
-                      borderRadius: "50%",
-                      background:
-                        "radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)",
-                      pointerEvents: "none",
-                    }}
-                  />
-
-                  {/* Quote mark */}
-                  <div
-                    style={{
-                      fontSize: "72px",
-                      lineHeight: 0.8,
-                      color: "#F3F7F5",
-                      opacity: 0.35,
-                      fontFamily: "Georgia, serif",
-                      userSelect: "none",
-                    }}
-                  >
-                    &ldquo;
-                  </div>
-
-                  {/* Quote text */}
-                  <p
-                    style={{
-                      fontSize: "14px",
-                      color: "#c5c9d0",
-                      lineHeight: 1.6,
-                      fontStyle: "italic",
-                      fontFamily: "var(--font-poppins), system-ui, sans-serif",
-                      margin: "0 0 28px",
-                      flexGrow: 1,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 10,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {t.quote}
-                  </p>
-
-                  {/* Divider */}
-                  <div
-                    style={{
-                      height: "1px",
-                      background:
-                        "linear-gradient(90deg, rgba(83,74,183,0.4), rgba(255,255,255,0.05), transparent)",
-                      marginBottom: "24px",
-                    }}
-                  />
-
-                  {/* Author row */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "14px",
-                    }}
-                  >
-                    {/* Smart avatar: real image → fallback to initials */}
-                    <Avatar src={t.avatar} name={t.author} />
-
-                    <div>
-                      <p
-                        style={{
-                          fontFamily: "var(--font-syne), system-ui, sans-serif",
-                          fontWeight: 700,
-                          fontSize: "15px",
-                          color: "#e2e8f0",
-                          margin: "0 0 3px",
-                        }}
-                      >
-                        {t.author}
-                      </p>
-                      <p
-                        style={{
-                          fontSize: "13px",
-                          color: "#92969c",
-                          margin: 0,
-                          fontFamily:
-                            "var(--font-poppins), system-ui, sans-serif",
-                        }}
-                      >
-                        {t.title}, {t.company}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {pageItems.map((t, idx) => (
+              <FeedbackCard key={idx} t={t} isFeatured={idx === 0} />
+            ))}
           </motion.div>
         </AnimatePresence>
 
@@ -311,7 +367,7 @@ export default function Testimonials() {
                 "linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
               backdropFilter: "blur(24px)",
               WebkitBackdropFilter: "blur(24px)",
-              color: "#F3F7F5",
+              color: "#E9F1F8",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -350,7 +406,7 @@ export default function Testimonials() {
                   height: "8px",
                   borderRadius: "999px",
                   border: "none",
-                  background: i === page ? "#F3F7F5" : "rgba(255,255,255,0.15)",
+                  background: i === page ? "#00B7FF" : "rgba(255,255,255,0.15)",
                   cursor: "pointer",
                   padding: 0,
                   transition: "all 0.3s ease",
@@ -371,7 +427,7 @@ export default function Testimonials() {
                 "linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)",
               backdropFilter: "blur(24px)",
               WebkitBackdropFilter: "blur(24px)",
-              color: "#F3F7F5",
+              color: "#E9F1F8",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",

@@ -4,19 +4,53 @@
   --font-syne: var(--font-syne);
   --font-poppins: var(--font-poppins);
 
-  --color-brand-black: #0b0f19;
-  --color-brand-navy:  #101624;
-  --color-brand-blue:  #263457;
-  --color-brand-muted: #636972;
+  /* Surfaces */
+  --color-void:          #05070C;
+  --color-band:          #0A0F16;
+  --color-panel:         #0C121C;
+  --color-panel-raised:  #121A26;
+  --color-hairline:      #17222F;
+  --color-border-strong: #24344A;
+
+  /* Text */
+  --color-heading:  #E9F1F8;
+  --color-body:     #93A6BC;
+  --color-muted:    #6E8399;
+  --color-disabled: #4A5A6C;
+
+  /* Accent — the trace */
+  --color-accent:         #00B7FF;
+  --color-accent-hover:   #5EE9FF;
+  --color-accent-pressed: #0093CC;
+  --color-accent-ink:     #04121B;
+
+  /* Semantic */
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
+  --color-error:   #F87171;
+  --color-info:    #38BDF8;
+
+  /* Legacy brand aliases — kept so any stray utility class still resolves */
+  --color-brand-black: #05070C;
+  --color-brand-navy:  #0C121C;
+  --color-brand-blue:  #00B7FF;
+  --color-brand-muted: #6E8399;
 }
 
 :root {
-  --background: #0b0f19;
-  --foreground: #e2e8f0;
-  --card-bg:    #101624;
-  --card-border: #263457;
-  --muted-text: #636972;
-  --accent:     #263457;
+  --background:    #05070C;
+  --foreground:    #93A6BC;
+  --heading:       #E9F1F8;
+  --panel:         #0C121C;
+  --panel-raised:  #121A26;
+  --hairline:      #17222F;
+  --border-strong: #24344A;
+  --muted-text:    #6E8399;
+  --accent:        #00B7FF;
+  --accent-hover:  #5EE9FF;
+  --accent-ink:    #04121B;
+  --accent-tint:   rgba(0, 183, 255, 0.12);
+  --focus-ring:    rgba(94, 233, 255, 0.45);
 }
 
 body {
@@ -26,7 +60,14 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
+  color: var(--heading);
   font-family: var(--font-syne), system-ui, sans-serif;
+}
+
+/* Accessible focus ring — cyan trace, 2px offset */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 /* Button shimmer sweep */
@@ -41,17 +82,115 @@ h1, h2, h3, h4, h5, h6 {
   left: -100%;
   width: 60%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.10), transparent);
-  transition: left 0.5s ease;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transition: left 0.55s ease;
   pointer-events: none;
+  z-index: 0;
 }
 .btn-shimmer:hover::before {
   left: 160%;
 }
+.btn-shimmer > * {
+  position: relative;
+  z-index: 1;
+}
 
+/* Shared button motion — used by both variants */
+.btn-primary,
+.btn-ghost {
+  transition:
+    color 0.25s ease,
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.3s ease;
+}
+
+/* Primary — plain blue fill, blue border, white label; hover inverts to outline */
+.btn-primary {
+  background: #00B7FF;
+  color: #ffffff;
+  border: 1px solid #00B7FF;
+}
+.btn-primary:hover {
+  background: transparent;
+  color: #00B7FF;
+  border-color: #00B7FF;
+  box-shadow: 0 0 24px rgba(0, 183, 255, 0.35);
+}
+
+/* Secondary — blue outline, blue label; hover inverts to plain blue fill */
+.btn-ghost {
+  background: transparent;
+  color: #00B7FF;
+  border: 1px solid #00B7FF;
+}
+.btn-ghost:hover {
+  background: #00B7FF;
+  color: #ffffff;
+  border-color: #00B7FF;
+  box-shadow: 0 0 24px rgba(0, 183, 255, 0.35);
+}
+
+/* Glow only on interaction — the trace ignites */
 @keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 12px rgba(38,52,87,0.6); }
-  50%       { box-shadow: 0 0 24px rgba(38,52,87,1); }
+  0%, 100% { box-shadow: 0 0 12px rgba(0, 183, 255, 0.35); }
+  50%      { box-shadow: 0 0 24px rgba(0, 183, 255, 0.6); }
+}
+
+/* Nav links — animated cyan trace underline */
+.nav-link {
+  position: relative;
+  color: var(--body);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 1.5px;
+  background: linear-gradient(90deg, #00B7FF, #5EE9FF);
+  border-radius: 2px;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nav-link:hover {
+  color: var(--heading);
+}
+.nav-link:hover::after {
+  transform: scaleX(1);
+}
+
+/* Footer link — muted, brightens on hover */
+.footer-link {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.footer-link:hover {
+  color: var(--heading);
+}
+
+/* Social / icon button — hairline that ignites cyan on hover */
+.social-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.social-btn:hover {
+  color: #E9F1F8;
+  border-color: rgba(0, 183, 255, 0.45);
+  background: rgba(0, 183, 255, 0.08);
 }
 
 @keyframes bladeSweep {

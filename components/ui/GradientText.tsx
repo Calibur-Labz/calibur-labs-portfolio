@@ -12,7 +12,7 @@ export default function GradientText({ children, as: Tag = 'span', className = '
     <Tag
       className={className}
       style={{
-        background: 'linear-gradient(135deg, #ffffff 0%, #8a9099 100%)',
+        background: 'linear-gradient(135deg, #E9F1F8 0%, #93A6BC 100%)',
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
         backgroundClip: 'text',

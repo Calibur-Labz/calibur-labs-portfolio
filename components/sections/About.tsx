@@ -51,7 +51,7 @@ export default function About() {
           <motion.p
             variants={fadeUp}
             style={{
-              color: '#8a9099',
+              color: '#93A6BC',
               fontSize: '16px',
               lineHeight: 1.8,
               marginBottom: '16px',
@@ -59,7 +59,7 @@ export default function About() {
               textAlign: 'center',
             }}
           >
-            Calibur Labs is a startup founded in 2026 by a group of undergraduate engineers who believe great software starts with a deep understanding of the business behind it. We are young, hungry, and we care about every line of code.
+            xCalibur Labz is a startup founded in 2026 by a group of undergraduate engineers who believe great software starts with a deep understanding of the business behind it. We are young, hungry, and we care about every line of code.
           </motion.p>
 
           {/* Highlights */}
@@ -79,7 +79,7 @@ export default function About() {
                 key={h.label}
                 style={{
                   padding: '32px 24px',
-                  background: '#0b0f19',
+                  background: '#0C121C',
                   textAlign: 'center',
                   borderRight: i < highlights.length - 1 ? '1px solid rgba(255,255,255,0.07)' : 'none',
                 }}
@@ -88,7 +88,7 @@ export default function About() {
                   fontFamily: 'var(--font-syne), system-ui, sans-serif',
                   fontWeight: 800,
                   fontSize: 'clamp(28px, 3vw, 40px)',
-                  color: '#ffffff',
+                  color: '#E9F1F8',
                   margin: '0 0 6px',
                   letterSpacing: '-0.02em',
                 }}>
@@ -96,7 +96,7 @@ export default function About() {
                 </p>
                 <p style={{
                   fontSize: '13px',
-                  color: '#636972',
+                  color: '#6E8399',
                   margin: 0,
                   fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                   fontWeight: 500,
@@ -114,16 +114,13 @@ export default function About() {
                 display: 'inline-flex',
                 alignItems: 'center',
                 padding: '13px 30px',
-                borderRadius: '15px',
-                background: '#ffffff',
-                color: '#000000',
+                borderRadius: '12px',
                 fontSize: '14px',
                 fontWeight: 600,
                 fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                 textDecoration: 'none',
-                transition: 'opacity 0.2s',
               }}
-              className="btn-shimmer"
+              className="btn-shimmer btn-ghost"
             >
               Work With Us →
             </a>

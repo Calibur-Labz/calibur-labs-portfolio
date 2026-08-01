@@ -35,8 +35,8 @@ function MarqueeRow({ items, reverse = false }: { items: typeof techStack; rever
             }}
             onMouseEnter={(e) => {
               const el = e.currentTarget as HTMLElement
-              el.style.borderColor = 'rgba(38,52,87,0.6)'
-              el.style.background = 'rgba(251,191,36,0.04)'
+              el.style.borderColor = 'rgba(0,183,255,0.45)'
+              el.style.background = 'rgba(0,183,255,0.05)'
             }}
             onMouseLeave={(e) => {
               const el = e.currentTarget as HTMLElement
@@ -56,7 +56,7 @@ function MarqueeRow({ items, reverse = false }: { items: typeof techStack; rever
               style={{
                 fontSize: '13px',
                 fontWeight: 500,
-                color: '#636972',
+                color: '#6E8399',
                 fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                 whiteSpace: 'nowrap',
               }}

@@ -39,8 +39,8 @@ export default function HeroParticles() {
     const MAX_DIST  = 128
     const WAVE_SPD  = 0.2
 
-    // Cyan palette
-    const CR = 0, CG = 215, CB = 245   // particle / line color
+    // Cyan trace palette
+    const CR = 0, CG = 183, CB = 255   // particle / line color
     // ────────────────────────────────────────────────────────────────────────
 
     const particles: Particle[] = []

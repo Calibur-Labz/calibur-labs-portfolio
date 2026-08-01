@@ -14,6 +14,7 @@ export default function Services() {
         position: 'relative',
         zIndex: 10,
         padding: '60px 24px',
+        background: '#0A0F16',
       }}
     >
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -45,7 +46,7 @@ export default function Services() {
           <motion.p
             variants={fadeUp}
             style={{
-              color: '#636972',
+              color: '#6E8399',
               fontSize: '16px',
               lineHeight: 1.7,
               marginTop: '16px',
@@ -89,8 +90,8 @@ export default function Services() {
               }}
               onMouseEnter={(e) => {
                 const el = e.currentTarget as HTMLElement
-                el.style.borderColor = 'rgba(38,52,87,0.6)'
-                el.style.boxShadow = '0 0 40px rgba(38,52,87,0.2)'
+                el.style.borderColor = 'rgba(0,183,255,0.45)'
+                el.style.boxShadow = '0 0 40px rgba(0,183,255,0.25)'
               }}
               onMouseLeave={(e) => {
                 const el = e.currentTarget as HTMLElement
@@ -105,7 +106,7 @@ export default function Services() {
                 left: '20%',
                 width: '60%',
                 height: '1px',
-                background: 'linear-gradient(90deg, transparent, rgba(38,52,87,0.5), transparent)',
+                background: 'linear-gradient(90deg, transparent, rgba(36,52,74,0.7), transparent)',
               }} />
 
               {/* Icon */}
@@ -114,13 +115,13 @@ export default function Services() {
                   width: '48px',
                   height: '48px',
                   borderRadius: '12px',
-                  background: 'rgba(38,52,87,0.3)',
-                  border: '1px solid rgba(38,52,87,0.5)',
+                  background: 'rgba(0,183,255,0.12)',
+                  border: '1px solid rgba(0,183,255,0.25)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '22px',
-                  color: '#ffffff',
+                  color: '#00B7FF',
                   marginBottom: '20px',
                 }}
               >
@@ -131,7 +132,7 @@ export default function Services() {
                 style={{
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: '#e2e8f0',
+                  color: '#E9F1F8',
                   margin: '0 0 12px',
                   fontFamily: 'var(--font-syne), system-ui, sans-serif',
                   letterSpacing: '-0.01em',
@@ -142,7 +143,7 @@ export default function Services() {
               <p
                 style={{
                   fontSize: '14px',
-                  color: '#636972',
+                  color: '#6E8399',
                   lineHeight: 1.7,
                   margin: 0,
                   fontFamily: 'var(--font-poppins), system-ui, sans-serif',

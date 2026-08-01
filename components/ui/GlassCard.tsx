@@ -30,7 +30,7 @@ export default function GlassCard({ children, className = '', style }: GlassCard
           left: '20%',
           width: '60%',
           height: '1px',
-          background: 'linear-gradient(90deg, transparent, rgba(38,52,87,0.7), transparent)',
+          background: 'linear-gradient(90deg, transparent, rgba(0,183,255,0.45), transparent)',
           pointerEvents: 'none',
         }}
       />

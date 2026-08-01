@@ -3,10 +3,10 @@ import { syne, poppins } from './fonts'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Calibur Labs',
+  title: 'Calibur Labz',
   description: "Let's discuss your project and create software that drives real business results.",
   openGraph: {
-    title: 'Calibur Labs',
+    title: 'Calibur Labz',
     description: "Let's discuss your project and create software that drives real business results.",
     images: [{ url: '/images/og-image.png', width: 1200, height: 630 }],
   },

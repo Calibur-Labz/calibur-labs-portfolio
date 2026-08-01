@@ -20,6 +20,7 @@ export default function Contact() {
         position: 'relative',
         zIndex: 10,
         padding: '60px 24px',
+        background: '#0A0F16',
       }}
     >
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -52,7 +53,7 @@ export default function Contact() {
           <motion.p
             variants={fadeUp}
             style={{
-              color: '#636972',
+              color: '#6E8399',
               fontSize: '16px',
               lineHeight: 1.8,
               fontFamily: 'var(--font-poppins), system-ui, sans-serif',
@@ -94,7 +95,7 @@ export default function Contact() {
               <div>
                 <p style={{
                   fontSize: '11px',
-                  color: '#636972',
+                  color: '#6E8399',
                   margin: '0 0 2px',
                   fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                   textTransform: 'uppercase',
@@ -105,7 +106,7 @@ export default function Contact() {
                 </p>
                 <p style={{
                   fontSize: '14px',
-                  color: '#8a9099',
+                  color: '#93A6BC',
                   margin: 0,
                   fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                 }}>
@@ -125,7 +126,7 @@ export default function Contact() {
         >
           <GlassCard style={{ padding: '48px 40px', textAlign: 'center' }}>
             <p style={{
-              color: '#636972',
+              color: '#6E8399',
               fontSize: '15px',
               lineHeight: 1.8,
               fontFamily: 'var(--font-poppins), system-ui, sans-serif',
@@ -137,15 +138,13 @@ export default function Contact() {
               href="mailto:caliburlabz@gmail.com"
               whileHover={{ scale: 1 }}
               whileTap={{ scale: 0.97 }}
-              className="btn-shimmer"
+              className="btn-shimmer btn-ghost"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
                 padding: '16px 36px',
-                borderRadius: '15px',
-                background: '#ffffff',
-                color: '#000000',
+                borderRadius: '12px',
                 fontSize: '15px',
                 fontWeight: 700,
                 fontFamily: 'var(--font-poppins), system-ui, sans-serif',

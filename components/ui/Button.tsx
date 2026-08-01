@@ -38,21 +38,9 @@ export default function Button({
     cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.5 : 1,
     textDecoration: 'none',
-    border: '1px solid',
-    ...(isPrimary
-      ? {
-          background: '#ffffff',
-          borderColor: '#ffffff',
-          color: '#000000',
-        }
-      : {
-          background: 'transparent',
-          borderColor: 'rgba(255,255,255,0.12)',
-          color: '#e2e8f0',
-        }),
   }
 
-  const cls = `btn-shimmer ${className}`.trim()
+  const cls = `btn-shimmer ${isPrimary ? 'btn-primary' : 'btn-ghost'} ${className}`.trim()
 
   if (href) {
     return (

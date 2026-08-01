@@ -24,6 +24,7 @@ export default function Projects() {
         position: 'relative',
         zIndex: 10,
         padding: '60px 24px',
+        background: '#0A0F16',
       }}
     >
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -54,7 +55,7 @@ export default function Projects() {
           <motion.p
             variants={fadeUp}
             style={{
-              color: '#636972',
+              color: '#6E8399',
               fontSize: '16px',
               lineHeight: 1.8,
               marginTop: '16px',
@@ -75,13 +76,13 @@ export default function Projects() {
                 padding: '8px 20px',
                 borderRadius: '8px',
                 border: 'none',
-                background: active === f ? 'rgba(38,52,87,0.4)' : 'transparent',
-                color: active === f ? '#ffffff' : '#636972',
+                background: active === f ? 'rgba(0,183,255,0.12)' : 'transparent',
+                color: active === f ? '#E9F1F8' : '#6E8399',
                 fontSize: '14px',
                 fontWeight: 600,
                 fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                 cursor: 'pointer',
-                borderBottom: active === f ? '2px solid #ffffff' : '2px solid transparent',
+                borderBottom: active === f ? '2px solid #00B7FF' : '2px solid transparent',
                 transition: 'all 0.2s',
               }}
             >
@@ -109,20 +110,22 @@ export default function Projects() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.88 }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
+                whileHover="hover"
+                variants={{ hover: { y: -8 } }}
                 style={{
                   position: 'relative',
-                  borderRadius: '16px',
+                  borderRadius: '18px',
                   overflow: 'hidden',
                   aspectRatio: '3/2',
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.08)',
                   cursor: 'pointer',
+                  background: '#0D141D',
                 }}
-                whileHover="hover"
               >
                 {/* Image with subtle zoom on hover */}
                 <motion.div
-                  variants={{ hover: { scale: 1.05 } }}
-                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                  variants={{ hover: { scale: 1.07 } }}
+                  transition={{ duration: 0.5, ease: 'easeOut' }}
                   style={{ position: 'absolute', inset: 0 }}
                 >
                   <Image
@@ -133,59 +136,114 @@ export default function Projects() {
                   />
                 </motion.div>
 
-                {/* Hover overlay */}
+                {/* Cyan glow ring on hover */}
                 <motion.div
                   variants={{ hover: { opacity: 1 } }}
                   initial={{ opacity: 0 }}
+                  transition={{ duration: 0.35 }}
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 60%, transparent 100%)',
+                    borderRadius: '18px',
+                    border: '1px solid rgba(0,183,255,0.55)',
+                    boxShadow: 'inset 0 0 30px rgba(0,183,255,0.18), 0 20px 50px -20px rgba(0,183,255,0.4)',
+                    pointerEvents: 'none',
+                    zIndex: 3,
+                  }}
+                />
+
+                {/* Category badge — always visible */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '14px',
+                    left: '14px',
+                    zIndex: 2,
+                    padding: '5px 12px',
+                    borderRadius: '99px',
+                    background: 'rgba(10,15,22,0.55)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(0,183,255,0.35)',
+                    color: '#5EE9FF',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    fontFamily: 'var(--font-poppins), system-ui, sans-serif',
+                  }}
+                >
+                  {project.category}
+                </div>
+
+                {/* Bottom scrim + content */}
+                <motion.div
+                  variants={{ hover: { background: 'linear-gradient(to top, rgba(5,9,14,0.97) 0%, rgba(5,9,14,0.7) 55%, transparent 100%)' } }}
+                  initial={{ background: 'linear-gradient(to top, rgba(5,9,14,0.9) 0%, rgba(5,9,14,0.25) 45%, transparent 75%)' }}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'flex-end',
                     padding: '20px',
+                    zIndex: 2,
                   }}
                 >
-                  <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#e2e8f0', margin: '0 0 10px', fontFamily: 'var(--font-syne), system-ui, sans-serif' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#E9F1F8', margin: '0 0 10px', fontFamily: 'var(--font-syne), system-ui, sans-serif' }}>
                     {project.title}
                   </h3>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: project.url ? '12px' : '0' }}>
-                    {project.tags.map((tag) => (
-                      <span
-                        key={tag}
+
+                  {/* Tags + link reveal on hover */}
+                  <motion.div
+                    variants={{ hover: { opacity: 1, height: 'auto', marginTop: 0 } }}
+                    initial={{ opacity: 0, height: 0, marginTop: -4 }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: project.url ? '12px' : '0' }}>
+                      {project.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          style={{
+                            padding: '3px 10px',
+                            borderRadius: '99px',
+                            background: 'rgba(0,183,255,0.10)',
+                            border: '1px solid rgba(0,183,255,0.22)',
+                            color: '#93A6BC',
+                            fontSize: '11px',
+                            fontFamily: 'var(--font-poppins), system-ui, sans-serif',
+                          }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    {project.url && (
+                      <a
+                        href={project.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         style={{
-                          padding: '3px 10px',
-                          borderRadius: '99px',
-                          background: 'rgba(255,255,255,0.10)',
-                          border: '1px solid rgba(255,255,255,0.14)',
-                          color: '#cbd5e1',
-                          fontSize: '11px',
+                          color: '#5EE9FF',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          textDecoration: 'none',
                           fontFamily: 'var(--font-poppins), system-ui, sans-serif',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
                         }}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  {project.url && (
-                    <a
-                      href={project.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        color: '#ffffff',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        textDecoration: 'none',
-                        fontFamily: 'var(--font-poppins), system-ui, sans-serif',
-                        display: 'inline-block',
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View Project →
-                    </a>
-                  )}
+                        View Project
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <line x1="7" y1="17" x2="17" y2="7" />
+                          <polyline points="7 7 17 7 17 17" />
+                        </svg>
+                      </a>
+                    )}
+                  </motion.div>
                 </motion.div>
               </motion.div>
             ))}

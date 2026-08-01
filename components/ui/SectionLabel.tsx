@@ -11,10 +11,10 @@ export default function SectionLabel({ children, className = '' }: { children: R
         marginBottom: '16px',
       }}
     >
-      <div style={{ width: '24px', height: '2px', background: '#263457', borderRadius: '2px' }} />
+      <div style={{ width: '24px', height: '2px', background: '#00B7FF', borderRadius: '2px' }} />
       <span
         style={{
-          color: '#636972',
+          color: '#6E8399',
           fontSize: '12px',
           fontWeight: 600,
           letterSpacing: '0.15em',

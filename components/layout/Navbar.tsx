@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -29,79 +29,78 @@ export default function Navbar() {
         left: 0,
         right: 0,
         zIndex: 100,
-        padding: '0 24px',
-        transition: 'background 0.3s ease, box-shadow 0.3s ease',
-        background: scrolled ? '#090c14' : 'transparent',
-        backdropFilter: scrolled ? 'blur(20px)' : 'none',
-        WebkitBackdropFilter: scrolled ? 'blur(20px)' : 'none',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        display: 'flex',
+        justifyContent: 'center',
+        padding: scrolled ? '12px 20px' : '22px 20px',
+        transition: 'padding 0.35s cubic-bezier(0.16,1,0.3,1)',
       }}
     >
+      {/* Floating glass capsule */}
       <nav
         style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
+          width: '100%',
+          maxWidth: '1120px',
           height: '72px',
+          paddingLeft: '22px',
+          paddingRight: scrolled ? '12px' : '14px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          borderRadius: '18px',
+          background: scrolled ? 'rgba(10,15,22,0.72)' : 'rgba(10,15,22,0.30)',
+          backdropFilter: 'blur(16px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(16px) saturate(150%)',
+          border: `1px solid ${scrolled ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.05)'}`,
+          boxShadow: scrolled
+            ? '0 12px 40px -12px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)'
+            : 'inset 0 1px 0 rgba(255,255,255,0.04)',
+          transition:
+            'background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, padding 0.35s ease',
         }}
       >
         {/* Logo */}
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-         <Image
-          src="/images/logo.png"
-          alt="Calibur Labs"
-          width={140}
-          height={70}
-        />
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+          <Image
+            src="/images/logoo.png"
+            alt="xCalibur Labz"
+            width={140}
+            height={70}
+            priority
+            style={{ height: '90px', width: 'auto' }}
+          />
         </Link>
 
         {/* Desktop Nav */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '40px',
-          }}
-          className="hidden-mobile"
-        >
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              style={{
-                color: '#8a9099',
-                fontSize: '14px',
-                fontWeight: 500,
-                fontFamily: 'var(--font-poppins), system-ui, sans-serif',
-                textDecoration: 'none',
-                transition: 'color 0.2s',
-              }}
-              onMouseEnter={(e) => ((e.target as HTMLElement).style.color = '#e2e8f0')}
-              onMouseLeave={(e) => ((e.target as HTMLElement).style.color = '#8a9099')}
-            >
-              {link.label}
-            </Link>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '36px' }} className="hidden-mobile">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '30px' }}>
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="nav-link"
+                style={{
+                  fontSize: '15px',
+                  fontWeight: 500,
+                  fontFamily: 'var(--font-poppins), system-ui, sans-serif',
+                }}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
           <Link
             href="#contact"
+            className="btn-shimmer btn-ghost"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              padding: '10px 22px',
-              borderRadius: '8px',
-              background: '#ffffff',
-              color: '#000000',
-              fontSize: '14px',
+              padding: '11px 24px',
+              borderRadius: '12px',
+              fontSize: '15px',
               fontWeight: 600,
               fontFamily: 'var(--font-poppins), system-ui, sans-serif',
               textDecoration: 'none',
-              transition: 'opacity 0.2s',
             }}
-            className="btn-shimmer"
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = '0.85')}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = '1')}
           >
             Start a Project
           </Link>
@@ -122,9 +121,9 @@ export default function Navbar() {
           }}
           aria-label="Toggle menu"
         >
-          <span style={{ display: 'block', width: '22px', height: '2px', background: '#e2e8f0', borderRadius: '2px', transition: 'transform 0.2s', transform: menuOpen ? 'rotate(45deg) translateY(7px)' : 'none' }} />
-          <span style={{ display: 'block', width: '22px', height: '2px', background: '#e2e8f0', borderRadius: '2px', opacity: menuOpen ? 0 : 1, transition: 'opacity 0.2s' }} />
-          <span style={{ display: 'block', width: '22px', height: '2px', background: '#e2e8f0', borderRadius: '2px', transition: 'transform 0.2s', transform: menuOpen ? 'rotate(-45deg) translateY(-7px)' : 'none' }} />
+          <span style={{ display: 'block', width: '22px', height: '2px', background: '#E9F1F8', borderRadius: '2px', transition: 'transform 0.2s', transform: menuOpen ? 'rotate(45deg) translateY(7px)' : 'none' }} />
+          <span style={{ display: 'block', width: '22px', height: '2px', background: '#E9F1F8', borderRadius: '2px', opacity: menuOpen ? 0 : 1, transition: 'opacity 0.2s' }} />
+          <span style={{ display: 'block', width: '22px', height: '2px', background: '#E9F1F8', borderRadius: '2px', transition: 'transform 0.2s', transform: menuOpen ? 'rotate(-45deg) translateY(-7px)' : 'none' }} />
         </button>
       </nav>
 
@@ -132,29 +131,40 @@ export default function Navbar() {
       <AnimatePresence>
         {menuOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="show-mobile"
             style={{
+              position: 'absolute',
+              top: '100%',
+              left: '20px',
+              right: '20px',
+              flexDirection: 'column',
               overflow: 'hidden',
-              background: '#090c14',
-              backdropFilter: 'blur(20px)',
-              borderTop: '1px solid rgba(255,255,255,0.05)',
+              borderRadius: '18px',
+              background: 'rgba(10,15,22,0.9)',
+              backdropFilter: 'blur(20px) saturate(150%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+              border: '1px solid rgba(255,255,255,0.09)',
+              boxShadow: '0 20px 50px -12px rgba(0,0,0,0.6)',
             }}
           >
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {links.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
                   onClick={() => setMenuOpen(false)}
                   style={{
-                    color: '#8a9099',
+                    color: '#93A6BC',
                     fontSize: '16px',
                     fontWeight: 500,
                     fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                     textDecoration: 'none',
+                    padding: '12px 12px',
+                    borderRadius: '10px',
                   }}
                 >
                   {link.label}
@@ -163,20 +173,18 @@ export default function Navbar() {
               <Link
                 href="#contact"
                 onClick={() => setMenuOpen(false)}
-                className="btn-shimmer"
+                className="btn-shimmer btn-primary"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  marginTop: '10px',
                   padding: '14px 30px',
-                  borderRadius: '15px',
-                  background: '#ffffff',
-                  color: '#000000',
+                  borderRadius: '12px',
                   fontSize: '14px',
                   fontWeight: 600,
                   fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                   textDecoration: 'none',
-                  transition: 'opacity 0.2s',
                 }}
               >
                 Start a Project

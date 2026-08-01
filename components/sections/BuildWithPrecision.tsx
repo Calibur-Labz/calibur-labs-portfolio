@@ -12,6 +12,7 @@ export default function BuildWithPrecision() {
         position: 'relative',
         zIndex: 10,
         padding: '60px 24px',
+        background: '#0A0F16',
         borderTop: '1px solid rgba(255,255,255,0.04)',
       }}
     >
@@ -47,7 +48,7 @@ export default function BuildWithPrecision() {
             <motion.p
               variants={fadeUp}
               style={{
-                color: '#636972',
+                color: '#6E8399',
                 fontSize: '17px',
                 lineHeight: 1.8,
                 marginTop: '24px',
@@ -55,8 +56,8 @@ export default function BuildWithPrecision() {
                 maxWidth: '480px',
               }}
             >
-              Inspired by the strength and clarity of the legendary blade, Calibur
-              Labs focuses on delivering clean, scalable, and reliable IT systems.
+              Inspired by the strength and clarity of the legendary blade, xCalibur
+              Labz focuses on delivering clean, scalable, and reliable IT systems.
             </motion.p>
           </motion.div>
 

@@ -25,6 +25,7 @@ export type Testimonial = {
   title: string
   company: string
   avatar: string
+  rating?: number
 }
 
 export const services: Service[] = [
@@ -132,21 +133,21 @@ export const techStack: TechItem[] = [
 export const testimonials: Testimonial[] = [
 {
     quote:
-      "Calibur Labs played a key role in shaping our brand identity and improving our digital presence. Their team conducted in-depth research into our business model and provided valuable design ideas tailored to our needs. We also gained strong technical insights throughout the process, along with a smooth and professional experience. Their pricing was very reasonable considering the value delivered, which made it an easy decision to continue working with them.",
+      "xCalibur Labz played a key role in shaping our brand identity and improving our digital presence. Their team conducted in-depth research into our business model and provided valuable design ideas tailored to our needs. We also gained strong technical insights throughout the process, along with a smooth and professional experience. Their pricing was very reasonable considering the value delivered, which made it an easy decision to continue working with them.",
     author: 'Preminda Kalansooriya',
     title: 'Founder',
     company: 'Premo Heritage Villa',
     avatar: '/images/premo.png',
   },
   // {
-  //   quote: "From design to deployment, the Calibur Labs team delivered beyond our expectations. Our app launch was the smoothest we've ever had.",
+  //   quote: "From design to deployment, the Calibur Labz team delivered beyond our expectations. Our app launch was the smoothest we've ever had.",
   //   author: 'Sarah Chen',
   //   title: 'Founder',
   //   company: 'Bloom Health',
   //   avatar: '/images/avatars/client-2.jpg',
   // },
   // {
-  //   quote: "Working with Calibur Labs felt like having a world-class engineering team in-house. They understood our business goals and built accordingly.Working with Calibur Labs felt like having a world-class engineering team in-house. They understood our business goals and built accordingly.",
+  //   quote: "Working with Calibur Labz felt like having a world-class engineering team in-house. They understood our business goals and built accordingly.Working with Calibur Labz felt like having a world-class engineering team in-house. They understood our business goals and built accordingly.",
   //   author: 'Marcus Williams',
   //   title: 'Head of Product',
   //   company: 'Forge Analytics',

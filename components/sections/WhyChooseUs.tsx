@@ -57,7 +57,7 @@ export default function WhyChooseUs() {
           style={{ marginBottom: '64px' }}
         >
           <motion.div variants={fadeUp}>
-            <SectionLabel>Why Calibur Labs</SectionLabel>
+            <SectionLabel>Why xCalibur Labz</SectionLabel>
           </motion.div>
           <motion.div variants={fadeUp}>
             <GradientText
@@ -95,20 +95,20 @@ export default function WhyChooseUs() {
               style={{
                 padding: '36px 32px',
                 borderRadius: '16px',
-                background: '#101624',
+                background: '#0C121C',
                 border: '1px solid rgba(255,255,255,0.04)',
                 transition: 'border-color 0.3s, background 0.3s',
                 cursor: 'default',
               }}
               onMouseEnter={(e) => {
                 const el = e.currentTarget as HTMLElement
-                el.style.borderColor = 'rgba(38,52,87,0.6)'
-                el.style.background = '#131a2a'
+                el.style.borderColor = 'rgba(0,183,255,0.45)'
+                el.style.background = '#121A26'
               }}
               onMouseLeave={(e) => {
                 const el = e.currentTarget as HTMLElement
                 el.style.borderColor = 'rgba(255,255,255,0.04)'
-                el.style.background = '#101624'
+                el.style.background = '#0C121C'
               }}
             >
               <span
@@ -117,10 +117,10 @@ export default function WhyChooseUs() {
                   fontFamily: 'var(--font-syne), system-ui, sans-serif',
                   fontWeight: 800,
                   fontSize: '12px',
-                  color: '#fff',
+                  color: '#E9F1F8',
                   letterSpacing: '0.2em',
                   marginBottom: '20px',
-                  background: 'rgba(38,52,87,0.25)',
+                  background: 'rgba(0,183,255,0.12)',
                   padding: '4px 10px',
                   borderRadius: '4px',
                 }}
@@ -132,7 +132,7 @@ export default function WhyChooseUs() {
                   fontFamily: 'var(--font-syne), system-ui, sans-serif',
                   fontWeight: 700,
                   fontSize: '19px',
-                  color: '#e2e8f0',
+                  color: '#E9F1F8',
                   margin: '0 0 12px',
                   letterSpacing: '-0.01em',
                 }}
@@ -143,7 +143,7 @@ export default function WhyChooseUs() {
                 style={{
                   fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                   fontSize: '14px',
-                  color: '#636972',
+                  color: '#6E8399',
                   lineHeight: 1.7,
                   margin: 0,
                 }}
