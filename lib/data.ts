@@ -33,7 +33,7 @@ export const services: Service[] = [
     id: 'web',
     icon: '⬡',
     title: 'Web Development',
-    description: 'Scalable, performant web applications built with modern frameworks — from MVPs to enterprise-grade platforms.',
+    description: 'Scalable, performant web applications built with modern frameworks, from MVPs to enterprise grade platforms.',
   },
   {
     id: 'mobile',
@@ -57,7 +57,7 @@ export const services: Service[] = [
     id: 'ai',
     icon: '◎',
     title: 'AI Integration',
-    description: 'Embed intelligent features into your product — from LLM-powered workflows to custom ML model deployment.',
+    description: 'Embed intelligent features into your product from LLM-powered workflows to custom ML model deployment.',
   },
   {
     id: 'business-systems',
