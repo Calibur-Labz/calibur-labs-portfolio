@@ -173,7 +173,7 @@ export default function Navbar() {
               <Link
                 href="#contact"
                 onClick={() => setMenuOpen(false)}
-                className="btn-shimmer btn-primary"
+                className="btn-shimmer btn-ghost"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',

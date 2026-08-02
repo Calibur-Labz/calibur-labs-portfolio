@@ -189,7 +189,7 @@ export default function Hero() {
             </a>
             <a
               href="#contact"
-              className="btn-shimmer btn-ghost"
+              className="btn-shimmer btn-primary btn-primary--alt"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

@@ -107,15 +107,60 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Primary — plain blue fill, blue border, white label; hover inverts to outline */
 .btn-primary {
-  background: #00B7FF;
-  color: #ffffff;
-  border: 1px solid #00B7FF;
+  background: transparent;
+  color: #00B7FF;
+  border: 2px solid rgba(0, 183, 255, 0.25);
 }
 .btn-primary:hover {
   background: transparent;
   color: #00B7FF;
-  border-color: #00B7FF;
-  box-shadow: 0 0 24px rgba(0, 183, 255, 0.35);
+  border-color: transparent;
+  box-shadow: 0 0 28px rgba(0, 183, 255, 0.4);
+}
+
+/* Premium rotating gradient border ring — sits inside the button bounds
+   (mask leaves only the rim), so it survives .btn-shimmer's overflow:hidden */
+@property --btn-border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--btn-border-angle),
+    transparent 0deg,
+    transparent 300deg,
+    rgba(94, 233, 255, 0.6) 335deg,
+    #ffffff 350deg,
+    rgba(94, 233, 255, 0.6) 358deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: spinBtnBorder 4s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.btn-primary:hover::after {
+  padding: 2px;
+  filter: drop-shadow(0 0 6px rgba(94, 233, 255, 0.55));
+}
+
+/* "Talk to Us" — same blade look, small tweaks: faint blue tint + shine
+   travels the opposite way, so the pair reads as siblings, not clones */
+.btn-primary--alt {
+  background: rgba(0, 183, 255, 0.07);
+}
+@keyframes spinBtnBorder {
+  to { --btn-border-angle: 360deg; }
 }
 
 /* Secondary — blue outline, blue label; hover inverts to plain blue fill */
@@ -218,10 +263,10 @@ html {
     box-shadow 0.3s ease,
     transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.btn-primary:hover,
+/* .btn-primary:hover,
 .btn-ghost:hover {
   transform: translateY(-2px);
-}
+} */
 .btn-primary:active,
 .btn-ghost:active {
   transform: translateY(0) scale(0.97);
@@ -232,10 +277,10 @@ html {
 .btn-ghost svg {
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.btn-primary:hover svg,
+/* .btn-primary:hover svg,
 .btn-ghost:hover svg {
   transform: translateX(4px);
-}
+} */
 
 /* Ambient float — opt-in via .float for hero accents */
 @keyframes floatY {

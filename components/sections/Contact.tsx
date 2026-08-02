@@ -38,6 +38,8 @@ function ContactPill({ d }: { d: Detail }) {
         background: 'rgba(255,255,255,0.03)',
         border: '1px solid rgba(255,255,255,0.07)',
         cursor: d.href ? 'pointer' : 'default',
+        flex: '1 1 220px',
+        minWidth: 0,
       }}
     >
       {/* Icon */}
@@ -116,7 +118,17 @@ export default function Contact() {
                 marginBottom: '20px',
               }}
             >
-              Ready to Build Something Great?
+              Ready to Build{' '}
+              <span
+                style={{
+                  background: 'linear-gradient(135deg, #00B7FF 0%, #5EE9FF 100%)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Something Great?
+              </span>
             </GradientText>
           </motion.div>
           <motion.p
