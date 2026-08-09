@@ -375,6 +375,28 @@ html {
   }
 }
 
+/* Emergency button on the maintenance page — flat, no glow/shade/ring */
+.maint-emergency,
+.maint-emergency:hover,
+.maint-emergency:active,
+.maint-emergency:focus,
+.maint-emergency:focus-visible {
+  box-shadow: none !important;
+  outline: none !important;
+}
+/* Hover: keep the flat outline — no blue background fill, just the shine sweep */
+.maint-emergency:hover {
+  background: transparent !important;
+  color: #00B7FF !important;
+  border-color: #00B7FF !important;
+}
+/* Kill only the rotating border ring; keep the left→right shimmer (::before) */
+.maint-emergency::after {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+}
+
 /* Honor the user's motion preference — disable non-essential motion */
 @media (prefers-reduced-motion: reduce) {
   html {

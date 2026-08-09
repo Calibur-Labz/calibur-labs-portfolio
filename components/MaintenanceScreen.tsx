@@ -21,9 +21,9 @@ export default function MaintenanceScreen({ phone }: { phone: string }) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         textAlign: 'center',
-        padding: '32px 24px',
+        padding: '200px 24px 48px',
         position: 'relative',
         overflow: 'hidden',
         background:
@@ -106,13 +106,13 @@ export default function MaintenanceScreen({ phone }: { phone: string }) {
         {/* Emergency contact button */}
         <a
           href={telHref(phone)}
-          className="btn-shimmer btn-primary maint-emergency"
+          className="btn-shimmer btn-ghost maint-emergency"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '10px',
             padding: '16px 32px',
-            borderRadius: '14px',
+            borderRadius: '12px',
             fontSize: '15px',
             fontWeight: 700,
             fontFamily: 'var(--font-poppins), system-ui, sans-serif',
