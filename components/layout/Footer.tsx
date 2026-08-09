@@ -98,6 +98,40 @@ export default function Footer() {
             >
               Software that drives real business results built with precision, shipped with care.
             </p>
+
+            {/* Founder — forged in the Excalibur tradition */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '9px 14px',
+                marginBottom: '22px',
+                borderRadius: '10px',
+                border: '1px solid rgba(0,183,255,0.18)',
+                background: 'rgba(0,183,255,0.04)',
+                fontFamily: 'var(--font-poppins), system-ui, sans-serif',
+              }}
+            >
+              <span aria-hidden="true" style={{ color: '#5EE9FF', fontSize: '15px', lineHeight: 1 }}>⚔</span>
+              <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    color: '#6E8399',
+                    fontWeight: 600,
+                  }}
+                >
+                  Forged by
+                </span>
+                <span style={{ fontSize: '13px', color: '#E9F1F8', fontWeight: 600 }}>
+                  Buddhima Vilochana <span style={{ color: '#00B7FF', fontWeight: 500 }}>· Founder</span>
+                </span>
+              </span>
+            </div>
+
             <div style={{ display: 'flex', gap: '10px' }}>
               {socialLinks.map((s) => {
                 const external = s.href.startsWith('http')

@@ -291,6 +291,90 @@ html {
   animation: floatY 6s ease-in-out infinite;
 }
 
+/* ── /buddhima admin console ───────────────────────────── */
+.admin-shell {
+  display: flex;
+  min-height: 100vh;
+  align-items: stretch;
+}
+.admin-main {
+  flex: 1;
+  min-width: 0;
+  padding: 32px 28px 64px;
+}
+/* Right-hand sidebar */
+.admin-sidebar {
+  width: 250px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.015);
+  padding: 28px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.admin-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.admin-navitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-text);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-poppins), system-ui, sans-serif;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+.admin-navitem:hover {
+  color: var(--heading);
+  background: rgba(255, 255, 255, 0.03);
+}
+.admin-navitem.active {
+  color: var(--accent);
+  background: rgba(0, 183, 255, 0.08);
+  border-color: rgba(0, 183, 255, 0.35);
+}
+.admin-navitem .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+@media (max-width: 860px) {
+  .admin-shell {
+    flex-direction: column;
+  }
+  .admin-main {
+    padding: 20px 16px 56px;
+  }
+  .admin-sidebar {
+    width: auto;
+    height: auto;
+    position: static;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .admin-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
 /* Honor the user's motion preference — disable non-essential motion */
 @media (prefers-reduced-motion: reduce) {
   html {

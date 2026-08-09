@@ -8,8 +8,20 @@ import WhyChooseUs from '@/components/sections/WhyChooseUs'
 import Projects from '@/components/sections/Projects'
 import Testimonials from '@/components/sections/Testimonials'
 import Contact from '@/components/sections/Contact'
+import MaintenanceScreen from '@/components/MaintenanceScreen'
+import { readSiteSettingsSafe } from '@/lib/settings'
 
-export default function Home() {
+// Read the maintenance flag fresh on every request so toggling it from the
+// admin console takes effect immediately.
+export const dynamic = 'force-dynamic'
+
+export default async function Home() {
+  const { maintenance, emergencyPhone } = await readSiteSettingsSafe()
+
+  if (maintenance) {
+    return <MaintenanceScreen phone={emergencyPhone} />
+  }
+
   return (
     <>
       <Navbar />
