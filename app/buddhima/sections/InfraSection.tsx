@@ -11,7 +11,6 @@ import {
   SubtleButton,
   TableWrap,
   errorBox,
-  formGrid,
   input,
   money,
   muted,
@@ -20,6 +19,7 @@ import {
   table,
   td,
   th,
+  wideFormGrid,
 } from '../ui'
 import { apiSend } from '../api'
 
@@ -103,7 +103,7 @@ export default function InfraSection({
 
       <form onSubmit={submit} style={panel}>
         <h2 style={sectionTitle}>{editId ? 'Edit domain / hosting' : 'Add domain / hosting'}</h2>
-        <div style={formGrid}>
+        <div style={wideFormGrid}>
           <Field label="Type">
             <select
               value={form.kind}

@@ -51,10 +51,13 @@ export function ensureSchema(): Promise<void> {
           client      TEXT,
           status      TEXT NOT NULL DEFAULT 'active',
           budget      NUMERIC(14, 2),
+          currency    TEXT NOT NULL DEFAULT 'USD',
           notes       TEXT,
           created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // Migration: add the budget currency to projects created before it existed.
+      await sql`ALTER TABLE projects ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'USD'`
       await sql`
         CREATE TABLE IF NOT EXISTS transactions (
           id           SERIAL PRIMARY KEY,
@@ -87,16 +90,25 @@ export function ensureSchema(): Promise<void> {
       // Team members.
       await sql`
         CREATE TABLE IF NOT EXISTS team_members (
-          id          SERIAL PRIMARY KEY,
-          name        TEXT NOT NULL,
-          role        TEXT,
-          email       TEXT,
-          phone       TEXT,
-          status      TEXT NOT NULL DEFAULT 'active',
-          notes       TEXT,
-          created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+          id             SERIAL PRIMARY KEY,
+          name           TEXT NOT NULL,
+          role           TEXT,
+          email          TEXT,
+          phone          TEXT,
+          status         TEXT NOT NULL DEFAULT 'active',
+          bank_name      TEXT,
+          account_name   TEXT,
+          account_number TEXT,
+          branch         TEXT,
+          notes          TEXT,
+          created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // Migration: add bank detail columns to team members created before they existed.
+      await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS bank_name TEXT`
+      await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS account_name TEXT`
+      await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS account_number TEXT`
+      await sql`ALTER TABLE team_members ADD COLUMN IF NOT EXISTS branch TEXT`
       // Salary payments to team members, related to a project.
       await sql`
         CREATE TABLE IF NOT EXISTS salaries (
@@ -147,6 +159,7 @@ export type Project = {
   client: string | null
   status: string
   budget: number | null
+  currency: string
   notes: string | null
   created_at: string
 }
@@ -184,6 +197,10 @@ export type TeamMember = {
   email: string | null
   phone: string | null
   status: string
+  bank_name: string | null
+  account_name: string | null
+  account_number: string | null
+  branch: string | null
   notes: string | null
   created_at: string
 }

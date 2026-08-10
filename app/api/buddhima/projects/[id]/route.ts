@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { dbErrorResponse, ensureSchema, sql, type Project } from '@/lib/db'
 import { getSession } from '@/lib/require-auth'
+import { normalizeCurrency } from '@/lib/currency'
 
 const STATUSES = ['active', 'completed', 'on-hold']
 
@@ -31,6 +32,7 @@ export async function PATCH(
   const client = body.client ? String(body.client).trim() : null
   const status = STATUSES.includes(String(body.status)) ? String(body.status) : 'active'
   const budget = body.budget === '' || body.budget == null ? null : Number(body.budget)
+  const currency = normalizeCurrency(body.currency)
   const notes = body.notes ? String(body.notes).trim() : null
 
   if (budget != null && !Number.isFinite(budget)) {
@@ -42,9 +44,9 @@ export async function PATCH(
     const [project] = (await sql`
       UPDATE projects
       SET name = ${name}, client = ${client}, status = ${status},
-          budget = ${budget}, notes = ${notes}
+          budget = ${budget}, currency = ${currency}, notes = ${notes}
       WHERE id = ${id}
-      RETURNING id, name, client, status, budget, notes, created_at
+      RETURNING id, name, client, status, budget, currency, notes, created_at
     `) as Project[]
 
     if (!project) {

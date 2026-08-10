@@ -10,7 +10,6 @@ import {
   SubtleButton,
   TableWrap,
   errorBox,
-  formGrid,
   input,
   money,
   muted,
@@ -19,6 +18,7 @@ import {
   table,
   td,
   th,
+  wideFormGrid,
 } from '../ui'
 import { apiSend } from '../api'
 
@@ -105,7 +105,7 @@ export default function SalariesSection({
             Tip: add people in the Team section first so you can attribute payments to them.
           </p>
         )}
-        <div style={formGrid}>
+        <div style={wideFormGrid}>
           <Field label="Team member">
             <select
               value={form.member_id}

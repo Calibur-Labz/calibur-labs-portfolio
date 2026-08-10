@@ -113,6 +113,7 @@ export default function Overview({
               { label: 'Income', color: CHART.income },
               { label: 'Expense', color: CHART.expense },
             ]}
+            formatValue={(v) => money(v, cur)}
           />
         </div>
         <div style={panel}>
@@ -120,6 +121,7 @@ export default function Overview({
           <LineChart
             data={monthly.map((m) => ({ label: m.label, values: [m.income - m.expense] }))}
             series={[{ label: 'Net', color: CHART.accent }]}
+            formatValue={(v) => money(v, cur)}
           />
         </div>
       </div>

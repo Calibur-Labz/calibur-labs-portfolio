@@ -11,7 +11,8 @@ export async function GET() {
   try {
     await ensureSchema()
     const team = (await sql`
-      SELECT id, name, role, email, phone, status, notes, created_at
+      SELECT id, name, role, email, phone, status,
+             bank_name, account_name, account_number, branch, notes, created_at
       FROM team_members
       ORDER BY name ASC
     `) as TeamMember[]
@@ -41,14 +42,21 @@ export async function POST(request: NextRequest) {
   const email = body.email ? String(body.email).trim() : null
   const phone = body.phone ? String(body.phone).trim() : null
   const status = STATUSES.includes(String(body.status)) ? String(body.status) : 'active'
+  const bankName = body.bank_name ? String(body.bank_name).trim() : null
+  const accountName = body.account_name ? String(body.account_name).trim() : null
+  const accountNumber = body.account_number ? String(body.account_number).trim() : null
+  const branch = body.branch ? String(body.branch).trim() : null
   const notes = body.notes ? String(body.notes).trim() : null
 
   try {
     await ensureSchema()
     const [member] = (await sql`
-      INSERT INTO team_members (name, role, email, phone, status, notes)
-      VALUES (${name}, ${role}, ${email}, ${phone}, ${status}, ${notes})
-      RETURNING id, name, role, email, phone, status, notes, created_at
+      INSERT INTO team_members (name, role, email, phone, status,
+        bank_name, account_name, account_number, branch, notes)
+      VALUES (${name}, ${role}, ${email}, ${phone}, ${status},
+        ${bankName}, ${accountName}, ${accountNumber}, ${branch}, ${notes})
+      RETURNING id, name, role, email, phone, status,
+        bank_name, account_name, account_number, branch, notes, created_at
     `) as TeamMember[]
     return NextResponse.json({ member }, { status: 201 })
   } catch (e) {

@@ -11,7 +11,7 @@ export type Currency = (typeof CURRENCIES)[number]
 
 export const CURRENCY_SYMBOL: Record<Currency, string> = {
   USD: '$',
-  LKR: 'Rs ',
+  LKR: 'LKR ',
 }
 
 export function isCurrency(value: unknown): value is Currency {
@@ -23,7 +23,7 @@ export function normalizeCurrency(value: unknown): Currency {
   return isCurrency(value) ? value : 'USD'
 }
 
-/** Format an amount with its currency symbol, e.g. "$1,200.00" / "Rs 45,000.00". */
+/** Format an amount with its currency symbol, e.g. "$1,200.00" / "LKR 45,000.00". */
 export function money(
   amount: number | string | null | undefined,
   currency: unknown = 'USD'

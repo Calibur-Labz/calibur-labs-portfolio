@@ -316,6 +316,22 @@ html {
   top: 0;
   height: 100vh;
 }
+/* Keep native form controls on-theme: dark chrome, muted placeholders, and
+   dropdown option lists that match the panels instead of the browser's white. */
+.admin-main input,
+.admin-main select,
+.admin-main textarea {
+  color-scheme: dark;
+}
+.admin-main input::placeholder,
+.admin-main textarea::placeholder {
+  color: var(--muted-text);
+  opacity: 1;
+}
+.admin-main select option {
+  background: var(--panel-raised);
+  color: var(--heading);
+}
 .admin-nav {
   display: flex;
   flex-direction: column;

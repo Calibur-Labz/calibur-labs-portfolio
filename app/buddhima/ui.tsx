@@ -24,6 +24,12 @@ export const formGrid: React.CSSProperties = {
   gap: '14px',
   gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
 }
+// Wider variant — fewer columns per row so each input runs longer.
+export const wideFormGrid: React.CSSProperties = {
+  display: 'grid',
+  gap: '14px',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+}
 export const input: React.CSSProperties = {
   width: '100%',
   padding: '10px 12px',

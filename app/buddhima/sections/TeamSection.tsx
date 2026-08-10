@@ -10,7 +10,6 @@ import {
   SubtleButton,
   TableWrap,
   errorBox,
-  formGrid,
   input,
   muted,
   panel,
@@ -18,10 +17,22 @@ import {
   table,
   td,
   th,
+  wideFormGrid,
 } from '../ui'
 import { apiSend } from '../api'
 
-const empty = { name: '', role: '', email: '', phone: '', status: 'active', notes: '' }
+const empty = {
+  name: '',
+  role: '',
+  email: '',
+  phone: '',
+  status: 'active',
+  bank_name: '',
+  account_name: '',
+  account_number: '',
+  branch: '',
+  notes: '',
+}
 
 export default function TeamSection({
   team,
@@ -60,6 +71,10 @@ export default function TeamSection({
       email: m.email ?? '',
       phone: m.phone ?? '',
       status: m.status,
+      bank_name: m.bank_name ?? '',
+      account_name: m.account_name ?? '',
+      account_number: m.account_number ?? '',
+      branch: m.branch ?? '',
       notes: m.notes ?? '',
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -81,7 +96,7 @@ export default function TeamSection({
 
       <form onSubmit={submit} style={panel}>
         <h2 style={sectionTitle}>{editId ? 'Edit team member' : 'Add team member'}</h2>
-        <div style={formGrid}>
+        <div style={wideFormGrid}>
           <Field label="Name">
             <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={input} />
           </Field>
@@ -109,6 +124,54 @@ export default function TeamSection({
             <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} style={input} />
           </Field>
         </div>
+
+        <h3
+          style={{
+            fontSize: '12px',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: 'var(--muted-text)',
+            margin: '22px 0 14px',
+            paddingTop: '18px',
+            borderTop: '1px solid var(--hairline)',
+          }}
+        >
+          Bank details
+        </h3>
+        <div style={wideFormGrid}>
+          <Field label="Bank name">
+            <input
+              value={form.bank_name}
+              onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
+              style={input}
+              placeholder="e.g. Commercial Bank"
+            />
+          </Field>
+          <Field label="Branch">
+            <input
+              value={form.branch}
+              onChange={(e) => setForm({ ...form, branch: e.target.value })}
+              style={input}
+              placeholder="e.g. Colombo"
+            />
+          </Field>
+          <Field label="Account name">
+            <input
+              value={form.account_name}
+              onChange={(e) => setForm({ ...form, account_name: e.target.value })}
+              style={input}
+              placeholder="Name on the account"
+            />
+          </Field>
+          <Field label="Account number">
+            <input
+              value={form.account_number}
+              onChange={(e) => setForm({ ...form, account_number: e.target.value })}
+              style={input}
+            />
+          </Field>
+        </div>
+
         <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
           <GhostButton type="submit" disabled={saving}>
             {saving ? 'Saving…' : editId ? 'Update' : 'Add'}
@@ -135,7 +198,7 @@ export default function TeamSection({
             <table style={table}>
               <thead>
                 <tr>
-                  {['Name', 'Role', 'Contact', 'Status', ''].map((h) => (
+                  {['Name', 'Role', 'Contact', 'Bank details', 'Status', ''].map((h) => (
                     <th key={h} style={th}>
                       {h}
                     </th>
@@ -150,6 +213,27 @@ export default function TeamSection({
                     <td style={td}>
                       <div>{m.email ?? '—'}</div>
                       {m.phone && <div style={{ fontSize: '12px', color: 'var(--muted-text)' }}>{m.phone}</div>}
+                    </td>
+                    <td style={td}>
+                      {m.bank_name || m.account_number || m.account_name || m.branch ? (
+                        <>
+                          <div>
+                            {m.bank_name ?? '—'}
+                            {m.branch ? ` · ${m.branch}` : ''}
+                          </div>
+                          {m.account_number && (
+                            <div style={{ fontSize: '12px', color: 'var(--muted-text)' }}>
+                              {m.account_number}
+                              {m.account_name ? ` · ${m.account_name}` : ''}
+                            </div>
+                          )}
+                          {!m.account_number && m.account_name && (
+                            <div style={{ fontSize: '12px', color: 'var(--muted-text)' }}>{m.account_name}</div>
+                          )}
+                        </>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td style={td}>
                       <StatusPill status={m.status} />

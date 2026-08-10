@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 export const CHART = {
   income: 'var(--color-success, #34D399)',
   expense: 'var(--color-error, #F87171)',
@@ -23,16 +25,21 @@ function niceMax(value: number): number {
 export function LineChart({
   data,
   series,
+  formatValue = shortNum,
 }: {
   data: { label: string; values: number[] }[]
   series: { label: string; color: string }[]
+  /** Format a value for the hover tooltip (e.g. as currency). */
+  formatValue?: (n: number) => string
 }) {
+  const [active, setActive] = useState<number | null>(null)
+
   if (data.length === 0) {
     return <Empty>No data for this period yet.</Empty>
   }
 
   const W = 680
-  const H = 260
+  const H = 300
   const padL = 56
   const padR = 18
   const padT = 16
@@ -53,10 +60,18 @@ export function LineChart({
   const tickCount = 4
   const tickVals = Array.from({ length: tickCount + 1 }, (_, k) => min + (span * k) / tickCount)
 
+  // Width of each hover band (the slice of the plot that maps to one point).
+  const band = data.length === 1 ? plotW : plotW / (data.length - 1)
+
   return (
-    <div>
+    <div style={{ position: 'relative' }}>
       <Legend items={series} />
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }} role="img">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: '100%', height: 'auto' }}
+        role="img"
+        onMouseLeave={() => setActive(null)}
+      >
         {/* horizontal grid + y labels */}
         {tickVals.map((t, i) => (
           <g key={i}>
@@ -72,7 +87,14 @@ export function LineChart({
         )}
         {/* x labels */}
         {data.map((d, i) => (
-          <text key={d.label + i} x={x(i)} y={H - 12} textAnchor="middle" fontSize={10} fill={AXIS}>
+          <text
+            key={d.label + i}
+            x={x(i)}
+            y={H - 12}
+            textAnchor="middle"
+            fontSize={10}
+            fill={active === i ? 'var(--heading)' : AXIS}
+          >
             {d.label}
           </text>
         ))}
@@ -83,12 +105,77 @@ export function LineChart({
             <g key={s.label}>
               <polyline points={pts} fill="none" stroke={s.color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
               {data.map((d, i) => (
-                <circle key={i} cx={x(i)} cy={y(d.values[si] ?? 0)} r={3} fill={s.color} />
+                <circle key={i} cx={x(i)} cy={y(d.values[si] ?? 0)} r={active === i ? 5 : 3} fill={s.color} />
               ))}
             </g>
           )
         })}
+        {/* transparent hover hit areas — one band per data point */}
+        {data.map((d, i) => (
+          <rect
+            key={'hit' + i}
+            x={Math.max(padL, x(i) - band / 2)}
+            y={padT}
+            width={Math.min(band, W - padR - Math.max(padL, x(i) - band / 2))}
+            height={plotH}
+            fill="transparent"
+            onMouseEnter={() => setActive(i)}
+            onMouseMove={() => setActive(i)}
+          />
+        ))}
       </svg>
+
+      {active !== null && (
+        <Tooltip
+          leftPct={(x(active) / W) * 100}
+          label={data[active].label}
+          rows={series.map((s, si) => ({
+            color: s.color,
+            label: s.label,
+            value: formatValue(data[active].values[si] ?? 0),
+          }))}
+        />
+      )}
+    </div>
+  )
+}
+
+function Tooltip({
+  leftPct,
+  label,
+  rows,
+}: {
+  leftPct: number
+  label: string
+  rows: { color: string; label: string; value: string }[]
+}) {
+  // Keep the box from spilling off the edges: anchor from the right past centre.
+  const nearRight = leftPct > 66
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: '34px',
+        left: `${leftPct}%`,
+        transform: `translateX(${nearRight ? '-100%' : leftPct < 34 ? '0' : '-50%'})`,
+        pointerEvents: 'none',
+        background: 'var(--panel-raised, #121A26)',
+        border: '1px solid var(--hairline, #17222F)',
+        borderRadius: '10px',
+        padding: '9px 11px',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        whiteSpace: 'nowrap',
+        zIndex: 5,
+      }}
+    >
+      <div style={{ fontSize: '11px', color: 'var(--muted-text)', marginBottom: '6px' }}>{label}</div>
+      {rows.map((r) => (
+        <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: r.color, flexShrink: 0 }} />
+          <span style={{ color: 'var(--muted-text)' }}>{r.label}</span>
+          <span style={{ color: 'var(--heading)', marginLeft: 'auto', fontWeight: 600 }}>{r.value}</span>
+        </div>
+      ))}
     </div>
   )
 }

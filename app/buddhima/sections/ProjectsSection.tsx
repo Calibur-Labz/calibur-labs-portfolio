@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { Project } from '@/lib/db'
 import {
+  CurrencySelect,
   Field,
   GhostButton,
   RowActions,
@@ -10,7 +11,6 @@ import {
   SubtleButton,
   TableWrap,
   errorBox,
-  formGrid,
   input,
   money,
   muted,
@@ -19,10 +19,11 @@ import {
   table,
   td,
   th,
+  wideFormGrid,
 } from '../ui'
 import { apiSend } from '../api'
 
-const empty = { name: '', client: '', status: 'active', budget: '', notes: '' }
+const empty = { name: '', client: '', status: 'active', budget: '', currency: 'USD', notes: '' }
 
 export default function ProjectsSection({
   projects,
@@ -60,6 +61,7 @@ export default function ProjectsSection({
       client: p.client ?? '',
       status: p.status,
       budget: p.budget != null ? String(p.budget) : '',
+      currency: p.currency ?? 'USD',
       notes: p.notes ?? '',
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -81,11 +83,11 @@ export default function ProjectsSection({
 
       <form onSubmit={submit} style={panel}>
         <h2 style={sectionTitle}>{editId ? 'Edit project' : 'Add project'}</h2>
-        <div style={formGrid}>
-          <Field label="Name">
+        <div style={wideFormGrid}>
+          <Field label="Name" full>
             <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={input} />
           </Field>
-          <Field label="Client">
+          <Field label="Client" full>
             <input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} style={input} />
           </Field>
           <Field label="Status">
@@ -104,6 +106,9 @@ export default function ProjectsSection({
               onChange={(e) => setForm({ ...form, budget: e.target.value })}
               style={input}
             />
+          </Field>
+          <Field label="Currency">
+            <CurrencySelect value={form.currency} onChange={(v) => setForm({ ...form, currency: v })} />
           </Field>
           <Field label="Notes" full>
             <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} style={input} />
@@ -153,7 +158,7 @@ export default function ProjectsSection({
                     <td style={td}>
                       <StatusPill status={p.status} />
                     </td>
-                    <td style={td}>{p.budget != null ? money(p.budget) : '—'}</td>
+                    <td style={td}>{p.budget != null ? money(p.budget, p.currency) : '—'}</td>
                     <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <RowActions onEdit={() => edit(p)} onDelete={() => del(p.id)} />
                     </td>
