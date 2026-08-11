@@ -44,7 +44,8 @@ export default function Overview({
       else expense += Number(t.amount)
     }
     const salaryTotal = sal.reduce((sum, s) => sum + Number(s.amount), 0)
-    return { income, expense, net: income - expense, salaryTotal }
+    // Salaries are an expense: net = income - (expense + salaries).
+    return { income, expense, net: income - (expense + salaryTotal), salaryTotal }
   }, [txn, sal])
 
   const monthly = useMemo(() => {
@@ -57,11 +58,19 @@ export default function Overview({
       else row.expense += Number(t.amount)
       map.set(key, row)
     }
+    // Salaries count as an expense.
+    for (const s of sal) {
+      const key = s.paid_on?.slice(0, 7)
+      if (!key) continue
+      const row = map.get(key) ?? { income: 0, expense: 0 }
+      row.expense += Number(s.amount)
+      map.set(key, row)
+    }
     return Array.from(map.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .slice(-8)
       .map(([key, v]) => ({ label: monthLabel(key), income: v.income, expense: v.expense }))
-  }, [txn])
+  }, [txn, sal])
 
   const recent = useMemo(() => transactions.slice(0, 6), [transactions])
 
@@ -97,10 +106,10 @@ export default function Overview({
 
       {/* stat tiles */}
       <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-        <StatTile label="Net" value={money(totals.net, cur)} accent={totals.net >= 0 ? 'var(--color-success, #34D399)' : 'var(--color-error, #F87171)'} />
+        <StatTile label="Profit" value={money(totals.net, cur)} accent={totals.net >= 0 ? 'var(--accent)' : 'var(--color-error, #F87171)'} />
         <StatTile label="Income" value={money(totals.income, cur)} accent="var(--color-success, #34D399)" />
         <StatTile label="Expenses" value={money(totals.expense, cur)} accent="var(--color-error, #F87171)" />
-        <StatTile label="Salaries paid" value={money(totals.salaryTotal, cur)} accent="var(--accent)" />
+        <StatTile label="Salaries paid" value={money(totals.salaryTotal, cur)} accent="#F59E0B" />
       </div>
 
       {/* charts */}
