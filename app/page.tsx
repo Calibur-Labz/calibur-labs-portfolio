@@ -9,6 +9,7 @@ import Projects from '@/components/sections/Projects'
 import Testimonials from '@/components/sections/Testimonials'
 import Contact from '@/components/sections/Contact'
 import MaintenanceScreen from '@/components/MaintenanceScreen'
+import OrbiGuide from '@/components/orbi/OrbiGuide'
 import { readSiteSettingsSafe } from '@/lib/settings'
 
 // Read the maintenance flag fresh on every request so toggling it from the
@@ -36,6 +37,9 @@ export default async function Home() {
         <Contact />
       </main>
       <Footer />
+      {/* ORBI — the site companion. Wrapping nothing today; wrap the page in
+          Phase 2 if sections need `useOrbi()` to drive it from scroll. */}
+      <OrbiGuide />
     </>
   )
 }
