@@ -6,6 +6,7 @@ import type { OrbiGazeController } from './orbiGaze'
 import type { OrbiScrollDirection } from './useOrbiScroll'
 import type { OrbiDrowsiness, OrbiProximity } from './useOrbiInteraction'
 import type { OrbiEnvironmentApi } from './useOrbiEnvironment'
+import type { OrbiFormApi } from './useOrbiForm'
 import { ORBI_PRIORITY, type OrbiState } from './orbiConfig'
 
 /**
@@ -36,6 +37,7 @@ export default function OrbiDebug({
   proximity,
   drowsiness,
   environment,
+  form,
   arbiter,
   gazeRef,
   eventRef,
@@ -47,6 +49,7 @@ export default function OrbiDebug({
   proximity: OrbiProximity
   drowsiness: OrbiDrowsiness
   environment: OrbiEnvironmentApi
+  form: OrbiFormApi
   arbiter: OrbiArbiter
   gazeRef: RefObject<OrbiGazeController | null>
   eventRef: RefObject<string>
@@ -102,8 +105,30 @@ export default function OrbiDebug({
     ['theme', environment.theme],
     ['bubble', `${environment.bubble.placement}/${environment.bubble.align}`],
     ['modal', environment.modal ? 'open' : '—'],
+    ['crowded', environment.crowded ? 'yes → peek' : '—'],
     ['regions', String(environment.regions)],
     ['decision', environment.reason],
+    ['—form—', ''],
+    ['companion', form.companion ? 'active' : '—'],
+    ['form', form.present ? 'in view' : '—'],
+    // Field *identifiers* only. Values are never read, so they can never leak.
+    ['field', form.field ?? '—'],
+    ['invalid', form.invalidField ?? '—'],
+    ['status', form.status],
+    [
+      'form gaze',
+      form.gaze ? `${form.gaze.x.toFixed(2)},${form.gaze.y.toFixed(2)}` : '—',
+    ],
+    [
+      'form box',
+      form.rect
+        ? `${Math.round(form.rect.left)},${Math.round(form.rect.top)} ` +
+          `${Math.round(form.rect.right - form.rect.left)}x` +
+          `${Math.round(form.rect.bottom - form.rect.top)}`
+        : '—',
+    ],
+    ['submission', String(form.submissionId)],
+    ['form event', form.lastEvent],
   ]
 
   return (

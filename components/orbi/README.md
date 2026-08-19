@@ -7,6 +7,7 @@ The website companion.
 **Phase 3** — personality, micro-interactions, environmental reactions.
 **Phase 3.1** — flight, and a focus indicator that suits a round robot.
 **Phase 5** — environmental awareness: docking, safe zones, themes.
+**Phase 6** — contact form companion.
 
 There is no Phase 4 in this codebase. `ORBI_PRIORITY.cinematic` is reserved
 between `safety` and `interaction` so scripted choreography can slot in later
@@ -36,6 +37,7 @@ matter more than the reactions. When in doubt, less movement.
 | `orbiGaze.ts` | Where the pupils point. Imperative, outside React. |
 | `useOrbiEnvironment.ts` | What the page looks like: regions, docks, modal, theme, bubble placement. Decides only. |
 | `orbiDocks.ts` | Dock geometry and scoring. Pure functions — no DOM, no React, no GSAP. |
+| `useOrbiForm.ts` | The contact form's lifecycle: focus, validity, submission. Never its contents. |
 | `orbiConfig.ts` | Types, placement, timing, easing, palette, geometry, scroll tuning. |
 | `OrbiContext.ts` | `useOrbi()`. |
 | `useOrbiSection.ts` | Runtime section registration. |
@@ -245,6 +247,69 @@ its bloom for a shadow. ORBI's own colours never change. *No region in this
 site currently opts in;* the site is uniformly dark, so the mechanism is in
 place and unused rather than faked.
 
+## Contact form companion
+
+While someone is using the contact form, ORBI goes quiet and attentive. The
+form opts in by attribute and imports nothing:
+
+```html
+<form data-orbi-form data-orbi-form-state="idle|submitting|success|error">
+  <input data-orbi-field="name" aria-invalid="true" />
+  <textarea data-orbi-field="message"></textarea>
+  <button data-orbi-submit>Send</button>
+  <span data-orbi-avoid="high">This field is required.</span>
+</form>
+```
+
+### Privacy
+
+**ORBI never reads what anyone types.** `useOrbiForm` does not touch `.value`,
+does not construct `FormData`, and does not walk `form.elements`. It looks at
+exactly four things: which element has focus and its `data-orbi-field` name,
+`aria-invalid` on a control, `data-orbi-form-state` on the form, and
+`getBoundingClientRect()`. Field *names* reach ORBI's state; field *contents*
+never do, and nothing is logged.
+
+The form owns its own data path entirely — ORBI observes the lifecycle, it does
+not participate in it.
+
+This is enforced by test rather than by convention: the suite patches the
+`value` getter, `FormData` and `form.elements` before any script runs, drives a
+full submission, and asserts that **zero** accesses originate from an ORBI
+stack frame.
+
+### Flow
+
+```
+contact enters      → existing greeting (Phase 2) may run
+first focus/tab in  → companion mode
+field focus         → eyes follow the field's real geometry; no bubbles
+invalid             → thinking, look at the first flagged field,
+                      "Check this field 👀" at most once per 20s
+submit              → attentive → patient after 4s. No fake progress.
+success             → lift → wave → "Message sent! ✨" (2.6s) → settle → release
+error               → thinking + "Something went wrong." The form's own
+                      message stays the source of truth.
+```
+
+Companion mode suppresses the curious glance, drowsiness, the flight
+reposition, project-card reactions, CTA reactions and the Contact section's own
+greeting — but keeps blinking, hovering, gaze, and an explicit click on ORBI.
+
+Focus may leave the form for 1.6s (tabbing, a label, autofill) without dropping
+companion mode.
+
+### Positioning
+
+The form is a registered avoid region, so the existing dock scoring keeps ORBI
+off it. On desktop a `companionWeight` term additionally prefers a dock level
+with the form and clear of its horizontal span, which puts ORBI *beside* it.
+
+On a phone the form fills the screen and every dock is equally blocked — so
+`crowded` triggers the last resort and ORBI peeks out to the edge instead of
+shuffling between bad corners. The same happens when the on-screen keyboard
+collapses the visual viewport (`visualViewport.resize`, debounced 260ms).
+
 ## Focus and hit state
 
 ORBI is a real control: the `<svg>` carries `role="button"`, `tabindex="0"`, an
@@ -268,8 +333,11 @@ tracking costs **zero React renders**. Sources write to their own slot and the
 highest-priority occupied slot wins:
 
 ```
-gesture > interaction > scroll > cursor > neutral
+gesture > interaction > form > scroll > cursor > neutral
 ```
+
+`form` sits above scroll and cursor deliberately: while a field has focus,
+nothing pulls ORBI's eyes off it.
 
 The exception is a gesture that exists *because* there is something to look at
 — a curious glance, a point at a hovered CTA. Those are led by the interaction
@@ -282,8 +350,9 @@ One claim at a time (`orbiArbiter.ts`). A request lands only if it is at least
 the level in force:
 
 ```
-entrance 70 > interaction 60 > cinematic 50 (reserved) > safety 45
-  > environment 35 > section 30 > fastScroll 20 > ambient 15 > gaze 10 > idle 0
+entrance 70 > interaction 60 > formResult 58 > formSubmitting 55
+  > cinematic 50 (reserved) > safety 45 > environment 35 > formFocus 32
+  > section 30 > fastScroll 20 > ambient 15 > gaze 10 > idle 0
 ```
 
 So a scroll glance never cuts a section gesture short, a fast-scroll startle
@@ -348,6 +417,7 @@ ScrollTrigger boundary cannot make ORBI wave repeatedly.
 | Fast-scroll startle | face only, no recoil | off entirely |
 | Cursor tracking, proximity, hover greeting | kept | off (no cursor) |
 | Collision avoidance / docking | **kept** — usability wins | kept, quicker and flatter |
+| Form companion | kept; no celebratory lift | kept; peeks aside instead of sitting beside |
 | Curious glance | face and eyes only, no head cock | off |
 | CTA point | off | off |
 | Tap / click reaction | kept | kept |
@@ -369,8 +439,12 @@ source, pointer proximity, inactivity state, the priority claim, the station,
 the current message and the latest event.
 
 Environment rows show the dock, every candidate's score, the active blocker and
-its overlap percentage, the theme, bubble placement, modal state, how many
-regions are registered, and the last decision with its reason.
+its overlap percentage, the theme, bubble placement, modal state, whether ORBI
+is crowded out, how many regions are registered, and the last decision.
+
+Form rows show companion mode, whether a form is in view, the focused field's
+*identifier*, the invalid field, the submission status and id, the gaze target
+and the form's box. **Never a field value** — the HUD has no access to one.
 
 It lives in its own lazy chunk behind `NODE_ENV !== 'production'`, which Next
 inlines — in a production build it neither renders nor gets fetched.

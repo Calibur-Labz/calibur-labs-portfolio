@@ -122,6 +122,25 @@ export function ensureSchema(): Promise<void> {
           created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // Contact-form messages from the public site. Written by the public
+      // `/api/contact` route, read only by the admin console.
+      await sql`
+        CREATE TABLE IF NOT EXISTS contact_messages (
+          id          SERIAL PRIMARY KEY,
+          name        TEXT NOT NULL,
+          email       TEXT NOT NULL,
+          company     TEXT,
+          message     TEXT NOT NULL,
+          status      TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'read', 'archived')),
+          read_at     TIMESTAMPTZ,
+          created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
+      // Unread lookups drive the console's notification badge.
+      await sql`
+        CREATE INDEX IF NOT EXISTS contact_messages_status_idx
+        ON contact_messages (status, created_at DESC)
+      `
       // Site-wide key/value settings (maintenance mode, emergency phone, …).
       await sql`
         CREATE TABLE IF NOT EXISTS settings (
@@ -213,5 +232,16 @@ export type Salary = {
   currency: string
   paid_on: string
   note: string | null
+  created_at: string
+}
+
+export type ContactMessage = {
+  id: number
+  name: string
+  email: string
+  company: string | null
+  message: string
+  status: 'new' | 'read' | 'archived'
+  read_at: string | null
   created_at: string
 }

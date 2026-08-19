@@ -100,7 +100,7 @@ export default function Footer() {
             </p>
 
             {/* Founder — forged in the Excalibur tradition */}
-            <div
+            {/* <div
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -130,7 +130,7 @@ export default function Footer() {
                   Buddhima Vilochana <span style={{ color: '#00B7FF', fontWeight: 500 }}>· Founder</span>
                 </span>
               </span>
-            </div>
+            </div> */}
 
             <div style={{ display: 'flex', gap: '10px' }}>
               {socialLinks.map((s) => {

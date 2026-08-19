@@ -30,6 +30,7 @@ import {
   type OrbiTargetSignal,
 } from './useOrbiInteraction'
 import { useOrbiEnvironment } from './useOrbiEnvironment'
+import { useOrbiForm } from './useOrbiForm'
 import {
   ORBI_SECTION_BEHAVIORS,
   resolveSectionAnimation,
@@ -66,6 +67,8 @@ import {
   ORBI_INTERACTION,
   ORBI_MESSAGES,
   ORBI_ENVIRONMENT,
+  ORBI_FORM,
+  ORBI_FORM_MESSAGES,
   ORBI_PLACEMENT,
   ORBI_PRIORITY,
   ORBI_SCROLL,
@@ -194,6 +197,13 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const cursorGazeRef = useRef({ x: 0, y: 0 })
   /** Newest thing ORBI reacted to. Debug HUD only. */
   const lastEventRef = useRef('—')
+  /**
+   * Invalidates pending "relax the face" timers. Bumped whenever something
+   * newer takes over the expression, so an older timer becomes a no-op.
+   */
+  const expressionTokenRef = useRef(0)
+  /** `data-orbi-field` of the focused control, for callbacks that need it. */
+  const formFieldRef = useRef<string | null>(null)
 
   // Synced from an effect, not during render, and declared ahead of every
   // effect that reads them so the mirrors are current by the time they run.
@@ -274,14 +284,30 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     [placement.right, placement.bottom],
   )
 
+  const form = useOrbiForm({ enabled: settled, rootRef })
+
   const environment = useOrbiEnvironment({
     enabled: settled,
     rootRef,
     probeRef,
     bubbleSize,
     margin: dockMargin,
+    // Sit beside the form only while it is actually being used, and only
+    // where there is room to.
+    companionRect: form.companion ? form.rect : null,
     mobile: quietBody,
   })
+
+  /** True while the visitor is working in the form. Read from callbacks. */
+  const companionRef = useRef(false)
+  useEffect(() => {
+    companionRef.current = form.companion
+    formFieldRef.current = form.field
+    // A section reaction schedules a revert to `normal`. Once the visitor is
+    // in the form, that timer would land on top of the companion's face, so
+    // invalidate it — the token guard makes the stale timer a no-op.
+    if (form.companion) expressionTokenRef.current += 1
+  }, [form.companion, form.field])
 
 
   /* ── Controller (arbitrated) ─────────────────────────────────────────── */
@@ -461,15 +487,15 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     if (!state.message) return
     const id = state.messageId
     const timer = setTimeout(() => {
-      setState((s) =>
-        s.messageId === id
-          ? {
-              ...s,
-              message: null,
-              expression: s.expression === 'happy' ? 'normal' : s.expression,
-            }
-          : s,
-      )
+      setState((s) => {
+        if (s.messageId !== id) return s
+        // Normally ORBI drops the smile with the bubble. Not while a form
+        // field has focus — the companion owns the face there, and an
+        // unrelated bubble expiring must not wipe it.
+        const relax =
+          s.expression === 'happy' && formFieldRef.current === null
+        return { ...s, message: null, expression: relax ? 'normal' : s.expression }
+      })
     }, holdRef.current)
     return () => clearTimeout(timer)
   }, [state.message, state.messageId])
@@ -479,7 +505,6 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const lastSectionRef = useRef<string | null>(null)
   const sectionFiredRef = useRef(new Map<string, number>())
   const spokenRef = useRef(new Map<string, number>())
-  const expressionTokenRef = useRef(0)
 
   const handleSection = useCallback(
     (id: string) => {
@@ -500,6 +525,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       ) {
         return
       }
+
+      // Contact's greeting must not interrupt someone already typing in it.
+      if (companionRef.current) return
 
       const animation = resolveSectionAnimation(behavior, {
         breakpoint: breakpointRef.current,
@@ -860,6 +888,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const handleQuiet = useCallback(() => {
     // Too fidgety on a phone, where there is no cursor to explain it.
     if (quietBodyRef.current) return
+    // Someone is filling in a form. Idle curiosity is exactly the wrong mood.
+    if (companionRef.current) return
     const now = performance.now()
     if (now - lastCuriousRef.current < ORBI_COOLDOWNS.curious) return
     if (stateRef.current.message) return
@@ -895,6 +925,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const handleDrowsy = useCallback(
     (level: 1 | 2) => {
       if (!isRestingAnimation(stateRef.current.animation)) return
+      // Never nod off while the visitor is mid-form.
+      if (companionRef.current) return
       if (
         !arbiter.claim(
           ORBI_PRIORITY.ambient,
@@ -942,7 +974,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         return
       }
 
-      // Following it with the eyes is free, so that always happens.
+      // Following it with the eyes is free, so that always happens — unless
+      // ORBI is already attending to a form, which outranks a passing CTA.
+      if (companionRef.current) return
       gaze?.set('interaction', signal.gaze.x, signal.gaze.y)
 
       const now = performance.now()
@@ -1051,7 +1085,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   // arbitrated — ORBI must never sit on top of a control, whatever else he is
   // doing. They are summed into a single tween so the layer has one writer.
 
-  const docked = station === 'edge' || state.animation === 'peek'
+  // Three reasons to be at the edge: the footer perch, an explicit `peek`,
+  // and having nowhere left to stand.
+  const docked =
+    station === 'edge' || state.animation === 'peek' || environment.crowded
   /** Delta from ORBI's CSS anchor to the dock the environment chose, in px. */
   const dockOffsetRef = useRef({ x: 0, y: 0 })
   const perchedRef = useRef(docked)
@@ -1220,6 +1257,223 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     )
   }, [environment, later, notice, note])
 
+  /* ── Contact form companion ──────────────────────────────────────────── */
+  // ORBI watches the form's lifecycle and never its contents. Everything below
+  // is driven by focus, `aria-invalid`, and `data-orbi-form-state` — see
+  // `useOrbiForm` for the privacy contract.
+
+  const formStatusRef = useRef<typeof form.status>('idle')
+  const formSubmissionRef = useRef(0)
+  const lastInvalidSaidRef = useRef(-Infinity)
+  const patientTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /**
+   * Look at whatever the form is doing. The `form` gaze slot outranks scroll
+   * and cursor, so once a field has focus nothing pulls ORBI's eyes off it.
+   */
+  useEffect(() => {
+    const gaze = gazeRef.current
+    if (!gaze) return
+    if (form.companion && form.gaze) gaze.set('form', form.gaze.x, form.gaze.y)
+    else gaze.clear('form')
+  }, [form.companion, form.gaze, reducedMotion])
+
+  /**
+   * Field focus. Attentive, quiet, and no new body animation per field — only
+   * the eyes move, so tabbing through does not become a performance.
+   *
+   * Message is the field people linger in, so it gets the calmest face.
+   */
+  useEffect(() => {
+    if (!form.companion || !form.field) return
+    if (formStatusRef.current !== 'idle') return
+    if (!arbiter.claim(ORBI_PRIORITY.formFocus, 'form-focus', 2400)) return
+
+    note(`field:${form.field}`)
+    const expression: OrbiExpression =
+      form.field === 'message' ? 'normal' : form.field === 'name' ? 'happy' : 'normal'
+    // A tick behind, so a focus change never cascades a render off the back of
+    // the effect that observed it.
+    later(
+      () =>
+        setState((current) =>
+          current.expression === expression ? current : { ...current, expression },
+        ),
+      0,
+    )
+  }, [form.companion, form.field, arbiter, later, note])
+
+  /**
+   * Validation. React to the *state*, never to what was typed, and say
+   * something at most once in a long while.
+   */
+  useEffect(() => {
+    if (!form.invalidField || !form.companion) return
+    if (!arbiter.claim(ORBI_PRIORITY.formFocus, 'form-invalid', 2000)) return
+
+    note(`invalid:${form.invalidField}`)
+    const now = performance.now()
+    const speak =
+      !stateRef.current.message &&
+      now - lastInvalidSaidRef.current >= ORBI_FORM.invalidMessageCooldownMs
+    if (speak) lastInvalidSaidRef.current = now
+
+    later(() => {
+      if (speak) holdRef.current = ORBI_TIMING.messageHoldMs
+      setState((current) => ({
+        ...current,
+        expression: 'thinking',
+        ...(speak
+          ? {
+              message: ORBI_FORM_MESSAGES.invalid,
+              messageId: current.messageId + 1,
+            }
+          : null),
+      }))
+    }, 0)
+  }, [form.invalidField, form.companion, arbiter, later, note])
+
+  // Cleared up: a small change of face, not a celebration.
+  useEffect(() => {
+    if (form.invalidField || !form.companion) return
+    later(
+      () =>
+        setState((current) =>
+          current.expression === 'thinking'
+            ? { ...current, expression: 'normal' }
+            : current,
+        ),
+      0,
+    )
+  }, [form.invalidField, form.companion, later])
+
+  /* Lifecycle: submitting → success / error. */
+  useEffect(() => {
+    const status = form.status
+    if (status === formStatusRef.current) return
+
+    // Guard on the submission id as well, so a re-render can never replay a
+    // celebration for a submission that already landed.
+    const fresh = form.submissionId !== formSubmissionRef.current
+    formStatusRef.current = status
+
+    if (patientTimerRef.current) {
+      clearTimeout(patientTimerRef.current)
+      patientTimerRef.current = null
+    }
+
+    if (status === 'submitting') {
+      // Deliberately *not* stamping `formSubmissionRef` here: it records which
+      // submission has already been celebrated, so claiming it at the start
+      // would make every result look stale and no celebration would ever run.
+      note('submitting')
+      arbiter.claim(ORBI_PRIORITY.formSubmitting, 'form-submitting', 30000)
+      restAnimationRef.current = null
+      later(
+        () =>
+          setState((current) => ({
+            ...current,
+            expression: 'normal',
+            animation: 'idle',
+            message: null,
+          })),
+        0,
+      )
+      // Long request: attentive becomes patient. No speech, no fake progress.
+      patientTimerRef.current = setTimeout(() => {
+        patientTimerRef.current = null
+        setState((current) =>
+          formStatusRef.current === 'submitting'
+            ? { ...current, expression: 'thinking' }
+            : current,
+        )
+      }, ORBI_FORM.patientAfterMs)
+      return
+    }
+
+    if (status === 'success' && fresh) {
+      formSubmissionRef.current = form.submissionId
+      note('success')
+      arbiter.release('form-submitting')
+      arbiter.claim(
+        ORBI_PRIORITY.formResult,
+        'form-result',
+        ORBI_FORM.successLiftMs + ORBI_FORM.successHoldMs + 800,
+      )
+
+      // Eyes up, a small lift, then the wave and the line. Deliberately not a
+      // parade — the moment should read as pleased, not as a fireworks display.
+      restAnimationRef.current = null
+      later(() => {
+        setBright(true)
+        setGazeLead('gesture')
+        setState((current) => ({
+          ...current,
+          expression: 'happy',
+          animation: 'excited',
+          // Whatever was on screen — a validation nudge, a section greeting —
+          // is stale the moment the message lands.
+          message: null,
+        }))
+      }, 0)
+
+      later(() => {
+        holdRef.current = ORBI_FORM.successHoldMs
+        setState((current) => ({
+          ...current,
+          expression: 'happy',
+          animation: 'wave',
+          message: ORBI_FORM_MESSAGES.success,
+          messageId: current.messageId + 1,
+        }))
+      }, ORBI_FORM.successLiftMs)
+
+      later(() => setBright(false), ORBI_FORM.successLiftMs + ORBI_FORM.successHoldMs)
+      later(() => {
+        arbiter.release('form-result')
+        form.release()
+      }, ORBI_FORM.successLiftMs + ORBI_FORM.successHoldMs + ORBI_FORM.exitDelayMs)
+      return
+    }
+
+    if (status === 'error' && fresh) {
+      formSubmissionRef.current = form.submissionId
+      note('form-error')
+      arbiter.release('form-submitting')
+      if (!arbiter.claim(ORBI_PRIORITY.formResult, 'form-result', ORBI_FORM.errorHoldMs + 600)) {
+        return
+      }
+
+      // Concerned, not alarmed. The form's own message is the real one; ORBI
+      // is only acknowledging it.
+      restAnimationRef.current = null
+      later(() => {
+        holdRef.current = ORBI_FORM.errorHoldMs
+        setState((current) => ({
+          ...current,
+          expression: 'thinking',
+          animation: 'idle',
+          message: ORBI_FORM_MESSAGES.error,
+          messageId: current.messageId + 1,
+        }))
+      }, 0)
+      later(() => arbiter.release('form-result'), ORBI_FORM.errorHoldMs)
+      return
+    }
+
+    if (status === 'idle') {
+      arbiter.release('form-submitting')
+      arbiter.release('form-focus')
+    }
+  }, [form, arbiter, later, note])
+
+  useEffect(
+    () => () => {
+      if (patientTimerRef.current) clearTimeout(patientTimerRef.current)
+    },
+    [],
+  )
+
   /* ── Project cards ───────────────────────────────────────────────────── */
 
   const projectKeyRef = useRef<string | null>(null)
@@ -1227,6 +1481,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const handleProject = useCallback(
     (signal: OrbiTargetSignal | null) => {
       const gaze = gazeRef.current
+      // A card drifting past is not more interesting than the form in front of
+      // the visitor.
+      if (companionRef.current && signal) return
 
       if (!signal) {
         projectKeyRef.current = null
@@ -1279,23 +1536,6 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     [notice, note, softExpression],
   )
 
-  /* ── Form regions ────────────────────────────────────────────────────── */
-  // Geometry only for now: look toward the form, keep clear of it, say
-  // nothing. The conversational behaviour belongs to a later phase.
-
-  const handleFormFocus = useCallback(
-    (signal: OrbiTargetSignal | null) => {
-      const gaze = gazeRef.current
-      if (!signal) {
-        gaze?.clear('interaction')
-        return
-      }
-      note('form-focus')
-      gaze?.set('interaction', signal.gaze.x, signal.gaze.y)
-    },
-    [note],
-  )
-
   const interactionHandlers = useMemo(
     () => ({
       onGaze: handleGaze,
@@ -1313,7 +1553,6 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       onProject: handleProject,
       onProjectDwell: handleProjectDwell,
       onExpanded: handleExpanded,
-      onFormFocus: handleFormFocus,
     }),
     [
       handleGaze,
@@ -1329,7 +1568,6 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       handleProject,
       handleProjectDwell,
       handleExpanded,
-      handleFormFocus,
     ],
   )
 
@@ -1502,6 +1740,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const canAdjustFlight = useCallback(() => {
     if (!settledRef.current) return false
     if (drowsinessRef.current !== 0) return false
+    // The larger reposition is decorative; it has no place mid-form.
+    if (companionRef.current) return false
     if (hoveringRef.current) return false
     if (stationRef.current !== 'home') return false
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
@@ -1643,6 +1883,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           proximity={proximity}
           drowsiness={drowsiness}
           environment={environment}
+          form={form}
           arbiter={arbiter}
           gazeRef={gazeRef}
           eventRef={lastEventRef}

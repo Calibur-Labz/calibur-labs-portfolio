@@ -125,7 +125,7 @@ h1, h2, h3, h4, h5, h6 {
   initial-value: 0deg;
   inherits: false;
 }
-.btn-primary::after {
+/* .btn-primary::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -148,7 +148,7 @@ h1, h2, h3, h4, h5, h6 {
   animation: spinBtnBorder 4s linear infinite;
   pointer-events: none;
   z-index: 0;
-}
+} */
 .btn-primary:hover::after {
   padding: 2px;
   filter: drop-shadow(0 0 6px rgba(94, 233, 255, 0.55));
@@ -370,6 +370,71 @@ html {
   background: currentColor;
   opacity: 0.6;
   flex-shrink: 0;
+}
+
+/* Unread counter — on the Messages nav item and on the header bell. */
+.admin-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #04121C;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.admin-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.admin-bell:hover {
+  color: var(--heading);
+  background: rgba(255, 255, 255, 0.03);
+}
+.admin-bell.has-unread {
+  color: var(--accent);
+  border-color: rgba(0, 183, 255, 0.35);
+}
+.admin-bell.has-unread svg {
+  transform-origin: 50% 15%;
+  animation: bellRing 2.4s ease-in-out infinite;
+}
+/* The count rides the bell's top-right corner rather than sitting inline. */
+.admin-badge.dot-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  margin-left: 0;
+  box-shadow: 0 0 0 2px var(--background);
+}
+@keyframes bellRing {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  65% { transform: rotate(12deg); }
+  72% { transform: rotate(-10deg); }
+  79% { transform: rotate(7deg); }
+  86% { transform: rotate(-4deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-bell.has-unread svg {
+    animation: none;
+  }
 }
 @media (max-width: 860px) {
   .admin-shell {

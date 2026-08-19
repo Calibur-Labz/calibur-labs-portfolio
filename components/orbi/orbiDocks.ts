@@ -137,6 +137,12 @@ export function scoreDock(
   regions: OrbiRegion[],
   viewport: OrbiViewport,
   current: OrbiDock,
+  /**
+   * Something the visitor is working in — a form. Docks level with it and
+   * clear of its horizontal span score better, which puts ORBI *beside* it
+   * rather than under it. A nudge only: collisions still decide usability.
+   */
+  companion: OrbiRect | null = null,
 ): OrbiDockScore {
   const cfg = ORBI_ENVIRONMENT
   const own = area(rect) || 1
@@ -181,9 +187,22 @@ export function scoreDock(
   const order = ORBI_DOCK_FALLBACKS[current].indexOf(dock)
   const travel = order < 0 ? ORBI_DOCKS.length : order
 
+  let beside = 0
+  if (companion) {
+    const dockCx = (rect.left + rect.right) / 2
+    const dockCy = (rect.top + rect.bottom) / 2
+    const overlapsSpan = dockCx > companion.left && dockCx < companion.right
+    const offLevel =
+      Math.abs(dockCy - (companion.top + companion.bottom) / 2) /
+      Math.max(1, viewport.height)
+    beside = ((overlapsSpan ? 1 : 0) + Math.min(1, offLevel * 2)) *
+      cfg.companionWeight
+  }
+
   const score =
     collision +
     crowd +
+    beside +
     (overflow > 0 ? cfg.edgeWeight : 0) +
     travel * cfg.travelWeight +
     // ...and keep a pull toward home, so a relocation reads as temporary.
@@ -225,9 +244,17 @@ export function chooseDock(
   size: { width: number; height: number },
   regions: OrbiRegion[],
   viewport: OrbiViewport,
+  companion: OrbiRect | null = null,
 ): OrbiDockDecision {
   const scores = ORBI_DOCKS.map((dock) =>
-    scoreDock(dock, dockRect(dock, size, viewport), regions, viewport, current),
+    scoreDock(
+      dock,
+      dockRect(dock, size, viewport),
+      regions,
+      viewport,
+      current,
+      companion,
+    ),
   )
 
   // Sorted by score, then by the fallback order, so ties never depend on

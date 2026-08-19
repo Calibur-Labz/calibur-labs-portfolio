@@ -6,6 +6,7 @@ import { fadeUp, stagger } from '@/lib/motion'
 import SectionLabel from '@/components/ui/SectionLabel'
 import GradientText from '@/components/ui/GradientText'
 import GlassCard from '@/components/ui/GlassCard'
+import ContactForm from '@/components/sections/ContactForm'
 import { MailIcon, PhoneIcon, ClockIcon } from '@/components/ui/icons'
 
 type Detail = {
@@ -163,46 +164,16 @@ export default function Contact() {
           ))}
         </motion.div>
 
-        {/* CTA card */}
+        {/* Form card */}
         <motion.div
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: '-80px' }}
           variants={fadeUp}
+          style={{ marginBottom: '32px' }}
         >
-          <GlassCard style={{ padding: '48px 40px', textAlign: 'center' }}>
-            <p style={{
-              color: '#6E8399',
-              fontSize: '15px',
-              lineHeight: 1.8,
-              fontFamily: 'var(--font-poppins), system-ui, sans-serif',
-              marginBottom: '32px',
-            }}>
-              Drop us an email and we&apos;ll get back to you within 24 hours with a plan and a quote.
-            </p>
-            <motion.a
-              href="mailto:caliburlabz@gmail.com"
-              data-orbi-interest="say:Go on, say hi 👋"
-              data-orbi-avoid="high"
-              data-orbi-label="contact-cta"
-              whileHover={{ scale: 1 }}
-              whileTap={{ scale: 0.97 }}
-              className="btn-shimmer btn-ghost"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '16px 36px',
-                borderRadius: '12px',
-                fontSize: '15px',
-                fontWeight: 700,
-                fontFamily: 'var(--font-poppins), system-ui, sans-serif',
-                textDecoration: 'none',
-                letterSpacing: '0.01em',
-              }}
-            >
-              caliburlabz@gmail.com →
-            </motion.a>
+          <GlassCard style={{ padding: '40px 36px' }}>
+            <ContactForm />
           </GlassCard>
         </motion.div>
       </div>
@@ -212,6 +183,19 @@ export default function Contact() {
           .form-row {
             grid-template-columns: 1fr !important;
           }
+        }
+        #contact input:focus-visible,
+        #contact textarea:focus-visible {
+          border-color: rgba(0, 183, 255, 0.55);
+          box-shadow: 0 0 0 3px rgba(0, 183, 255, 0.12);
+          outline: none;
+        }
+        #contact [aria-invalid='true'] {
+          border-color: rgba(248, 113, 113, 0.6);
+        }
+        #contact input::placeholder,
+        #contact textarea::placeholder {
+          color: #4A5A6C;
         }
       `}</style>
     </section>

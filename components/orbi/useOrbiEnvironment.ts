@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   ORBI_ENVIRONMENT,
+  ORBI_FORM,
   ORBI_REGISTRY_SELECTOR,
   ORBI_SELECTORS,
   ORBI_WATCHED_SELECTOR,
@@ -32,6 +33,12 @@ export interface OrbiEnvironmentDecision {
   theme: OrbiRegionTheme
   /** A modal or full-screen overlay is up. */
   modal: boolean
+  /**
+   * Nowhere left to stand: even the best dock is still covered, or the visual
+   * viewport has collapsed under an on-screen keyboard. ORBI should peek from
+   * the edge rather than sit on top of something.
+   */
+  crowded: boolean
   /** Normalized direction from ORBI toward the open modal. */
   modalGaze: { x: number; y: number } | null
   /** Normalized direction from ORBI toward whatever is in the way. */
@@ -54,6 +61,7 @@ const INITIAL: OrbiEnvironmentDecision = {
   bubble: { placement: 'above', align: 'right' },
   theme: 'dark',
   modal: false,
+  crowded: false,
   modalGaze: null,
   noticeGaze: null,
   blocker: null,
@@ -74,6 +82,11 @@ export interface OrbiEnvironmentOptions {
   bubbleSize: { width: number; height: number }
   /** ORBI's CSS anchor margins, so the default dock is a no-op. */
   margin: { x: number; y: number }
+  /**
+   * A region the visitor is working in — the contact form. Desktop only:
+   * on a phone there is no room to sit beside anything.
+   */
+  companionRect?: OrbiRect | null
   mobile: boolean
 }
 
@@ -113,6 +126,7 @@ export function useOrbiEnvironment({
   probeRef,
   bubbleSize,
   margin,
+  companionRect = null,
   mobile,
 }: OrbiEnvironmentOptions): OrbiEnvironmentApi {
   const [decision, setDecision] = useState<OrbiEnvironmentDecision>(INITIAL)
@@ -123,15 +137,18 @@ export function useOrbiEnvironment({
   const frameRef = useRef(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const crowdedRef = useRef(false)
   const evaluateRef = useRef<(reason: string) => void>(() => {})
   const bubbleSizeRef = useRef(bubbleSize)
   const marginRef = useRef(margin)
+  const companionRef = useRef(companionRect)
   const mobileRef = useRef(mobile)
   const enabledRef = useRef(enabled)
 
   useEffect(() => {
     bubbleSizeRef.current = bubbleSize
     marginRef.current = margin
+    companionRef.current = companionRect
     mobileRef.current = mobile
     enabledRef.current = enabled
   })
@@ -237,7 +254,13 @@ export function useOrbiEnvironment({
 
       const { regions, modal, modalRect } = collectRegions(viewport)
       const current = dockRef.current
-      const outcome = chooseDock(current, size, regions, viewport)
+      const outcome = chooseDock(
+        current,
+        size,
+        regions,
+        viewport,
+        mobileRef.current ? null : companionRef.current,
+      )
 
       const now = performance.now()
       const held = now - dockSinceRef.current
@@ -264,6 +287,19 @@ export function useOrbiEnvironment({
       const rect = dockRect(next, size, viewport)
       const blocker = outcome.currentScore.blocker
 
+      // Is there anywhere good left? Measured against the dock ORBI is about
+      // to occupy, not the one he is leaving.
+      const chosen = outcome.scores.find((s) => s.dock === next)!
+      const visual = window.visualViewport
+      const squeezed =
+        !!visual && visual.height < viewport.height * ORBI_FORM.keyboardViewportRatio
+      const crowded =
+        squeezed ||
+        (crowdedRef.current
+          ? chosen.overlap > ORBI_ENVIRONMENT.crowdedExit
+          : chosen.overlap >= ORBI_ENVIRONMENT.crowdedEnter)
+      crowdedRef.current = crowded
+
       // Only glance at the obstruction when actually moving because of it.
       const noticeGaze =
         next !== current && blocker
@@ -286,6 +322,7 @@ export function useOrbiEnvironment({
         ),
         theme: readTheme(rect),
         modal,
+        crowded,
         modalGaze: modalRect
           ? normalize(
               (modalRect.left + modalRect.right) / 2 - (rect.left + rect.right) / 2,
@@ -298,9 +335,9 @@ export function useOrbiEnvironment({
         scores: outcome.scores,
         regions: regions.length,
         reason:
-          next !== current
+          (next !== current
             ? `${reason} → ${next}${outcome.urgent ? ' (urgent)' : ''}`
-            : `${reason} → hold`,
+            : `${reason} → hold`) + (crowded ? ' · crowded' : ''),
       })
     },
     [collectRegions, readTheme, readViewport, rootRef],
@@ -399,6 +436,20 @@ export function useOrbiEnvironment({
     window.addEventListener('resize', onResize, { passive: true })
     window.addEventListener('orientationchange', onOrientation, { passive: true })
 
+    // The on-screen keyboard changes the *visual* viewport without touching
+    // `innerHeight`, so a phone keyboard would otherwise be invisible here.
+    // Heavily debounced: the keyboard animates, and ORBI must not chase it.
+    let keyboardTimer: ReturnType<typeof setTimeout> | null = null
+    const viewport = window.visualViewport
+    const onVisualViewport = () => {
+      if (keyboardTimer) clearTimeout(keyboardTimer)
+      keyboardTimer = setTimeout(
+        () => ping('visual-viewport'),
+        ORBI_FORM.viewportDebounceMs,
+      )
+    }
+    viewport?.addEventListener('resize', onVisualViewport, { passive: true })
+
     // Layout below the fold changes what is nearby; measure once it stops.
     let scrollTimer: ReturnType<typeof setTimeout> | null = null
     const onScroll = () => {
@@ -416,6 +467,8 @@ export function useOrbiEnvironment({
       structure.disconnect()
       window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', onOrientation)
+      viewport?.removeEventListener('resize', onVisualViewport)
+      if (keyboardTimer) clearTimeout(keyboardTimer)
       window.removeEventListener('scroll', onScroll)
       if (scrollTimer) clearTimeout(scrollTimer)
       if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -428,7 +481,15 @@ export function useOrbiEnvironment({
   useEffect(() => {
     if (!enabled) return
     refreshRef.current('size')
-  }, [enabled, mobile, bubbleSize.width, bubbleSize.height, margin.x, margin.y])
+  }, [
+    enabled,
+    mobile,
+    bubbleSize.width,
+    bubbleSize.height,
+    margin.x,
+    margin.y,
+    companionRect,
+  ])
 
   return { ...decision, refresh }
 }

@@ -173,6 +173,8 @@ export const ORBI_PRIORITY = {
   section: 30,
   /** Getting out of the way of registered page content. */
   environment: 35,
+  /** The visitor is using a registered form field. */
+  formFocus: 32,
   /** A modal or navigation overlay taking over the screen. */
   safety: 45,
   /**
@@ -181,6 +183,10 @@ export const ORBI_PRIORITY = {
    * without renumbering anything below it.
    */
   cinematic: 50,
+  /** A submission is in flight. Nothing decorative gets to talk over it. */
+  formSubmitting: 55,
+  /** It landed — or it did not. The strongest beat ORBI has short of the entrance. */
+  formResult: 58,
   /** Anything a human explicitly asked for via `useOrbi()`. */
   interaction: 60,
   /** The page-load sequence. Nothing outranks it. */
@@ -561,6 +567,11 @@ export const ORBI_GAZE_PRIORITY = [
   'gesture',
   /** A CTA, the navigation, or a deliberate cue. */
   'interaction',
+  /**
+   * The focused form field. Above scroll and cursor on purpose: while someone
+   * is filling in a field, nothing should pull ORBI's eyes off it.
+   */
+  'form',
   /** Scroll direction. */
   'scroll',
   /** The cursor. */
@@ -611,6 +622,46 @@ export const ORBI_SELECTORS = {
   expanded: '[data-orbi-expanded]',
   theme: '[data-orbi-theme]',
   form: '[data-orbi-form]',
+  field: '[data-orbi-field]',
+  submit: '[data-orbi-submit]',
+} as const
+
+/* ── Contact companion ─────────────────────────────────────────────────── */
+
+export type OrbiFormStatus = 'idle' | 'submitting' | 'success' | 'error'
+
+export const ORBI_FORM = {
+  /**
+   * Focus can leave the form briefly — tabbing through, clicking a label, the
+   * browser's autofill dropdown — without ORBI dropping out of companion mode.
+   */
+  leaveGraceMs: 1600,
+  /** Geometry reads are debounced; nothing here runs per keystroke. */
+  geometryDebounceMs: 120,
+  /** After this long in flight, attentive becomes patient. No speech, no fake progress. */
+  patientAfterMs: 4000,
+  /** How long the celebration bubble stays up. */
+  successHoldMs: 2600,
+  errorHoldMs: 2800,
+  /** Beat between the celebratory lift and the wave. */
+  successLiftMs: 900,
+  /** Companion mode lingers this long after the result, then hands back. */
+  exitDelayMs: 1400,
+  /** The "check this field" bubble, at most once per this window. */
+  invalidMessageCooldownMs: 20000,
+  /**
+   * Below this fraction of the layout viewport, the on-screen keyboard has
+   * taken the screen and ORBI gets out of the way entirely.
+   */
+  keyboardViewportRatio: 0.62,
+  /** Let the keyboard finish animating before re-measuring anything. */
+  viewportDebounceMs: 260,
+} as const
+
+export const ORBI_FORM_MESSAGES = {
+  success: 'Message sent! ✨',
+  error: 'Something went wrong.',
+  invalid: 'Check this field 👀',
 } as const
 
 /** The elements that become avoid regions — one query covers all of them. */
@@ -670,6 +721,16 @@ export const ORBI_ENVIRONMENT = {
   /** Bypasses the hold: a high-priority control is genuinely covered. */
   urgentOverlap: 0.3,
 
+  /**
+   * Last resort. When even the best dock is still this covered — a form
+   * filling a phone screen, an overlay taking everything — there is nowhere
+   * good left, so ORBI slides out to the edge rather than shuffling between
+   * equally bad corners. Asymmetric thresholds so he does not flicker in and
+   * out at the boundary.
+   */
+  crowdedEnter: 0.25,
+  crowdedExit: 0.1,
+
   /** Re-evaluation is debounced; nothing here runs per frame. */
   evaluateDebounceMs: 180,
   /** After a scroll stops, wait for layout to settle before measuring. */
@@ -686,6 +747,12 @@ export const ORBI_ENVIRONMENT = {
 
   /** Dwell on one project card before the single interested reaction. */
   projectDwellMs: 1200,
+  /**
+   * While the visitor is using a form, prefer a dock beside it — level with
+   * its middle and clear of its horizontal span. A nudge, not an override:
+   * collisions still decide what is usable.
+   */
+  companionWeight: 0.45,
 } as const
 
 /** Ordered fallbacks per dock — the smallest visual move comes first. */

@@ -58,8 +58,6 @@ export interface OrbiInteractionHandlers {
   onProjectDwell: (signal: OrbiTargetSignal) => void
   /** A registered element revealed or hid its detail. */
   onExpanded: (signal: OrbiTargetSignal | null) => void
-  /** Focus entered or left a registered form region. */
-  onFormFocus: (signal: OrbiTargetSignal | null) => void
 }
 
 export interface OrbiInteractionOptions {
@@ -316,17 +314,10 @@ export function useOrbiInteraction({
       }
     })
 
-    // Focus inside a registered form region — the groundwork the contact
-    // companion will build on, without any field-by-field behaviour yet.
-    on(document, 'focusin', (event) => {
-      const target = event.target
-      if (!(target instanceof Element)) return
-      const form = target.closest(ORBI_SELECTORS.form)
-      handlersRef.current.onFormFocus(
-        form ? describeTarget(form, centreRef.current) : null,
-      )
-    })
-    on(document, 'focusout', () => handlersRef.current.onFormFocus(null))
+    // Form focus is *not* handled here. `useOrbiForm` owns the whole contact
+    // lifecycle — focus, validity, submission — because it answers a different
+    // question on a different clock, and mixing it in would make this hook the
+    // dumping ground the architecture is meant to avoid.
 
     /* Navigation: watch the opt-in toggle's `aria-expanded`. */
     const navToggle = document.querySelector(ORBI_INTERACTION.navSelector)
@@ -448,6 +439,19 @@ const randomQuietDelay = () =>
 /** Dwell before a project card earns its one reaction. */
 const ORBI_ENVIRONMENT_PROJECT_DWELL = 1200
 
+/**
+ * A stable-enough identifier that can never be user content.
+ *
+ * Falls back to visible text for ordinary elements, but never for a form
+ * control — a `<textarea>` exposes its initial content through `textContent`,
+ * and ORBI is not allowed to hold typed text under any circumstances.
+ */
+function labelFor(element: Element): string | null {
+  if (element.matches('input,textarea,select,[contenteditable]')) return null
+  const text = element.textContent?.trim().slice(0, 32)
+  return text || null
+}
+
 /** Direction and side of any element, relative to where ORBI is sitting. */
 function describeTarget(
   element: Element,
@@ -461,7 +465,7 @@ function describeTarget(
     key:
       element.getAttribute('data-orbi-project') ||
       element.id ||
-      element.textContent?.trim().slice(0, 32) ||
+      labelFor(element) ||
       'target',
     gaze: { x: clampUnit(dx / GAZE_REFERENCE), y: clampUnit(dy / GAZE_REFERENCE) },
     side: dx < 0 ? 'left' : 'right',
@@ -496,7 +500,7 @@ function describeCta(
     key:
       element.id ||
       element.getAttribute('href') ||
-      element.textContent?.trim().slice(0, 32) ||
+      labelFor(element) ||
       'cta',
     gaze: {
       x: clampUnit(dx / GAZE_REFERENCE),
