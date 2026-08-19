@@ -49,6 +49,7 @@ export type OrbiAnimation =
   | 'surprised'
   | 'settle'
   | 'curious'
+  | 'nod'
 
 const RESTING = ['idle', 'float', 'peek'] as const
 const LOOKING = ['look-left', 'look-right', 'look-up', 'look-down'] as const
@@ -60,6 +61,7 @@ const ONE_SHOT = [
   'surprised',
   'settle',
   'curious',
+  'nod',
 ] as const
 
 export type OrbiLookAnimation = (typeof LOOKING)[number]
@@ -312,6 +314,9 @@ export const ORBI_TIMING = {
   clickStartleMs: 260,
   /** How long the wake-up flinch is held. */
   wakeStartleMs: 420,
+  /** The acknowledging nod — a dip, not a hop. */
+  nodDepth: 5,
+  nodDuration: 0.34,
 } as const
 
 /** Long, silky settles — the same family as `lib/motion.ts`. */
@@ -643,7 +648,7 @@ export const ORBI_FORM = {
   /** How long the celebration bubble stays up. */
   successHoldMs: 2600,
   errorHoldMs: 2800,
-  /** Beat between the celebratory lift and the wave. */
+  /** Beat between the celebratory lift and the first line. */
   successLiftMs: 900,
   /** Companion mode lingers this long after the result, then hands back. */
   exitDelayMs: 1400,
@@ -659,10 +664,32 @@ export const ORBI_FORM = {
 } as const
 
 export const ORBI_FORM_MESSAGES = {
-  success: 'Message sent! ✨',
   error: 'Something went wrong.',
   invalid: 'Check this field 👀',
 } as const
+
+/**
+ * What ORBI says after the server confirms a submission — and only then.
+ *
+ * Three short beats that de-escalate: celebrate, acknowledge, thank. The
+ * movement follows the same curve, so it never reads as three celebrations in
+ * a row. The whole thing runs ~7s from the lift to the settle.
+ */
+export const ORBI_SUCCESS = {
+  steps: [
+    { message: 'Message sent! ✨', holdMs: 1900, beat: 'celebrate' },
+    { message: "We'll check your message.", holdMs: 2100, beat: 'acknowledge' },
+    { message: 'Thank you! 💙', holdMs: 2100, beat: 'thank' },
+  ],
+  /**
+   * The three lines are different lengths. Pinning the floor just under the
+   * bubble's own maximum makes the panel effectively a fixed width for the
+   * run, so the words swap without the box breathing around them.
+   */
+  minBubbleRatio: 0.97,
+} as const
+
+export type OrbiSuccessBeat = (typeof ORBI_SUCCESS.steps)[number]['beat']
 
 /** The elements that become avoid regions — one query covers all of them. */
 export const ORBI_REGISTRY_SELECTOR = [

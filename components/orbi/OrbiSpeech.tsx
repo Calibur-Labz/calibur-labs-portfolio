@@ -25,6 +25,12 @@ import {
  * down as `placement` / `align`: above by default, flipping to ORBI's side
  * when above would leave the viewport or cover something registered. Flipping
  * the bubble is always preferred to moving ORBI for the bubble's sake.
+ *
+ * Two ways the text can change. Normally a new message *pops* — the panel
+ * scales in, because it is a new thing to say. During a run of related lines
+ * (the post-success sequence) it *crossfades* instead: the panel never leaves,
+ * only the words swap, which is what keeps three messages in a row from
+ * reading as three separate interruptions.
  */
 export default function OrbiSpeech({
   message,
@@ -33,6 +39,10 @@ export default function OrbiSpeech({
   side = 'above',
   align = 'right',
   theme = 'dark',
+  /** `soft` swaps the words in place; `pop` brings the whole panel in. */
+  transition = 'pop',
+  /** Floor under the panel width, so a run of lines does not jump about. */
+  minWidth,
   reducedMotion,
 }: {
   message: string | null
@@ -44,13 +54,18 @@ export default function OrbiSpeech({
   /** Which edge it aligns to when it sits above ORBI. */
   align?: 'left' | 'right'
   theme?: OrbiRegionTheme
+  transition?: 'pop' | 'soft'
+  minWidth?: number
   reducedMotion: boolean
 }) {
   const bubbleRef = useRef<HTMLDivElement>(null)
+  const textRef = useRef<HTMLSpanElement>(null)
   const [text, setText] = useState(message ?? '')
 
-  // Latch the copy: keep showing it through the exit animation.
-  if (message && message !== text) setText(message)
+  // Latch the copy: keep showing it through the exit animation. A soft swap is
+  // the exception — it holds the old words until they have faded, so the
+  // exchange is never a flash.
+  if (message && message !== text && transition !== 'soft') setText(message)
 
   useEffect(() => {
     if (bubbleRef.current) {
@@ -58,9 +73,44 @@ export default function OrbiSpeech({
     }
   }, [])
 
+  /**
+   * Soft swap: fade the words out, exchange them, fade them back. The panel
+   * itself is untouched, so it neither collapses nor re-pops between lines.
+   *
+   * Only ever used for a *continuation* — the first line of a run still pops,
+   * so this never has to deal with a hidden panel.
+   */
+  useEffect(() => {
+    const el = bubbleRef.current
+    const words = textRef.current
+    if (!el || !words) return
+    if (transition !== 'soft' || !message || message === text) return
+
+    const out = reducedMotion ? 0.08 : 0.16
+    const back = reducedMotion ? 0.08 : 0.24
+
+    const tween = gsap.to(words, {
+      autoAlpha: 0,
+      duration: out,
+      ease: 'power1.in',
+      onComplete: () => {
+        setText(message)
+        gsap.to(words, { autoAlpha: 1, duration: back, ease: 'power2.out' })
+      },
+    })
+    return () => {
+      tween.kill()
+    }
+  }, [message, text, transition, reducedMotion])
+
   useEffect(() => {
     const el = bubbleRef.current
     if (!el) return
+    // A soft run owns its own transition; the panel must not re-pop under it.
+    if (transition === 'soft' && message) {
+      gsap.to(el, { autoAlpha: 1, y: 0, scale: 1, duration: 0.2, overwrite: 'auto' })
+      return
+    }
 
     if (reducedMotion) {
       gsap.to(el, {
@@ -96,7 +146,7 @@ export default function OrbiSpeech({
         overwrite: 'auto',
       })
     }
-  }, [message, messageId, reducedMotion])
+  }, [message, messageId, transition, reducedMotion])
 
   return (
     <div
@@ -107,6 +157,7 @@ export default function OrbiSpeech({
         position: 'absolute',
         ...anchorFor(side, align),
         maxWidth: `${placement.speechMaxWidth}px`,
+        minWidth: minWidth ? `${minWidth}px` : undefined,
         width: 'max-content',
         padding: placement.speechPadding,
         borderRadius: '16px',
@@ -135,7 +186,9 @@ export default function OrbiSpeech({
         visibility: 'hidden',
       }}
     >
-      {text}
+      <span ref={textRef} style={{ display: 'block' }}>
+        {text}
+      </span>
       {/* Tail — a rotated square borrowing two of the panel's borders. */}
       <span
         aria-hidden="true"

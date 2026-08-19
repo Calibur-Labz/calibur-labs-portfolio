@@ -287,10 +287,43 @@ field focus         → eyes follow the field's real geometry; no bubbles
 invalid             → thinking, look at the first flagged field,
                       "Check this field 👀" at most once per 20s
 submit              → attentive → patient after 4s. No fake progress.
-success             → lift → wave → "Message sent! ✨" (2.6s) → settle → release
+success             → the three-beat run below
 error               → thinking + "Something went wrong." The form's own
                       message stays the source of truth.
 ```
+
+### The success run
+
+Only ever after the server confirms it — never on click, while submitting, or
+after a validation or network failure.
+
+| t | line | ORBI |
+| --- | --- | --- |
+| 0.3s | — | eyes brighten, small lift |
+| 1.2s | Message sent! ✨ | wave |
+| 3.3s | We'll check your message. | nod |
+| 5.4s | Thank you! 💙 | happy eyes |
+| 7.6s | — | settles |
+| 8.7s | — | companion released |
+
+Measured in a production build: **6.4s** of visible bubble, 7.3s from the
+confirmed response to the settle. The movement de-escalates — celebrate,
+acknowledge, thank — rather than firing three celebrations; the third beat is
+the "gentle happy-eye animation" rather than a second wave, since a full wave
+had already run at beat one.
+
+The three lines share one `formResult` claim for the whole run, taken once and
+released at the end, so nothing decorative can cut in between them. The dock
+layer stays outside the arbiter, so ORBI can still move off a control mid-run.
+
+Only the first line pops. The other two **crossfade in place** — `OrbiSpeech`
+fades the words out, swaps them, fades them back, leaving the panel itself
+untouched — and the panel is pinned near its own maximum width for the run, so
+three different-length lines do not make the box breathe.
+
+Each run carries a token. Deferred steps check it before doing anything, so a
+second submission can never be haunted by the previous run's timers: they still
+fire, they just find themselves stale.
 
 Companion mode suppresses the curious glance, drowsiness, the flight
 reposition, project-card reactions, CTA reactions and the Contact section's own
@@ -300,6 +333,11 @@ Focus may leave the form for 1.6s (tabbing, a label, autofill) without dropping
 companion mode.
 
 ### Positioning
+
+The bubble dodges more than ORBI's body does: it scores against the registered
+regions *plus* the form's own controls. A small panel resting on an input for a
+few seconds is worth avoiding, but registering every field as an obstacle would
+have ORBI fleeing the form altogether.
 
 The form is a registered avoid region, so the existing dock scoring keeps ORBI
 off it. On desktop a `companionWeight` term additionally prefers a dock level

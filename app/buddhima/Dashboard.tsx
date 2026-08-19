@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { ContactMessage, Infra, Project, Salary, TeamMember, Transaction } from '@/lib/db'
+import type {
+  ContactMessage,
+  Document,
+  Infra,
+  Project,
+  Salary,
+  TeamMember,
+  Transaction,
+} from '@/lib/db'
 import { BellIcon } from '@/components/ui/icons'
 import { GhostButton, errorBox, labelKicker } from './ui'
 import Overview from './sections/Overview'
@@ -12,6 +20,7 @@ import InfraSection from './sections/InfraSection'
 import TeamSection from './sections/TeamSection'
 import SalariesSection from './sections/SalariesSection'
 import MessagesSection from './sections/MessagesSection'
+import DocumentsSection from './sections/DocumentsSection'
 import SettingsSection from './sections/SettingsSection'
 
 type Data = {
@@ -21,6 +30,7 @@ type Data = {
   team: TeamMember[]
   salaries: Salary[]
   messages: ContactMessage[]
+  documents: Document[]
 }
 
 type SectionKey =
@@ -31,6 +41,7 @@ type SectionKey =
   | 'infra'
   | 'team'
   | 'salaries'
+  | 'documents'
   | 'settings'
 
 const NAV: { key: SectionKey; label: string }[] = [
@@ -41,6 +52,7 @@ const NAV: { key: SectionKey; label: string }[] = [
   { key: 'infra', label: 'Domains & Hosting' },
   { key: 'team', label: 'Team' },
   { key: 'salaries', label: 'Salaries' },
+  { key: 'documents', label: 'Documents' },
   { key: 'settings', label: 'Settings' },
 ]
 
@@ -51,6 +63,7 @@ const EMPTY: Data = {
   team: [],
   salaries: [],
   messages: [],
+  documents: [],
 }
 
 /** How often the console re-checks the inbox for new contact-form messages. */
@@ -73,6 +86,7 @@ export default function Dashboard({ adminEmail }: { adminEmail: string }) {
         fetch('/api/buddhima/team'),
         fetch('/api/buddhima/salaries'),
         fetch('/api/buddhima/messages'),
+        fetch('/api/buddhima/documents'),
       ])
       if (responses.some((r) => r.status === 401)) {
         router.replace('/buddhima/login')
@@ -83,7 +97,7 @@ export default function Dashboard({ adminEmail }: { adminEmail: string }) {
         const d = await bad.json().catch(() => ({}))
         throw new Error(d.error ?? 'Could not load data. Is the database configured?')
       }
-      const [p, t, i, tm, s, m] = await Promise.all(responses.map((r) => r.json()))
+      const [p, t, i, tm, s, m, docs] = await Promise.all(responses.map((r) => r.json()))
       setData({
         projects: p.projects ?? [],
         transactions: t.transactions ?? [],
@@ -91,6 +105,7 @@ export default function Dashboard({ adminEmail }: { adminEmail: string }) {
         team: tm.team ?? [],
         salaries: s.salaries ?? [],
         messages: m.messages ?? [],
+        documents: docs.documents ?? [],
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load data')
@@ -241,6 +256,9 @@ export default function Dashboard({ adminEmail }: { adminEmail: string }) {
                   projects={data.projects}
                   reload={refresh}
                 />
+              )}
+              {section === 'documents' && (
+                <DocumentsSection documents={data.documents} projects={data.projects} reload={refresh} />
               )}
               {section === 'settings' && <SettingsSection />}
             </>

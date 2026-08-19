@@ -197,6 +197,10 @@ const STATUS_COLORS: Record<string, string> = {
   inactive: 'var(--muted-text)',
   expired: 'var(--color-error, #F87171)',
   cancelled: 'var(--muted-text)',
+  draft: 'var(--muted-text)',
+  sent: 'var(--accent)',
+  paid: 'var(--color-success, #34D399)',
+  archived: 'var(--muted-text)',
 }
 
 export function StatusPill({ status }: { status: string }) {

@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
+import type { DocumentKind } from './documents'
 
 /**
  * Neon serverless Postgres client.
@@ -141,6 +142,34 @@ export function ensureSchema(): Promise<void> {
         CREATE INDEX IF NOT EXISTS contact_messages_status_idx
         ON contact_messages (status, created_at DESC)
       `
+      // Documents — quotations, invoices, templates and anything else worth
+      // filing. The bytes live in Vercel Blob (private); this table holds the
+      // metadata plus the blob pathname needed to read or delete them.
+      await sql`
+        CREATE TABLE IF NOT EXISTS documents (
+          id             SERIAL PRIMARY KEY,
+          title          TEXT NOT NULL,
+          kind           TEXT NOT NULL DEFAULT 'other'
+                         CHECK (kind IN ('quotation', 'invoice', 'template', 'contract', 'receipt', 'other')),
+          project_id     INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+          client         TEXT,
+          amount         NUMERIC(14, 2),
+          currency       TEXT NOT NULL DEFAULT 'USD',
+          issued_on      DATE,
+          status         TEXT NOT NULL DEFAULT 'active',
+          notes          TEXT,
+          file_name      TEXT NOT NULL,
+          file_pathname  TEXT NOT NULL,
+          file_url       TEXT NOT NULL,
+          file_size      BIGINT,
+          file_type      TEXT,
+          created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
+      await sql`
+        CREATE INDEX IF NOT EXISTS documents_kind_idx
+        ON documents (kind, created_at DESC)
+      `
       // Site-wide key/value settings (maintenance mode, emergency phone, …).
       await sql`
         CREATE TABLE IF NOT EXISTS settings (
@@ -243,5 +272,25 @@ export type ContactMessage = {
   message: string
   status: 'new' | 'read' | 'archived'
   read_at: string | null
+  created_at: string
+}
+
+export type Document = {
+  id: number
+  title: string
+  kind: DocumentKind
+  project_id: number | null
+  client: string | null
+  amount: number | null
+  currency: string
+  issued_on: string | null
+  status: string
+  notes: string | null
+  file_name: string
+  /** Blob pathname — what `get()`/`del()` address the object by. */
+  file_pathname: string
+  file_url: string
+  file_size: number | null
+  file_type: string | null
   created_at: string
 }

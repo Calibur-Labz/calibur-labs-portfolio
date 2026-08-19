@@ -42,6 +42,7 @@ import {
   createBlinkScheduler,
   createCuriousTimeline,
   createExcitedTimeline,
+  createNodTimeline,
   createFlight,
   createIntroTimeline,
   createPointTimeline,
@@ -72,6 +73,7 @@ import {
   ORBI_PLACEMENT,
   ORBI_PRIORITY,
   ORBI_SCROLL,
+  ORBI_SUCCESS,
   ORBI_TIMING,
   ORBI_VIEWBOX,
   ORBI_Z_INDEX,
@@ -147,6 +149,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const [gazeLead, setGazeLead] = useState<'gesture' | 'interaction'>('gesture')
   /** False while the tab is in the background. */
   const [tabVisible, setTabVisible] = useState(true)
+  /** Which line of the post-success run is showing; −1 when not running. */
+  const [successStep, setSuccessStep] = useState(-1)
+  const [successRun, setSuccessRun] = useState(0)
 
   const reducedMotion = useReducedMotion()
   const breakpoint = useOrbiBreakpoint()
@@ -1264,6 +1269,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
   const formStatusRef = useRef<typeof form.status>('idle')
   const formSubmissionRef = useRef(0)
+  /** Identity of the running success sequence; stale timers check it and bail. */
+  const successRunRef = useRef(0)
   const lastInvalidSaidRef = useRef(-Infinity)
   const patientTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -1395,44 +1402,90 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       formSubmissionRef.current = form.submissionId
       note('success')
       arbiter.release('form-submitting')
-      arbiter.claim(
-        ORBI_PRIORITY.formResult,
-        'form-result',
-        ORBI_FORM.successLiftMs + ORBI_FORM.successHoldMs + 800,
-      )
 
-      // Eyes up, a small lift, then the wave and the line. Deliberately not a
-      // parade — the moment should read as pleased, not as a fireworks display.
+      // A token per sequence. Every deferred step checks it, so a second
+      // submission cannot be haunted by the previous one's timers — they still
+      // fire, they just find themselves stale and do nothing.
+      const run = ++successRunRef.current
+
+      const total =
+        ORBI_FORM.successLiftMs +
+        ORBI_SUCCESS.steps.reduce((sum, step) => sum + step.holdMs, 0)
+
+      // Claimed once, for the whole run. Nothing decorative gets to cut in
+      // between the lines — but the dock layer is outside the arbiter, so
+      // ORBI can still get out of the way of a control if he has to.
+      arbiter.claim(ORBI_PRIORITY.formResult, 'form-result', total + 900)
+
       restAnimationRef.current = null
+
+      // Beat 0: eyes up and a small lift, before anything is said.
       later(() => {
+        if (run !== successRunRef.current) return
         setBright(true)
         setGazeLead('gesture')
+        setSuccessRun(run)
         setState((current) => ({
           ...current,
           expression: 'happy',
           animation: 'excited',
           // Whatever was on screen — a validation nudge, a section greeting —
-          // is stale the moment the message lands.
+          // is stale the moment a submission lands.
           message: null,
         }))
       }, 0)
 
+      // Then celebrate → acknowledge → thank, each a step calmer than the
+      // last. Only the first line pops; the rest exchange the words inside a
+      // panel that never leaves, so three lines read as one thought.
+      let at = ORBI_FORM.successLiftMs
+      ORBI_SUCCESS.steps.forEach((step, index) => {
+        const offset = at
+        at += step.holdMs
+
+        later(() => {
+          if (run !== successRunRef.current) return
+          setSuccessStep(index)
+          // Long enough that the generic message timer never lands mid-run;
+          // the sequence clears its own bubble at the end.
+          holdRef.current = step.holdMs + 1200
+          setBright(step.beat !== 'acknowledge')
+
+          setState((current) => ({
+            ...current,
+            expression: 'happy',
+            // celebrate waves, acknowledge nods, thank is eyes only — three
+            // full celebrations in a row would be exhausting.
+            animation:
+              step.beat === 'celebrate'
+                ? 'wave'
+                : step.beat === 'acknowledge'
+                  ? 'nod'
+                  : current.animation,
+            message: step.message,
+            messageId: current.messageId + 1,
+          }))
+        }, offset)
+      })
+
+      // Settle: let the bubble go, drop the smile, hand ORBI back.
       later(() => {
-        holdRef.current = ORBI_FORM.successHoldMs
+        if (run !== successRunRef.current) return
+        setBright(false)
+        setSuccessStep(-1)
         setState((current) => ({
           ...current,
-          expression: 'happy',
-          animation: 'wave',
-          message: ORBI_FORM_MESSAGES.success,
-          messageId: current.messageId + 1,
+          expression: 'normal',
+          message: null,
         }))
-      }, ORBI_FORM.successLiftMs)
+      }, at)
 
-      later(() => setBright(false), ORBI_FORM.successLiftMs + ORBI_FORM.successHoldMs)
       later(() => {
+        if (run !== successRunRef.current) return
+        setSuccessRun(0)
         arbiter.release('form-result')
         form.release()
-      }, ORBI_FORM.successLiftMs + ORBI_FORM.successHoldMs + ORBI_FORM.exitDelayMs)
+      }, at + ORBI_FORM.exitDelayMs)
       return
     }
 
@@ -1659,6 +1712,14 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       }
     }
 
+    if (animation === 'nod') {
+      const tl = createNodTimeline(gestureEl, motion, oneShotDone('nod'))
+      return () => {
+        tl.kill()
+        resetLayer(gestureEl)
+      }
+    }
+
     if (animation === 'excited') {
       const tl = createExcitedTimeline(
         gestureEl,
@@ -1850,6 +1911,14 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           side={environment.bubble.placement}
           align={environment.bubble.align}
           theme={environment.theme}
+          // The opening line pops like any other; the follow-ups exchange
+          // their words inside the same panel.
+          transition={successStep > 0 ? 'soft' : 'pop'}
+          minWidth={
+            successRun > 0
+              ? Math.round(placement.speechMaxWidth * ORBI_SUCCESS.minBubbleRatio)
+              : undefined
+          }
           reducedMotion={reducedMotion}
         />
         <div ref={dockRef} style={{ ...layer, willChange: 'transform' }}>

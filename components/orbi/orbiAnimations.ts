@@ -603,6 +603,46 @@ export function createCuriousTimeline(
   return tl
 }
 
+/* ── Nod ───────────────────────────────────────────────────────────────── */
+
+/**
+ * A short dip of acknowledgement — "noted". Smaller than the excited hop and
+ * in the opposite direction, so following one with the other reads as calming
+ * down rather than as a second celebration.
+ *
+ * Under reduced motion it is a pause: the expression carries the beat instead.
+ */
+export function createNodTimeline(
+  gesture: HTMLElement,
+  options: OrbiMotionOptions,
+  onComplete?: () => void,
+): gsap.core.Timeline {
+  const t = ORBI_TIMING
+  const tl = gsap.timeline({ onComplete })
+
+  if (options.reducedMotion) {
+    tl.to({}, { duration: t.nodDuration * 2 })
+    return tl
+  }
+
+  const depth = (options.size / ORBI_FLIGHT.referenceSize) * t.nodDepth
+
+  tl.to(gesture, {
+    y: depth,
+    rotation: 0,
+    duration: t.nodDuration,
+    ease: ORBI_EASE.soft,
+    transformOrigin: '50% 85%',
+  }).to(gesture, {
+    y: 0,
+    duration: t.nodDuration * 1.3,
+    ease: ORBI_EASE.inOut,
+    transformOrigin: '50% 85%',
+  })
+
+  return tl
+}
+
 /* ── Settling ──────────────────────────────────────────────────────────── */
 
 export interface OrbiSettleTargets {

@@ -177,6 +177,13 @@ export function useOrbiEnvironment({
 
   const collectRegions = useCallback((viewport: OrbiViewport) => {
     const regions: OrbiRegion[] = []
+    /**
+     * Extra regions the *bubble* dodges but ORBI's body does not. Individual
+     * form controls belong here: a small panel floating over an input for two
+     * seconds is worth avoiding, but registering every field as an obstacle
+     * would have ORBI fleeing the form altogether.
+     */
+    const soft: OrbiRegion[] = []
     let modal = false
     let modalRect: OrbiRect | null = null
 
@@ -218,7 +225,27 @@ export function useOrbiEnvironment({
       })
     }
 
-    return { regions, modal, modalRect }
+    // Controls inside a visible registered form.
+    for (const form of document.querySelectorAll(ORBI_SELECTORS.form)) {
+      const box = form.getBoundingClientRect()
+      if (box.height <= 0 || box.bottom <= 0 || box.top >= viewport.height) continue
+
+      for (const control of form.querySelectorAll(
+        `${ORBI_SELECTORS.field},${ORBI_SELECTORS.submit}`,
+      )) {
+        const rect = control.getBoundingClientRect()
+        if (rect.width <= 0 || rect.height <= 0) continue
+        if (rect.bottom <= 0 || rect.top >= viewport.height) continue
+        soft.push({
+          rect: rectFrom(rect),
+          weight: 1,
+          label: control.getAttribute('data-orbi-field') ?? 'submit',
+          urgent: false,
+        })
+      }
+    }
+
+    return { regions, soft, modal, modalRect }
   }, [])
 
   const readTheme = useCallback((rect: OrbiRect): OrbiRegionTheme => {
@@ -252,7 +279,7 @@ export function useOrbiEnvironment({
       const size = { width: box.width, height: box.height }
       if (!size.width || !size.height) return
 
-      const { regions, modal, modalRect } = collectRegions(viewport)
+      const { regions, soft, modal, modalRect } = collectRegions(viewport)
       const current = dockRef.current
       const outcome = chooseDock(
         current,
@@ -317,7 +344,9 @@ export function useOrbiEnvironment({
         bubble: chooseBubblePlacement(
           rect,
           bubbleSizeRef.current,
-          regions,
+          // The bubble avoids everything ORBI avoids, plus the form's own
+          // controls — it is small and temporary, so it can afford to be fussier.
+          regions.concat(soft),
           viewport,
         ),
         theme: readTheme(rect),
