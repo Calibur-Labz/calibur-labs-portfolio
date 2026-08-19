@@ -6,6 +6,7 @@ import {
   ORBI_COLORS,
   ORBI_VIEWBOX,
   type OrbiExpression,
+  type OrbiRegionTheme,
 } from './orbiConfig'
 
 /**
@@ -24,6 +25,7 @@ export default function OrbiRobot({
   awake,
   bright,
   dozing,
+  theme = 'dark',
   gazeRef,
   armRef,
   leftArmRef,
@@ -35,6 +37,11 @@ export default function OrbiRobot({
   awake: boolean
   bright?: boolean
   dozing?: boolean
+  /**
+   * The visual region ORBI is currently over. Only presentation effects
+   * change — halo, shadow, rim — never the character's own colours.
+   */
+  theme?: OrbiRegionTheme
   /** Handed to `orbiGaze`, which drives the pupils imperatively. */
   gazeRef?: RefObject<SVGGElement | null>
   /** Waves, and points to ORBI's right. */
@@ -56,6 +63,13 @@ export default function OrbiRobot({
    * the right answer without us having to guess at input modality.
    */
   const [keyboardFocus, setKeyboardFocus] = useState(false)
+
+  /**
+   * Over a light region the cyan halo stops doing any work, so it is traded
+   * for a real shadow and a faint dark rim. ORBI's own colours never change —
+   * he is the same character, just lit differently.
+   */
+  const light = theme === 'light'
   return (
     <svg
       viewBox={`0 0 ${ORBI_VIEWBOX.width} ${ORBI_VIEWBOX.height}`}
@@ -91,6 +105,10 @@ export default function OrbiRobot({
       style={{
         overflow: 'visible',
         display: 'block',
+        filter: light
+          ? 'drop-shadow(0 10px 18px rgba(6, 12, 20, 0.42)) drop-shadow(0 2px 4px rgba(6, 12, 20, 0.3))'
+          : 'none',
+        transition: 'filter 420ms ease',
         // `auto` here means SVG hit-testing applies: only the painted robot is
         // clickable, never the transparent box around it.
         pointerEvents: 'auto',
@@ -131,6 +149,10 @@ export default function OrbiRobot({
           <stop offset="0%" stopColor={ORBI_COLORS.accent} stopOpacity="0.42" />
           <stop offset="100%" stopColor={ORBI_COLORS.accent} stopOpacity="0" />
         </radialGradient>
+        <radialGradient id="orbi-pad-light" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#0B1420" stopOpacity="0.42" />
+          <stop offset="100%" stopColor="#0B1420" stopOpacity="0" />
+        </radialGradient>
         <radialGradient id="orbi-focus" cx="0.5" cy="0.5" r="0.5">
           <stop offset="55%" stopColor={ORBI_COLORS.accentSoft} stopOpacity="0" />
           <stop offset="82%" stopColor={ORBI_COLORS.accentSoft} stopOpacity="0.38" />
@@ -160,8 +182,23 @@ export default function OrbiRobot({
         }}
       />
 
-      {/* Hover pad — the cyan pool ORBI floats over. */}
-      <ellipse cx={85} cy={134} rx={38} ry={9} fill="url(#orbi-pad)" />
+      {/* Hover pad — a cyan pool on dark, a grounded shadow on light. */}
+      <ellipse
+        cx={85}
+        cy={134}
+        rx={38}
+        ry={9}
+        fill="url(#orbi-pad)"
+        style={{ opacity: light ? 0.35 : 1, transition: 'opacity 420ms ease' }}
+      />
+      <ellipse
+        cx={85}
+        cy={135}
+        rx={31}
+        ry={7}
+        fill="url(#orbi-pad-light)"
+        style={{ opacity: light ? 1 : 0, transition: 'opacity 420ms ease' }}
+      />
 
       {/* Antenna */}
       <path
@@ -200,6 +237,17 @@ export default function OrbiRobot({
         strokeWidth={1.4}
       />
       <rect x={33} y={28} width={104} height={90} rx={34} fill="url(#orbi-sheen)" />
+      <rect
+        x={33}
+        y={28}
+        width={104}
+        height={90}
+        rx={34}
+        fill="none"
+        stroke="rgba(5, 9, 15, 0.55)"
+        strokeWidth={1.6}
+        style={{ opacity: light ? 1 : 0, transition: 'opacity 420ms ease' }}
+      />
       {/* Crest highlight along the top edge. */}
       <path
         d="M 56 33.5 Q 85 26.5 114 33.5"

@@ -19,6 +19,7 @@ import { gsap } from 'gsap'
 import {
   ORBI_ART,
   ORBI_EASE,
+  ORBI_ENVIRONMENT,
   ORBI_FLIGHT,
   ORBI_INTERACTION,
   ORBI_SCROLL,
@@ -121,8 +122,11 @@ export interface OrbiFlightHandle extends OrbiMotionHandle {
 }
 
 export interface OrbiFlightOptions {
-  /** `hover` at rest, `active` a touch livelier, `drowsy` slow and shallow. */
-  variant?: 'hover' | 'active' | 'drowsy'
+  /**
+   * `hover` at rest, `active` a touch livelier, `calm` while an overlay owns
+   * the screen, `drowsy` slow and shallow.
+   */
+  variant?: 'hover' | 'active' | 'calm' | 'drowsy'
   /** Mobile: less drift, almost no roll. */
   quiet?: boolean
   /**
@@ -177,12 +181,19 @@ export function createFlight(
       ? cfg.activeScale
       : variant === 'drowsy'
         ? cfg.drowsyScale
-        : 1)
+        : variant === 'calm'
+          ? cfg.calmScale
+          : 1)
 
   const lift = amplitude * (quiet ? cfg.quietLiftScale : 1)
   const drift = amplitude * (quiet ? cfg.quietDriftScale : 1)
   const roll = quiet ? cfg.quietRotationScale : 1
-  const pace = variant === 'drowsy' ? cfg.drowsyDurationScale : 1
+  const pace =
+    variant === 'drowsy'
+      ? cfg.drowsyDurationScale
+      : variant === 'calm'
+        ? cfg.calmDurationScale
+        : 1
 
   let tween: gsap.core.Tween | null = null
   let killed = false
@@ -341,23 +352,37 @@ export function playShow(root: HTMLElement, options: OrbiMotionOptions) {
 
 /* ── Footer perch ──────────────────────────────────────────────────────── */
 
+export interface OrbiDockTransform {
+  /** Offset from ORBI's CSS anchor to the chosen dock, px. */
+  x: number
+  y: number
+  /** The footer perch, as a percentage of ORBI's own size. */
+  perched: boolean
+}
+
 /**
- * Slide ORBI toward the right edge so it never sits on top of footer links —
- * it reads as watching from the side rather than hovering over the content.
+ * The single writer for ORBI's position.
  *
- * This runs even under reduced motion: it is a layout courtesy, not a
- * flourish. It just gets there faster and without the long ease.
+ * Two things want to move his box — the environment choosing a dock, and the
+ * footer perch — so both contributions are summed into one tween. Position is
+ * a safety concern rather than a personality one, so this runs regardless of
+ * who holds the priority claim, and it runs under reduced motion too. It just
+ * gets there quickly and without the long ease.
  */
-export function playDock(
+export function applyDock(
   dock: HTMLElement,
-  mode: 'edge' | 'home',
+  transform: OrbiDockTransform,
   options: OrbiMotionOptions,
+  duration: number = ORBI_TIMING.dockDuration,
 ): gsap.core.Tween {
-  const edge = mode === 'edge'
   return gsap.to(dock, {
-    xPercent: edge ? ORBI_SCROLL.dockX : 0,
-    yPercent: edge ? ORBI_SCROLL.dockY : 0,
-    duration: options.reducedMotion ? 0.3 : ORBI_TIMING.dockDuration,
+    x: transform.x,
+    y: transform.y,
+    xPercent: transform.perched ? ORBI_SCROLL.dockX : 0,
+    yPercent: transform.perched ? ORBI_SCROLL.dockY : 0,
+    duration: options.reducedMotion
+      ? ORBI_ENVIRONMENT.moveDurationReduced
+      : duration,
     ease: ORBI_EASE.inOut,
     overwrite: 'auto',
   })

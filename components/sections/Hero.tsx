@@ -184,6 +184,8 @@ export default function Hero() {
               }}
               className="btn-shimmer btn-primary"
               data-orbi-interest="point"
+              data-orbi-avoid="high"
+              data-orbi-label="view-work"
             >
               View Our Work
               <ArrowIcon />
@@ -191,6 +193,8 @@ export default function Hero() {
             <a
               href="#contact"
               data-orbi-interest="point"
+              data-orbi-avoid="high"
+              data-orbi-label="talk-to-us"
               className="btn-shimmer btn-primary btn-primary--alt"
               style={{
                 display: 'inline-flex',

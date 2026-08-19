@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
-import { ORBI_INTERACTION } from './orbiConfig'
+import { ORBI_INTERACTION, ORBI_SELECTORS } from './orbiConfig'
 
 export type OrbiProximity = 'far' | 'near' | 'over'
 export type OrbiDrowsiness = 0 | 1 | 2
@@ -17,6 +17,14 @@ export interface OrbiCtaSignal {
   point: boolean
   /** `data-orbi-interest="say:Let's talk"` — opt in to a bubble explicitly. */
   message: string | null
+}
+
+/** A `data-orbi-project` card the pointer is on. */
+export interface OrbiTargetSignal {
+  key: string
+  /** Normalized direction from ORBI toward it. */
+  gaze: { x: number; y: number }
+  side: 'left' | 'right'
 }
 
 export interface OrbiInteractionHandlers {
@@ -44,6 +52,14 @@ export interface OrbiInteractionHandlers {
   onReturn: (awayMs: number) => void
   /** Tab went to the background or came back. Loops should pause on `false`. */
   onVisibility: (visible: boolean) => void
+  /** A project card gained or lost the pointer. */
+  onProject: (signal: OrbiTargetSignal | null) => void
+  /** The pointer has rested on the same card long enough to deserve a look. */
+  onProjectDwell: (signal: OrbiTargetSignal) => void
+  /** A registered element revealed or hid its detail. */
+  onExpanded: (signal: OrbiTargetSignal | null) => void
+  /** Focus entered or left a registered form region. */
+  onFormFocus: (signal: OrbiTargetSignal | null) => void
 }
 
 export interface OrbiInteractionOptions {
@@ -245,24 +261,72 @@ export function useOrbiInteraction({
     /* Marked CTAs, by delegation — a CTA opts in with one attribute and never
        imports anything from ORBI. */
     let activeCta: Element | null = null
+    let activeProject: Element | null = null
+    let dwellTimer: ReturnType<typeof setTimeout> | null = null
+
+    const clearDwell = () => {
+      if (!dwellTimer) return
+      clearTimeout(dwellTimer)
+      dwellTimer = null
+    }
 
     on(document, 'pointerover', (event) => {
       if (!pointerEnabled) return
       const target = event.target
       if (!(target instanceof Element)) return
+
       const cta = target.closest(ORBI_INTERACTION.ctaSelector)
-      if (!cta || cta === activeCta) return
-      activeCta = cta
-      handlersRef.current.onCta(describeCta(cta, centreRef.current))
+      if (cta && cta !== activeCta) {
+        activeCta = cta
+        handlersRef.current.onCta(describeCta(cta, centreRef.current))
+      }
+
+      const project = target.closest(ORBI_SELECTORS.project)
+      if (project && project !== activeProject) {
+        activeProject = project
+        clearDwell()
+        const signal = describeTarget(project, centreRef.current)
+        handlersRef.current.onProject(signal)
+        // Moving across a row of cards is eyes only; settling on one for a
+        // beat is what earns the single reaction.
+        dwellTimer = setTimeout(() => {
+          dwellTimer = null
+          if (activeProject === project) {
+            handlersRef.current.onProjectDwell(signal)
+          }
+        }, ORBI_ENVIRONMENT_PROJECT_DWELL)
+      }
     })
 
     on(document, 'pointerout', (event) => {
-      if (!activeCta) return
       const related = (event as PointerEvent).relatedTarget
-      if (related instanceof Node && activeCta.contains(related)) return
-      activeCta = null
-      handlersRef.current.onCta(null)
+
+      if (activeCta && !(related instanceof Node && activeCta.contains(related))) {
+        activeCta = null
+        handlersRef.current.onCta(null)
+      }
+
+      if (
+        activeProject &&
+        !(related instanceof Node && activeProject.contains(related))
+      ) {
+        activeProject = null
+        clearDwell()
+        handlersRef.current.onProject(null)
+      }
     })
+
+    // Focus inside a registered form region — the groundwork the contact
+    // companion will build on, without any field-by-field behaviour yet.
+    on(document, 'focusin', (event) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      const form = target.closest(ORBI_SELECTORS.form)
+      handlersRef.current.onFormFocus(
+        form ? describeTarget(form, centreRef.current) : null,
+      )
+    })
+    on(document, 'focusout', () => handlersRef.current.onFormFocus(null))
 
     /* Navigation: watch the opt-in toggle's `aria-expanded`. */
     const navToggle = document.querySelector(ORBI_INTERACTION.navSelector)
@@ -279,6 +343,26 @@ export function useOrbiInteraction({
       })
       navObserver.observe(navToggle, { attributeFilter: ['aria-expanded'] })
     }
+
+    /* Cards and panels that reveal detail. Attribute-filtered on purpose —
+       ORBI reacts to a user-visible state change, not to DOM churn. */
+    const expansion = new MutationObserver((records) => {
+      for (const record of records) {
+        const element = record.target
+        if (!(element instanceof Element)) continue
+        const open = element.getAttribute('data-orbi-expanded') === 'true'
+        markActive()
+        handlersRef.current.onExpanded(
+          open ? describeTarget(element, centreRef.current) : null,
+        )
+        return
+      }
+    })
+    expansion.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-orbi-expanded'],
+    })
 
     /* Inactivity + visibility share one interval. */
     let hiddenAt = 0
@@ -335,6 +419,8 @@ export function useOrbiInteraction({
     return () => {
       cleanups.forEach((off) => off())
       stopTicker()
+      clearDwell()
+      expansion.disconnect()
       navObserver?.disconnect()
       if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
       hoverTimerRef.current = null
@@ -358,6 +444,29 @@ const randomQuietDelay = () =>
   ORBI_INTERACTION.curiousMinDelay +
   Math.random() *
     (ORBI_INTERACTION.curiousMaxDelay - ORBI_INTERACTION.curiousMinDelay)
+
+/** Dwell before a project card earns its one reaction. */
+const ORBI_ENVIRONMENT_PROJECT_DWELL = 1200
+
+/** Direction and side of any element, relative to where ORBI is sitting. */
+function describeTarget(
+  element: Element,
+  centre: { x: number; y: number } | null,
+): OrbiTargetSignal {
+  const rect = element.getBoundingClientRect()
+  const dx = centre ? rect.left + rect.width / 2 - centre.x : 0
+  const dy = centre ? rect.top + rect.height / 2 - centre.y : 0
+
+  return {
+    key:
+      element.getAttribute('data-orbi-project') ||
+      element.id ||
+      element.textContent?.trim().slice(0, 32) ||
+      'target',
+    gaze: { x: clampUnit(dx / GAZE_REFERENCE), y: clampUnit(dy / GAZE_REFERENCE) },
+    side: dx < 0 ? 'left' : 'right',
+  }
+}
 
 /**
  * Read a CTA's opt-in. The attribute value is a comma-separated token list, so

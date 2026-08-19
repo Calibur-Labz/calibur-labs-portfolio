@@ -6,6 +6,12 @@ The website companion.
 **Phase 2** — scroll awareness and section-driven reactions.
 **Phase 3** — personality, micro-interactions, environmental reactions.
 **Phase 3.1** — flight, and a focus indicator that suits a round robot.
+**Phase 5** — environmental awareness: docking, safe zones, themes.
+
+There is no Phase 4 in this codebase. `ORBI_PRIORITY.cinematic` is reserved
+between `safety` and `interaction` so scripted choreography can slot in later
+without renumbering, and `useOrbi().refreshEnvironment()` exists for it to call
+when a scripted move lands.
 
 Still no AI, no chat, no API calls, no backend. Every behaviour is
 deterministic and derived from page state.
@@ -28,6 +34,8 @@ matter more than the reactions. When in doubt, less movement.
 | `useOrbiScroll.ts` | The **only** scroll system: direction, velocity, sections, footer. |
 | `useOrbiInteraction.ts` | The **only** other sensor: cursor, proximity, hover, activation, inactivity, CTAs, nav, tab visibility. |
 | `orbiGaze.ts` | Where the pupils point. Imperative, outside React. |
+| `useOrbiEnvironment.ts` | What the page looks like: regions, docks, modal, theme, bubble placement. Decides only. |
+| `orbiDocks.ts` | Dock geometry and scoring. Pure functions — no DOM, no React, no GSAP. |
 | `orbiConfig.ts` | Types, placement, timing, easing, palette, geometry, scroll tuning. |
 | `OrbiContext.ts` | `useOrbi()`. |
 | `useOrbiSection.ts` | Runtime section registration. |
@@ -159,6 +167,84 @@ cannot fight anything. Nothing scales.
 The loop pauses on `visibilitychange` and resumes from the same pose, so
 returning to the tab is not a jump and never replays the entrance.
 
+## Environment
+
+ORBI keeps off things that matter. Pages opt in by attribute and never import
+anything:
+
+```html
+<button data-orbi-avoid="high" data-orbi-label="checkout">Pay</button>
+<div data-orbi-modal>…</div>          <!-- or a native <dialog open> -->
+<article data-orbi-project="Premo">…</article>
+<section data-orbi-theme="light">…</section>
+<div data-orbi-form>…</div>
+<div data-orbi-expanded="true">…</div>
+```
+
+### Docks
+
+`bottom-right` (default) · `bottom-left` · `mid-right` · `mid-left`
+
+ORBI's box is CSS-anchored bottom-right past the safe-area insets, so the
+default dock costs no transform at all. Other docks are a delta from that
+anchor, applied on the same layer as the footer perch — summed into one tween,
+so the layer keeps a single writer.
+
+### How the dock is chosen
+
+Scores rank candidates; they do **not** decide whether to move. That is
+explicit and binary:
+
+```
+blocked here            → take the best-scoring usable dock
+free, and not at home   → go home
+otherwise               → stay
+```
+
+`blocked` means weighted *overlap* only. Sitting near something registered adds
+a `crowd` term that breaks ties between usable docks but can never make one
+unusable — otherwise ORBI would flee anything he merely sits beside.
+
+Score = `collision + crowd + edge + travel×0.08 + (home ? 0 : 0.6)`.
+No randomness anywhere: the same visible layout always yields the same dock.
+
+### Thresholds
+
+| | value | meaning |
+| --- | --- | --- |
+| `collisionThreshold` | 12% of ORBI's area | below this, a clipped corner is ignored |
+| `highCollisionThreshold` | 2% | for `data-orbi-avoid="high"` |
+| `highWeight` / `modalWeight` | 3.2 / 4 | how much those count for |
+| `proximityRadius` | 26px | how close counts as crowded |
+| `urgentOverlap` | 30% | bypasses the dock hold |
+| `minHoldMs` | 4s | hysteresis; no bouncing between docks |
+
+A blocked move that the hold defers books its own re-check, so ORBI is never
+stranded waiting for an event that will not come.
+
+### Re-evaluation
+
+Debounced (180ms) and event-driven — never per frame. Resize, orientation,
+scroll-stop, a registered element entering or leaving the viewport
+(IntersectionObserver), an attribute change (`MutationObserver` with an
+`attributeFilter`), a subtree that actually contains a registered element, and
+`refreshEnvironment()`. All reads happen together inside one `requestAnimationFrame`.
+
+### Speech bubble
+
+Placement is chosen against the same regions: `above` (left- or right-aligned)
+by default, flipping to ORBI's `left`/`right` when above would leave the
+viewport or cover something registered. Flipping the bubble is always preferred
+to moving ORBI for the bubble's sake.
+
+### Theme
+
+`data-orbi-theme` regions swap presentation only — the cyan halo gives way to a
+real drop shadow, a faint dark rim, and a contact shadow, and the bubble trades
+its bloom for a shadow. ORBI's own colours never change. *No region in this
+site currently opts in;* the site is uniformly dark, so the mechanism is in
+place and unused rather than faked.
+
 ## Focus and hit state
 
 ORBI is a real control: the `<svg>` carries `role="button"`, `tabindex="0"`, an
@@ -196,13 +282,18 @@ One claim at a time (`orbiArbiter.ts`). A request lands only if it is at least
 the level in force:
 
 ```
-entrance 50 > interaction 40 > section 30 > fastScroll 20 > gaze 10 > idle 0
+entrance 70 > interaction 60 > cinematic 50 (reserved) > safety 45
+  > environment 35 > section 30 > fastScroll 20 > ambient 15 > gaze 10 > idle 0
 ```
 
 So a scroll glance never cuts a section gesture short, a fast-scroll startle
 never overrides Contact's wave, and nothing at all interrupts the entrance.
-The footer perch is deliberately *outside* this system — it is a layout
-courtesy (never sit on the footer links), not a personality beat.
+
+**Position is outside this system entirely.** The footer perch and the
+environmental dock both move ORBI's box regardless of who holds the claim,
+because not sitting on a control is a safety concern rather than a personality
+one. Only the *reaction* to relocating — the glance and the attentive face — is
+arbitrated, at `environment` (a dock change) or `safety` (a modal).
 
 ## Cooldowns
 
@@ -256,6 +347,7 @@ ScrollTrigger boundary cannot make ORBI wave repeatedly.
 | Pointing, excited, recoil | replaced by the quiet stand-in | pointing replaced |
 | Fast-scroll startle | face only, no recoil | off entirely |
 | Cursor tracking, proximity, hover greeting | kept | off (no cursor) |
+| Collision avoidance / docking | **kept** — usability wins | kept, quicker and flatter |
 | Curious glance | face and eyes only, no head cock | off |
 | CTA point | off | off |
 | Tap / click reaction | kept | kept |
@@ -275,6 +367,10 @@ Set `ORBI_DEBUG = true` in `orbiConfig.ts`, or append `?orbi-debug` to the URL
 in development. Shows section, expression, animation, scroll direction, gaze
 source, pointer proximity, inactivity state, the priority claim, the station,
 the current message and the latest event.
+
+Environment rows show the dock, every candidate's score, the active blocker and
+its overlap percentage, the theme, bubble placement, modal state, how many
+regions are registered, and the last decision with its reason.
 
 It lives in its own lazy chunk behind `NODE_ENV !== 'production'`, which Next
 inlines — in a production build it neither renders nor gets fetched.

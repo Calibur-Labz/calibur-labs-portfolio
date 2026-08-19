@@ -23,6 +23,12 @@ export {
   ORBI_SECTION_BEHAVIORS,
   resolveSectionAnimation,
 } from './orbiSections'
+export { useOrbiEnvironment } from './useOrbiEnvironment'
+export type {
+  OrbiEnvironmentApi,
+  OrbiEnvironmentDecision,
+} from './useOrbiEnvironment'
+export type { OrbiDockScore, OrbiRegion } from './orbiDocks'
 export type { OrbiGaze } from './OrbiFace'
 export type { OrbiScrollDirection } from './useOrbiScroll'
 export type {
@@ -30,7 +36,12 @@ export type {
   OrbiDrowsiness,
   OrbiProximity,
 } from './useOrbiInteraction'
-export type { OrbiGazeSource } from './orbiConfig'
+export type {
+  OrbiBubblePlacement,
+  OrbiDock,
+  OrbiGazeSource,
+  OrbiRegionTheme,
+} from './orbiConfig'
 export type {
   OrbiAnimation,
   OrbiBreakpoint,
@@ -46,6 +57,9 @@ export type {
 export {
   ORBI_CLICK_MESSAGES,
   ORBI_COOLDOWNS,
+  ORBI_DOCKS,
+  ORBI_ENVIRONMENT,
+  ORBI_SELECTORS,
   ORBI_DEBUG,
   ORBI_INTERACTION,
   ORBI_MESSAGES,

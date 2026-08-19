@@ -136,6 +136,13 @@ export interface OrbiController {
   activeSection: string | null
   /** `null` while the page is still. */
   scrollDirection: 'up' | 'down' | null
+  /** Where ORBI is currently parked. */
+  dock: OrbiDock
+  /**
+   * Ask the environment to re-measure. Debounced. Call it after a scripted
+   * move, or any time the page changes in a way ORBI's observers cannot see.
+   */
+  refreshEnvironment: (reason: string) => void
   setOrbiState: (patch: OrbiStatePatch) => void
   say: (message: string, options?: OrbiSayOptions) => void
   clearMessage: () => void
@@ -164,10 +171,20 @@ export const ORBI_PRIORITY = {
   fastScroll: 20,
   /** A section becoming meaningfully visible. */
   section: 30,
+  /** Getting out of the way of registered page content. */
+  environment: 35,
+  /** A modal or navigation overlay taking over the screen. */
+  safety: 45,
+  /**
+   * Reserved for scripted multi-beat sequences. Nothing claims this yet — it
+   * sits between safety and explicit interaction so a future phase can slot in
+   * without renumbering anything below it.
+   */
+  cinematic: 50,
   /** Anything a human explicitly asked for via `useOrbi()`. */
-  interaction: 40,
+  interaction: 60,
   /** The page-load sequence. Nothing outranks it. */
-  entrance: 50,
+  entrance: 70,
 } as const
 
 export type OrbiPriorityName = keyof typeof ORBI_PRIORITY
@@ -447,6 +464,9 @@ export const ORBI_FLIGHT = {
   activeScale: 1.35,
   drowsyScale: 0.6,
   drowsyDurationScale: 1.9,
+  /** While a modal owns the screen: quieter, but not asleep. */
+  calmScale: 0.55,
+  calmDurationScale: 1.35,
 
   /**
    * Mobile. Lift already scales with ORBI's size; drift and roll are cut
@@ -548,6 +568,133 @@ export const ORBI_GAZE_PRIORITY = [
 ] as const
 
 export type OrbiGazeSource = (typeof ORBI_GAZE_PRIORITY)[number]
+
+/* ── Environment ───────────────────────────────────────────────────────── */
+
+/** Where ORBI is allowed to live. Bottom-right stays the default. */
+export type OrbiDock =
+  | 'bottom-right'
+  | 'bottom-left'
+  | 'mid-right'
+  | 'mid-left'
+
+/** Where ORBI lives unless something is in the way. */
+export const ORBI_DEFAULT_DOCK: OrbiDock = 'bottom-right'
+
+export const ORBI_DOCKS: readonly OrbiDock[] = [
+  'bottom-right',
+  'bottom-left',
+  'mid-right',
+  'mid-left',
+]
+
+export type OrbiBubblePlacement = 'above' | 'left' | 'right'
+
+export type OrbiRegionTheme = 'dark' | 'light'
+
+/**
+ * Everything the page opts into, by attribute. Sections stay free of ORBI
+ * imports; they just describe themselves.
+ *
+ *   data-orbi-avoid            don't cover me
+ *   data-orbi-avoid="high"     really don't cover me
+ *   data-orbi-modal            I am an overlay; stand down
+ *   data-orbi-project          a project card ORBI can look at
+ *   data-orbi-expanded="true"  I just revealed something
+ *   data-orbi-theme="light"    ORBI is over a light region here
+ *   data-orbi-form             a form region; keep clear of the fields
+ */
+export const ORBI_SELECTORS = {
+  avoid: '[data-orbi-avoid]',
+  modal: '[data-orbi-modal],dialog[open]',
+  project: '[data-orbi-project]',
+  expanded: '[data-orbi-expanded]',
+  theme: '[data-orbi-theme]',
+  form: '[data-orbi-form]',
+} as const
+
+/** The elements that become avoid regions — one query covers all of them. */
+export const ORBI_REGISTRY_SELECTOR = [
+  ORBI_SELECTORS.avoid,
+  ORBI_SELECTORS.modal,
+  ORBI_SELECTORS.form,
+].join(',')
+
+/**
+ * Everything worth re-measuring for. Wider than the registry: a theme region
+ * never blocks ORBI, but it does change how he is drawn, so one appearing has
+ * to wake the environment up just the same.
+ */
+export const ORBI_WATCHED_SELECTOR = [
+  ORBI_REGISTRY_SELECTOR,
+  ORBI_SELECTORS.theme,
+].join(',')
+
+export const ORBI_ENVIRONMENT = {
+  /**
+   * Keep off the physical edges. Safe-area insets are added on top of these,
+   * so a notched phone in landscape still gets a usable margin.
+   */
+  desktopMargin: 20,
+  mobileMargin: 12,
+
+  /**
+   * Overlap is measured as a fraction of ORBI's own area. Below the threshold
+   * a clipped corner is simply ignored — ORBI should not flee a 2px touch.
+   */
+  collisionThreshold: 0.12,
+  /** `data-orbi-avoid="high"` is taken far more seriously. */
+  highCollisionThreshold: 0.02,
+  highWeight: 3.2,
+  /** A modal or full-screen menu outranks everything else on the page. */
+  modalWeight: 4,
+
+  /**
+   * Sitting right beside something important is worth avoiding, but only as a
+   * tie-break between usable docks — never a reason to relocate on its own.
+   */
+  proximityRadius: 26,
+  proximityWeight: 0.2,
+
+  /** Scoring weights. Collision dominates; the rest only breaks ties. */
+  travelWeight: 0.08,
+  /** A nudge back toward the default dock when ranking usable candidates. */
+  homeWeight: 0.6,
+  edgeWeight: 2,
+
+  /**
+   * Hysteresis. Having just moved, ORBI stays put for a while — otherwise a
+   * layout that flickers across a threshold makes him oscillate.
+   */
+  minHoldMs: 4000,
+  /** Bypasses the hold: a high-priority control is genuinely covered. */
+  urgentOverlap: 0.3,
+
+  /** Re-evaluation is debounced; nothing here runs per frame. */
+  evaluateDebounceMs: 180,
+  /** After a scroll stops, wait for layout to settle before measuring. */
+  scrollSettleMs: 260,
+  /** A closing modal gets a beat before ORBI drifts back. */
+  modalReturnDelayMs: 400,
+
+  /** Reposition flight. */
+  moveDuration: 0.95,
+  moveDurationMobile: 0.7,
+  moveDurationReduced: 0.22,
+  /** How long the "I noticed" glance is held while moving. */
+  noticeHoldMs: 900,
+
+  /** Dwell on one project card before the single interested reaction. */
+  projectDwellMs: 1200,
+} as const
+
+/** Ordered fallbacks per dock — the smallest visual move comes first. */
+export const ORBI_DOCK_FALLBACKS: Record<OrbiDock, readonly OrbiDock[]> = {
+  'bottom-right': ['bottom-right', 'mid-right', 'bottom-left', 'mid-left'],
+  'bottom-left': ['bottom-left', 'mid-left', 'bottom-right', 'mid-right'],
+  'mid-right': ['mid-right', 'bottom-right', 'mid-left', 'bottom-left'],
+  'mid-left': ['mid-left', 'bottom-left', 'mid-right', 'bottom-right'],
+}
 
 /* ── Personality copy ──────────────────────────────────────────────────── */
 

@@ -5,6 +5,7 @@ import type { OrbiArbiter } from './orbiArbiter'
 import type { OrbiGazeController } from './orbiGaze'
 import type { OrbiScrollDirection } from './useOrbiScroll'
 import type { OrbiDrowsiness, OrbiProximity } from './useOrbiInteraction'
+import type { OrbiEnvironmentApi } from './useOrbiEnvironment'
 import { ORBI_PRIORITY, type OrbiState } from './orbiConfig'
 
 /**
@@ -15,6 +16,13 @@ import { ORBI_PRIORITY, type OrbiState } from './orbiConfig'
  * The priority claim lives outside React (it must never trigger a render), so
  * this polls it rather than subscribing.
  */
+
+const DOCK_SHORT: Record<string, string> = {
+  'bottom-right': 'br',
+  'bottom-left': 'bl',
+  'mid-right': 'mr',
+  'mid-left': 'ml',
+}
 
 const LEVEL_NAMES = Object.fromEntries(
   Object.entries(ORBI_PRIORITY).map(([name, level]) => [level, name]),
@@ -27,6 +35,7 @@ export default function OrbiDebug({
   station,
   proximity,
   drowsiness,
+  environment,
   arbiter,
   gazeRef,
   eventRef,
@@ -37,6 +46,7 @@ export default function OrbiDebug({
   station: 'home' | 'edge'
   proximity: OrbiProximity
   drowsiness: OrbiDrowsiness
+  environment: OrbiEnvironmentApi
   arbiter: OrbiArbiter
   gazeRef: RefObject<OrbiGazeController | null>
   eventRef: RefObject<string>
@@ -79,6 +89,21 @@ export default function OrbiDebug({
     ['station', station],
     ['speech', state.message ?? '—'],
     ['event', live.event],
+    ['—env—', ''],
+    ['dock', environment.dock],
+    [
+      'scores',
+      environment.scores
+        .map((s) => `${DOCK_SHORT[s.dock]}:${s.score.toFixed(2)}`)
+        .join(' '),
+    ],
+    ['blocker', environment.blocker ?? '—'],
+    ['overlap', `${Math.round(environment.overlap * 100)}%`],
+    ['theme', environment.theme],
+    ['bubble', `${environment.bubble.placement}/${environment.bubble.align}`],
+    ['modal', environment.modal ? 'open' : '—'],
+    ['regions', String(environment.regions)],
+    ['decision', environment.reason],
   ]
 
   return (
@@ -97,18 +122,34 @@ export default function OrbiDebug({
         color: '#93A6BC',
         font: '500 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace',
         letterSpacing: '0.02em',
-        minWidth: '186px',
+        minWidth: '212px',
+        maxWidth: '260px',
       }}
     >
       <div style={{ color: '#00B7FF', marginBottom: '3px' }}>ORBI</div>
-      {rows.map(([key, value]) => (
-        <div key={key} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
-          <span style={{ color: '#4A5A6C' }}>{key}</span>
-          <span data-orbi-field={key} style={{ color: '#E9F1F8' }}>
-            {value}
-          </span>
-        </div>
-      ))}
+      {rows.map(([key, value]) =>
+        value === '' ? (
+          <div
+            key={key}
+            style={{ color: '#24344A', margin: '4px 0 2px', letterSpacing: '0.08em' }}
+          >
+            {key}
+          </div>
+        ) : (
+          <div
+            key={key}
+            style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}
+          >
+            <span style={{ color: '#4A5A6C' }}>{key}</span>
+            <span
+              data-orbi-field={key}
+              style={{ color: '#E9F1F8', textAlign: 'right', wordBreak: 'break-word' }}
+            >
+              {value}
+            </span>
+          </div>
+        ),
+      )}
     </div>
   )
 }

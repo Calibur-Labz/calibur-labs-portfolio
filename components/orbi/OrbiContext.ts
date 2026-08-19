@@ -10,6 +10,8 @@ const DETACHED: OrbiController = {
   state: ORBI_INITIAL_STATE,
   activeSection: null,
   scrollDirection: null,
+  dock: 'bottom-right',
+  refreshEnvironment: () => {},
   setOrbiState: () => {},
   say: () => {},
   clearMessage: () => {},

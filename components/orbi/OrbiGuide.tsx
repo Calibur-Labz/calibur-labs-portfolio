@@ -27,13 +27,16 @@ import {
   type OrbiDrowsiness,
   type OrbiInteractionApi,
   type OrbiProximity,
+  type OrbiTargetSignal,
 } from './useOrbiInteraction'
+import { useOrbiEnvironment } from './useOrbiEnvironment'
 import {
   ORBI_SECTION_BEHAVIORS,
   resolveSectionAnimation,
   sectionClaimMs,
 } from './orbiSections'
 import {
+  applyDock,
   applyTilt,
   createBlinkScheduler,
   createCuriousTimeline,
@@ -45,7 +48,6 @@ import {
   createSettleTimeline,
   createWaveTimeline,
   lookTiltAngle,
-  playDock,
   playHide,
   playShow,
   resetLayer,
@@ -63,6 +65,7 @@ import {
   ORBI_INITIAL_STATE,
   ORBI_INTERACTION,
   ORBI_MESSAGES,
+  ORBI_ENVIRONMENT,
   ORBI_PLACEMENT,
   ORBI_PRIORITY,
   ORBI_SCROLL,
@@ -255,6 +258,32 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     [],
   )
 
+  /* ── Environment sensing ─────────────────────────────────────────────── */
+  const probeRef = useRef<HTMLDivElement>(null)
+
+  const bubbleSize = useMemo(
+    () => ({
+      width: placement.speechMaxWidth,
+      height: placement.speechFontSize * 3.2,
+    }),
+    [placement.speechMaxWidth, placement.speechFontSize],
+  )
+
+  const dockMargin = useMemo(
+    () => ({ x: placement.right, y: placement.bottom }),
+    [placement.right, placement.bottom],
+  )
+
+  const environment = useOrbiEnvironment({
+    enabled: settled,
+    rootRef,
+    probeRef,
+    bubbleSize,
+    margin: dockMargin,
+    mobile: quietBody,
+  })
+
+
   /* ── Controller (arbitrated) ─────────────────────────────────────────── */
 
   const setOrbiState = useCallback(
@@ -314,6 +343,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       state,
       activeSection,
       scrollDirection,
+      dock: environment.dock,
+      refreshEnvironment: environment.refresh,
       setOrbiState,
       say,
       clearMessage,
@@ -326,6 +357,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       state,
       activeSection,
       scrollDirection,
+      environment.dock,
+      environment.refresh,
       setOrbiState,
       say,
       clearMessage,
@@ -1012,6 +1045,257 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     gazeRef.current?.clear('cursor')
   }, [])
 
+  /* ── Where ORBI sits ─────────────────────────────────────────────────── */
+  // Two things want to move ORBI's box: the environment picking a dock, and
+  // the footer perch. Both are *position*, not personality, so neither is
+  // arbitrated — ORBI must never sit on top of a control, whatever else he is
+  // doing. They are summed into a single tween so the layer has one writer.
+
+  const docked = station === 'edge' || state.animation === 'peek'
+  /** Delta from ORBI's CSS anchor to the dock the environment chose, in px. */
+  const dockOffsetRef = useRef({ x: 0, y: 0 })
+  const perchedRef = useRef(docked)
+
+  const applyDockTransform = useCallback((duration: number) => {
+    const el = dockRef.current
+    if (!el) return
+    applyDock(
+      el,
+      { ...dockOffsetRef.current, perched: perchedRef.current },
+      motionRef.current,
+      duration,
+    )
+  }, [])
+
+  useEffect(() => {
+    perchedRef.current = docked
+    applyDockTransform(ORBI_TIMING.dockDuration)
+  }, [docked, applyDockTransform, motion])
+
+  /* ── Acting on the environment ───────────────────────────────────────── */
+  // The controller only ever *decides*. Everything below is the guide acting
+  // on those decisions, which keeps a single authority over ORBI's state and
+  // animation.
+
+  const lastDockRef = useRef<string | null>(null)
+  const modalOpenRef = useRef(false)
+  const noticeTokenRef = useRef(0)
+
+  /**
+   * Take note of something and look at it for a beat — the reaction that
+   * makes a relocation read as "ORBI saw that" rather than as a jump.
+   *
+   * The *move* is not arbitrated (position is a safety concern), but the
+   * reaction is, so it cannot talk over an explicit interaction.
+   */
+  const notice = useCallback(
+    (
+      gaze: { x: number; y: number } | null,
+      expression: OrbiExpression,
+      level: number,
+      owner: string,
+      holdMs: number,
+    ) => {
+      if (!gaze) return
+      if (!arbiter.claim(level, owner, holdMs + 300)) return
+
+      const token = ++noticeTokenRef.current
+      gazeRef.current?.set('interaction', gaze.x, gaze.y)
+      setGazeLead('interaction')
+      setState((current) => ({ ...current, expression }))
+
+      later(() => {
+        if (token !== noticeTokenRef.current) return
+        gazeRef.current?.clear('interaction')
+        setGazeLead('gesture')
+        setState((current) =>
+          current.expression === expression
+            ? { ...current, expression: 'normal' }
+            : current,
+        )
+        arbiter.release(owner)
+      }, holdMs)
+    },
+    [arbiter, later],
+  )
+
+  /**
+   * Apply the chosen dock. ORBI's box is CSS-anchored bottom-right, so a dock
+   * is the delta from that anchor to the decided rectangle — which makes
+   * `bottom-right` cost exactly zero transform.
+   */
+  useEffect(() => {
+    const rect = environment.rect
+    const root = rootRef.current
+    if (!rect || !root) return
+
+    const width = root.offsetWidth
+    const height = root.offsetHeight
+    const probe = probeRef.current
+    const style = probe ? getComputedStyle(probe) : null
+    const insetRight = style ? parseFloat(style.paddingRight) || 0 : 0
+    const insetBottom = style ? parseFloat(style.paddingBottom) || 0 : 0
+
+    const anchorLeft =
+      window.innerWidth - insetRight - placement.right - width
+    const anchorTop =
+      window.innerHeight - insetBottom - placement.bottom - height
+
+    const next = { x: rect.left - anchorLeft, y: rect.top - anchorTop }
+    const previous = dockOffsetRef.current
+    const moved = Math.hypot(next.x - previous.x, next.y - previous.y)
+    if (moved < 0.5) return
+
+    dockOffsetRef.current = next
+    const changed = environment.dock !== lastDockRef.current
+    const first = lastDockRef.current === null
+    lastDockRef.current = environment.dock
+
+    applyDockTransform(
+      first
+        ? 0
+        : quietBody
+          ? ORBI_ENVIRONMENT.moveDurationMobile
+          : ORBI_ENVIRONMENT.moveDuration,
+    )
+
+    // Glance at whatever pushed him out of the way. Mid-relocation only —
+    // a resize that happens to shift the anchor is not worth reacting to.
+    if (changed && !first) {
+      note(`dock:${environment.dock}`)
+      // A tick behind the move, so the reaction is not a cascading render off
+      // the back of a layout decision.
+      later(
+        () =>
+          notice(
+            environment.noticeGaze,
+            'thinking',
+            ORBI_PRIORITY.environment,
+            'environment',
+            ORBI_ENVIRONMENT.noticeHoldMs,
+          ),
+        0,
+      )
+    }
+  }, [
+    environment.rect,
+    environment.dock,
+    environment.noticeGaze,
+    placement.right,
+    placement.bottom,
+    quietBody,
+    applyDockTransform,
+    notice,
+    note,
+    later,
+  ])
+
+  /* Modals: stand down rather than compete. */
+  useEffect(() => {
+    if (environment.modal === modalOpenRef.current) return
+    modalOpenRef.current = environment.modal
+
+    if (environment.modal) {
+      note('modal-open')
+      later(
+        () =>
+          notice(
+            environment.modalGaze,
+            'surprised',
+            ORBI_PRIORITY.safety,
+            'modal',
+            ORBI_ENVIRONMENT.noticeHoldMs,
+          ),
+        0,
+      )
+      return
+    }
+
+    // A beat after it closes, so ORBI is not already drifting back while the
+    // overlay is still fading out.
+    note('modal-close')
+    later(
+      () => environment.refresh('modal-close'),
+      ORBI_ENVIRONMENT.modalReturnDelayMs,
+    )
+  }, [environment, later, notice, note])
+
+  /* ── Project cards ───────────────────────────────────────────────────── */
+
+  const projectKeyRef = useRef<string | null>(null)
+
+  const handleProject = useCallback(
+    (signal: OrbiTargetSignal | null) => {
+      const gaze = gazeRef.current
+
+      if (!signal) {
+        projectKeyRef.current = null
+        gaze?.clear('interaction')
+        softExpression(null)
+        return
+      }
+
+      // Moving across a row of cards is eyes and expression only — a gesture
+      // per card would be exhausting.
+      projectKeyRef.current = signal.key
+      gaze?.set('interaction', signal.gaze.x, signal.gaze.y)
+      softExpression('happy')
+    },
+    [softExpression],
+  )
+
+  const handleProjectDwell = useCallback(
+    (signal: OrbiTargetSignal) => {
+      if (projectKeyRef.current !== signal.key) return
+      if (stateRef.current.message) return
+      if (!isRestingAnimation(stateRef.current.animation)) return
+      if (!arbiter.claim(ORBI_PRIORITY.ambient, 'project', 1400)) return
+
+      note(`project:${signal.key}`)
+      setState((current) => ({ ...current, expression: 'happy' }))
+      later(() => arbiter.release('project'), 1200)
+    },
+    [arbiter, later, note],
+  )
+
+  /* ── Revealed detail ─────────────────────────────────────────────────── */
+
+  const handleExpanded = useCallback(
+    (signal: OrbiTargetSignal | null) => {
+      if (!signal) {
+        gazeRef.current?.clear('interaction')
+        softExpression(null)
+        return
+      }
+      note(`expanded:${signal.key}`)
+      notice(
+        signal.gaze,
+        'surprised',
+        ORBI_PRIORITY.environment,
+        'expanded',
+        ORBI_ENVIRONMENT.noticeHoldMs,
+      )
+    },
+    [notice, note, softExpression],
+  )
+
+  /* ── Form regions ────────────────────────────────────────────────────── */
+  // Geometry only for now: look toward the form, keep clear of it, say
+  // nothing. The conversational behaviour belongs to a later phase.
+
+  const handleFormFocus = useCallback(
+    (signal: OrbiTargetSignal | null) => {
+      const gaze = gazeRef.current
+      if (!signal) {
+        gaze?.clear('interaction')
+        return
+      }
+      note('form-focus')
+      gaze?.set('interaction', signal.gaze.x, signal.gaze.y)
+    },
+    [note],
+  )
+
   const interactionHandlers = useMemo(
     () => ({
       onGaze: handleGaze,
@@ -1026,6 +1310,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       onNav: handleNav,
       onReturn: handleReturn,
       onVisibility: setTabVisible,
+      onProject: handleProject,
+      onProjectDwell: handleProjectDwell,
+      onExpanded: handleExpanded,
+      onFormFocus: handleFormFocus,
     }),
     [
       handleGaze,
@@ -1038,6 +1326,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       handleCta,
       handleNav,
       handleReturn,
+      handleProject,
+      handleProjectDwell,
+      handleExpanded,
+      handleFormFocus,
     ],
   )
 
@@ -1192,7 +1484,13 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const flightRef = useRef<OrbiFlightHandle | null>(null)
 
   const flightVariant =
-    drowsiness > 0 ? 'drowsy' : state.animation === 'float' ? 'active' : 'hover'
+    drowsiness > 0
+      ? 'drowsy'
+      : environment.modal
+        ? 'calm'
+        : state.animation === 'float'
+          ? 'active'
+          : 'hover'
 
   /**
    * Flight is the lowest-priority thing ORBI does, so the larger reposition
@@ -1243,18 +1541,6 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     else flight.pause()
   }, [tabVisible])
 
-  /* ── Footer perch ────────────────────────────────────────────────────── */
-  // Position, not personality: this runs regardless of who holds the priority
-  // claim, because ORBI must never sit on top of the footer links.
-
-  const docked = station === 'edge' || state.animation === 'peek'
-
-  useEffect(() => {
-    const dock = dockRef.current
-    if (!dock) return
-    playDock(dock, docked ? 'edge' : 'home', motion)
-  }, [docked, motion])
-
   /* ── Idle blinking ───────────────────────────────────────────────────── */
 
   useEffect(() => {
@@ -1277,12 +1563,31 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   return (
     <OrbiContext.Provider value={controller}>
       {children}
+      {/* Resolves `env(safe-area-inset-*)` to real numbers. Hidden, inert, and
+          measured only on resize — there is no other way to read the insets. */}
+      <div
+        ref={probeRef}
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          pointerEvents: 'none',
+          visibility: 'hidden',
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingRight: 'env(safe-area-inset-right, 0px)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+        }}
+      />
       <div
         ref={rootRef}
         style={{
           position: 'fixed',
-          right: `${placement.right}px`,
-          bottom: `${placement.bottom}px`,
+          // Anchored past the safe-area insets, so on a notched phone the
+          // default dock is already inside the usable area rather than under
+          // the home indicator.
+          right: `calc(env(safe-area-inset-right, 0px) + ${placement.right}px)`,
+          bottom: `calc(env(safe-area-inset-bottom, 0px) + ${placement.bottom}px)`,
           width: `${placement.size}px`,
           height: `${height}px`,
           zIndex: ORBI_Z_INDEX,
@@ -1302,6 +1607,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           message={state.message}
           messageId={state.messageId}
           placement={placement}
+          side={environment.bubble.placement}
+          align={environment.bubble.align}
+          theme={environment.theme}
           reducedMotion={reducedMotion}
         />
         <div ref={dockRef} style={{ ...layer, willChange: 'transform' }}>
@@ -1313,6 +1621,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
                   awake={awake}
                   bright={bright}
                   dozing={drowsiness === 2}
+                  theme={environment.theme}
                   gazeRef={gazeElementRef}
                   armRef={armRef}
                   leftArmRef={leftArmRef}
@@ -1333,6 +1642,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           station={station}
           proximity={proximity}
           drowsiness={drowsiness}
+          environment={environment}
           arbiter={arbiter}
           gazeRef={gazeRef}
           eventRef={lastEventRef}

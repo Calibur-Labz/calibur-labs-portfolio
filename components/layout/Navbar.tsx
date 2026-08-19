@@ -140,6 +140,9 @@ export default function Navbar() {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             className="show-mobile"
+            // ORBI keeps clear of the open menu. Attribute only.
+            data-orbi-avoid="high"
+            data-orbi-label="nav-menu"
             style={{
               position: 'absolute',
               top: '100%',
