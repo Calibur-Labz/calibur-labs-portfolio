@@ -127,7 +127,10 @@ export default function Hero() {
       />
 
       {/* Content */}
-      <div style={{ maxWidth: '800px', width: '100%', position: 'relative', zIndex: 3 }}>
+      <div
+        data-orbi-cinematic="hero"
+        style={{ maxWidth: '800px', width: '100%', position: 'relative', zIndex: 3 }}
+      >
         <motion.div variants={heroStagger} initial="hidden" animate="visible">
 
           <motion.div variants={fadeUp} style={{ marginTop: '16px', marginBottom: '28px', display: 'flex', justifyContent: 'center' }}>

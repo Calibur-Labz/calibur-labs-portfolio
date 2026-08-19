@@ -24,6 +24,8 @@ export {
   resolveSectionAnimation,
 } from './orbiSections'
 export { useOrbiEnvironment } from './useOrbiEnvironment'
+export { useOrbiCinematic } from './useOrbiCinematic'
+export type { OrbiCinematicApi } from './useOrbiCinematic'
 export type {
   OrbiEnvironmentApi,
   OrbiEnvironmentDecision,
@@ -38,6 +40,7 @@ export type {
 } from './useOrbiInteraction'
 export type {
   OrbiBubblePlacement,
+  OrbiCinematicType,
   OrbiDock,
   OrbiGazeSource,
   OrbiRegionTheme,
@@ -57,6 +60,8 @@ export type {
 export {
   ORBI_CLICK_MESSAGES,
   ORBI_COOLDOWNS,
+  ORBI_CINEMATIC,
+  ORBI_CINEMATICS,
   ORBI_DOCKS,
   ORBI_ENVIRONMENT,
   ORBI_SELECTORS,

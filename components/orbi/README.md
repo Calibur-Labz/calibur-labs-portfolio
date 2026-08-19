@@ -8,11 +8,12 @@ The website companion.
 **Phase 3.1** — flight, and a focus indicator that suits a round robot.
 **Phase 5** — environmental awareness: docking, safe zones, themes.
 **Phase 6** — contact form companion.
+**Phase 7** — cinematic movement.
 
-There is no Phase 4 in this codebase. `ORBI_PRIORITY.cinematic` is reserved
-between `safety` and `interaction` so scripted choreography can slot in later
-without renumbering, and `useOrbi().refreshEnvironment()` exists for it to call
-when a scripted move lands.
+`ORBI_PRIORITY.cinematic` is no longer reserved; Phase 7 uses it.
+
+There is no Phase 4 in this codebase; Phase 7 took over the `cinematic`
+priority slot that was reserved for it.
 
 Still no AI, no chat, no API calls, no backend. Every behaviour is
 deterministic and derived from page state.
@@ -38,6 +39,7 @@ matter more than the reactions. When in doubt, less movement.
 | `useOrbiEnvironment.ts` | What the page looks like: regions, docks, modal, theme, bubble placement. Decides only. |
 | `orbiDocks.ts` | Dock geometry and scoring. Pure functions — no DOM, no React, no GSAP. |
 | `useOrbiForm.ts` | The contact form's lifecycle: focus, validity, submission. Never its contents. |
+| `useOrbiCinematic.ts` | Leaving the dock: destination geometry, travel, cancellation. |
 | `orbiConfig.ts` | Types, placement, timing, easing, palette, geometry, scroll tuning. |
 | `OrbiContext.ts` | `useOrbi()`. |
 | `useOrbiSection.ts` | Runtime section registration. |
@@ -348,6 +350,107 @@ On a phone the form fills the screen and every dock is equally blocked — so
 shuffling between bad corners. The same happens when the on-screen keyboard
 collapses the visual viewport (`visualViewport.resize`, debounced 260ms).
 
+## Cinematic movement
+
+Occasionally ORBI leaves his dock and moves into the page. Rare on purpose —
+roughly a tenth of what he does — because that is what makes it read as
+deliberate rather than as an animation on a loop.
+
+Sections opt in with an attribute and contain no choreography:
+
+```html
+<div data-orbi-cinematic="hero">…</div>
+<div data-orbi-cinematic="precision">…</div>
+<div data-orbi-cinematic="projects">…</div>
+```
+
+### The three moments
+
+| | travel out | dwell | travel back | total |
+| --- | --- | --- | --- | --- |
+| **Hero** (once per load) | rises *into* the composition | greeting | 0.9s to the dock | ~5.6s |
+| **Precision** | 1.28s | 1.77s — lean, thinking, one glance either side | 1.29s | 4.5s |
+| **Projects** | 0.87s | 1.71s — eyes travel the row, body still | 0.88s | 3.7s |
+
+No speech during travel. The hero greeting is the one exception, and its bubble
+travels with ORBI because the speech panel lives *inside* the travel layer.
+
+### Destination geometry
+
+Resolved from the target's own rect, never hardcoded. Candidate spots are
+placed clear of the target by `targetGap` on each preferred side, then scored
+against the same registered regions the docking system uses. A spot that
+overlaps a registered control by more than `unsafeOverlap`, or that leaves the
+usable viewport, is **discarded rather than penalised** — so ORBI either finds
+somewhere genuinely clear or does not go. Geometry is read before travel and
+once on landing, never per frame.
+
+### The path
+
+A quadratic Bézier through a lifted control point, computed from a proxy value
+rather than a motion-path plugin, plus a few degrees of lean into the direction
+of travel. Nothing scales, nothing bounces. The trip home varies deterministically
+by run index across three arcs — a dip, a lift, a direct glide — so returning is
+not a rewind of the outbound path.
+
+Arrival pauses for 200ms *before* reacting. Small, and the beat falls flat
+without it: arriving and reacting have to read as two events.
+
+### Cancellation
+
+Safety and the visitor's own business both win, and cancellation is always
+preferred to pausing:
+
+| trigger | result |
+| --- | --- |
+| target scrolled out of view | fly home, `target-left-view` |
+| modal or nav overlay opens | fly home, `modal-open` / `nav-open` |
+| contact companion activates | fly home, `form-companion` |
+| ORBI clicked mid-flight | **not** cancelled — a look and a blink, no bubble |
+
+A cancel flies home rather than snapping, and every ending — completed,
+cancelled, unmounted — runs the same teardown: kill the timeline, reset the
+travel layer to identity, release the claim, and `refreshEnvironment`, because
+the page may have moved while ORBI was away.
+
+### Layers
+
+One new layer, between the anchor and the dock:
+
+```
+root → travel → [speech, dock → tilt → gesture → floater → arms]
+```
+
+Every cinematic position is an **absolute offset from the anchor**; nothing is
+ever added to a current value, so repeated runs cannot drift. Verified after 15
+section crossings: travel, dock, tilt, gesture and both arms all at identity.
+
+### Responsive and reduced motion
+
+| | hero | precision | projects |
+| --- | --- | --- | --- |
+| Desktop | full flight | full flight | full flight |
+| Tablet | shorter flight | 0.7× travel | 0.7× travel |
+| Mobile | plain entrance, no flight | gaze + expression from the dock | gaze + expression from the dock |
+| Reduced motion | plain entrance, greeting kept | gaze + expression from the dock | gaze + expression from the dock |
+
+The mobile and reduced-motion fallbacks are ordinary section behaviours, so the
+*reaction* survives even when the travel does not.
+
+## Development switches
+
+Dev only — all three gated on `NODE_ENV`, which Next inlines:
+
+| | |
+| --- | --- |
+| `?orbi-debug` | the HUD |
+| `?orbi-cinematic=precision` | run one on load, for visual tuning |
+| `?orbi-freeze=1` | hold ORBI perfectly still |
+
+Freeze exists because continuous flight makes Playwright's element screenshots
+time out waiting for a stable box — correct on its side, unhelpful on ours.
+With it on, `elementHandle.screenshot()` succeeds.
+
 ## Focus and hit state
 
 ORBI is a real control: the `<svg>` carries `role="button"`, `tabindex="0"`, an
@@ -389,9 +492,14 @@ the level in force:
 
 ```
 entrance 70 > interaction 60 > formResult 58 > formSubmitting 55
-  > cinematic 50 (reserved) > safety 45 > environment 35 > formFocus 32
+  > cinematic 50 > safety 45 > environment 35 > formFocus 32
   > section 30 > fastScroll 20 > ambient 15 > gaze 10 > idle 0
 ```
+
+A cinematic outranks section behaviour, fast scroll, gaze and idle. It sits
+*above* `safety` numerically, so modal and nav interruption is handled by the
+controller cancelling itself rather than by the arbiter — which is what the
+"prefer cancellation over pausing" rule wants anyway.
 
 So a scroll glance never cuts a section gesture short, a fast-scroll startle
 never overrides Contact's wave, and nothing at all interrupts the entrance.

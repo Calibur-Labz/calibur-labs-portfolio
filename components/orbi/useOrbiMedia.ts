@@ -3,9 +3,11 @@
 import { useSyncExternalStore } from 'react'
 import {
   ORBI_DEBUG,
+  ORBI_DEV_PARAMS,
   ORBI_MEDIA,
   ORBI_PLACEMENT,
   type OrbiBreakpoint,
+  type OrbiCinematicType,
   type OrbiPlacement,
 } from './orbiConfig'
 
@@ -74,10 +76,42 @@ const noSubscribe = () => () => {}
  * client's first render agree — no hydration warning.
  */
 export function useOrbiDebugEnabled(): boolean {
-  const fromQuery = useSyncExternalStore(
+  const fromQuery = useDevParam(ORBI_DEV_PARAMS.debug)
+  return isDev() && (ORBI_DEBUG || fromQuery !== null)
+}
+
+/**
+ * `?orbi-freeze=1` — hold ORBI completely still while leaving him rendered.
+ *
+ * Continuous flight makes Playwright's element screenshots time out waiting
+ * for a stable box, which is correct behaviour on its side and unhelpful on
+ * ours. This exists so a visual test can get a deterministic frame. Dev only.
+ */
+export function useOrbiFrozen(): boolean {
+  const frozen = useDevParam(ORBI_DEV_PARAMS.freeze)
+  return isDev() && frozen !== null
+}
+
+/**
+ * `?orbi-cinematic=precision` — run a cinematic on load so it can be tuned
+ * without scrolling to it and waiting out the cooldown. Dev only.
+ */
+export function useOrbiCinematicRequest(): OrbiCinematicType | null {
+  const value = useDevParam(ORBI_DEV_PARAMS.cinematic)
+  if (!isDev()) return null
+  return value === 'hero' || value === 'precision' || value === 'projects'
+    ? value
+    : null
+}
+
+/** Inlined by Next, so every dev switch above vanishes from a production build. */
+const isDev = () => process.env.NODE_ENV !== 'production'
+
+/** Read once per page view — the query string cannot change under us. */
+function useDevParam(name: string): string | null {
+  return useSyncExternalStore(
     noSubscribe,
-    () => new URLSearchParams(window.location.search).has('orbi-debug'),
-    () => false,
+    () => new URLSearchParams(window.location.search).get(name),
+    () => null,
   )
-  return process.env.NODE_ENV !== 'production' && (ORBI_DEBUG || fromQuery)
 }

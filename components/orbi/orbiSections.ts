@@ -42,6 +42,15 @@ export const ORBI_SECTION_BEHAVIORS: OrbiSectionBehavior[] = [
     expressionDuration: 2600,
   },
   {
+    // Curious, quiet, no bubble. On desktop the cinematic takes over and ORBI
+    // goes to inspect the diagram; this is what happens when it cannot — a
+    // phone, or reduced motion — so the *reaction* survives either way.
+    id: 'precision',
+    expression: 'thinking',
+    animation: 'look-left',
+    expressionDuration: 2600,
+  },
+  {
     // Short burst of delight. No bubble — the work speaks for itself.
     id: 'work',
     expression: 'happy',

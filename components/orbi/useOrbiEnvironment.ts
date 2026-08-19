@@ -90,7 +90,17 @@ export interface OrbiEnvironmentOptions {
   mobile: boolean
 }
 
+export interface OrbiEnvironmentSnapshotFn {
+  (): { viewport: OrbiViewport; regions: OrbiRegion[] } | null
+}
+
 export interface OrbiEnvironmentApi extends OrbiEnvironmentDecision {
+  /**
+   * Measure the page right now. Used by the cinematic controller to score a
+   * destination against the same regions the docking system uses — one source
+   * of truth for "what must ORBI not sit on".
+   */
+  read: OrbiEnvironmentSnapshotFn
   /**
    * Ask for a re-evaluation. Debounced, so calling it from several triggers at
    * once costs one measurement. Phase 4 choreography should call this when a
@@ -520,7 +530,14 @@ export function useOrbiEnvironment({
     companionRect,
   ])
 
-  return { ...decision, refresh }
+  const read = useCallback<OrbiEnvironmentSnapshotFn>(() => {
+    if (!enabledRef.current) return null
+    const viewport = readViewport()
+    const { regions } = collectRegions(viewport)
+    return { viewport, regions }
+  }, [collectRegions, readViewport])
+
+  return { ...decision, refresh, read }
 }
 
 /** Direction only — magnitude is clamped by the gaze controller anyway. */

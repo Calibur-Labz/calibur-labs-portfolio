@@ -10,11 +10,13 @@
  */
 
 import {
+  ORBI_CINEMATIC,
   ORBI_DEFAULT_DOCK,
   ORBI_DOCK_FALLBACKS,
   ORBI_DOCKS,
   ORBI_ENVIRONMENT,
   type OrbiBubblePlacement,
+  type OrbiCinematicSide,
   type OrbiDock,
 } from './orbiConfig'
 
@@ -365,4 +367,120 @@ export function chooseBubblePlacement(
   })
 
   return { placement: best.placement, align: best.align }
+}
+
+/* ── Cinematic destinations ────────────────────────────────────────────── */
+
+export interface OrbiCinematicSpot {
+  rect: OrbiRect
+  side: OrbiCinematicSide
+  /** Worst overlap with a registered region, as a fraction of ORBI's area. */
+  overlap: number
+}
+
+/**
+ * Find somewhere to park beside a cinematic target.
+ *
+ * The point is to sit *near* the composition, never on it — so every candidate
+ * is offset clear of the target by `targetGap`, and anything that lands on a
+ * registered region, or off the edge of the screen, is discarded rather than
+ * merely penalised. If nothing survives, the caller skips the cinematic;
+ * usability always outranks the flourish.
+ */
+export function chooseCinematicSpot(
+  target: OrbiRect,
+  size: { width: number; height: number },
+  regions: OrbiRegion[],
+  viewport: OrbiViewport,
+  prefer: readonly OrbiCinematicSide[],
+): OrbiCinematicSpot | null {
+  const gap = ORBI_CINEMATIC.targetGap
+  const margin = ORBI_CINEMATIC.edgeMargin
+  const own = size.width * size.height || 1
+
+  const midY = (target.top + target.bottom) / 2 - size.height / 2
+
+  const place = (side: OrbiCinematicSide): OrbiRect => {
+    let left: number
+    let top: number
+
+    switch (side) {
+      case 'right':
+        left = target.right + gap
+        top = midY
+        break
+      case 'left':
+        left = target.left - gap - size.width
+        top = midY
+        break
+      case 'above-right':
+        left = target.right - size.width
+        top = target.top - gap - size.height
+        break
+      case 'above-left':
+        left = target.left
+        top = target.top - gap - size.height
+        break
+      case 'below-right':
+        left = target.right - size.width
+        top = target.bottom + gap
+        break
+      case 'below-left':
+      default:
+        left = target.left
+        top = target.bottom + gap
+        break
+    }
+
+    return { left, top, right: left + size.width, bottom: top + size.height }
+  }
+
+  let best: OrbiCinematicSpot | null = null
+  let bestScore = Number.POSITIVE_INFINITY
+
+  prefer.forEach((side, index) => {
+    const rect = place(side)
+
+    // Must sit fully inside the usable viewport — ORBI half off the screen
+    // mid-composition looks broken, not cinematic.
+    const outside =
+      rect.left < viewport.insetLeft + margin ||
+      rect.right > viewport.width - viewport.insetRight - margin ||
+      rect.top < viewport.insetTop + margin ||
+      rect.bottom > viewport.height - viewport.insetBottom - margin
+    if (outside) return
+
+    let overlap = 0
+    let score = 0
+    for (const region of regions) {
+      const ratio = intersectionArea(rect, region.rect) / own
+      if (ratio > overlap) overlap = ratio
+      score += ratio * region.weight
+    }
+    // Anything meaningfully covering a registered control disqualifies the
+    // spot outright rather than costing it points.
+    if (overlap > ORBI_CINEMATIC.unsafeOverlap) return
+
+    score += index * 0.1
+    if (score < bestScore) {
+      bestScore = score
+      best = { rect, side, overlap }
+    }
+  })
+
+  return best
+}
+
+/** How visible a rectangle currently is, as a fraction of its own area. */
+export function visibleFraction(rect: OrbiRect, viewport: OrbiViewport): number {
+  const own = area(rect)
+  if (!own) return 0
+  return (
+    intersectionArea(rect, {
+      left: 0,
+      top: 0,
+      right: viewport.width,
+      bottom: viewport.height,
+    }) / own
+  )
 }

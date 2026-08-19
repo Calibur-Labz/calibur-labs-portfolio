@@ -50,6 +50,7 @@ export type OrbiAnimation =
   | 'settle'
   | 'curious'
   | 'nod'
+  | 'inspect'
 
 const RESTING = ['idle', 'float', 'peek'] as const
 const LOOKING = ['look-left', 'look-right', 'look-up', 'look-down'] as const
@@ -62,6 +63,7 @@ const ONE_SHOT = [
   'settle',
   'curious',
   'nod',
+  'inspect',
 ] as const
 
 export type OrbiLookAnimation = (typeof LOOKING)[number]
@@ -238,7 +240,12 @@ export const ORBI_MEDIA = {
   finePointer: '(hover: hover) and (pointer: fine)',
 } as const
 
-/** Under the fixed navbar (z-index 100), above every section (z-index 10). */
+/**
+ * ORBI's tier: above every section (z-index 10) so he can move through the
+ * composition, and below the fixed navbar (100) so a full-screen menu, a modal
+ * or any system overlay always covers him. Deliberately not a huge number —
+ * anything that needs to be above ORBI only has to clear 90.
+ */
 export const ORBI_Z_INDEX = 90
 
 /* ── Timing ────────────────────────────────────────────────────────────── */
@@ -246,16 +253,16 @@ export const ORBI_Z_INDEX = 90
 /** Seconds unless the name says ms — GSAP works in seconds. */
 export const ORBI_TIMING = {
   /** Beat of stillness after mount before ORBI rises. */
-  entranceDelay: 0.5,
+  entranceDelay: 0.35,
   riseDuration: 1.2,
   /** Pause after landing before the eyes come on. */
-  eyesOnDelay: 0.28,
+  eyesOnDelay: 0.2,
   eyesOnDuration: 0.45,
   /** Gap between the eyes lighting up and the first blink. */
-  beforeBlink: 0.45,
+  beforeBlink: 0.3,
   blinkCloseMs: 130,
   /** Gap between the blink and the wave. */
-  beforeWave: 0.3,
+  beforeWave: 0.22,
   waveRaise: 0.4,
   waveSwing: 0.26,
   waveSwings: 3,
@@ -501,6 +508,125 @@ export type OrbiFlightPose = {
   ease?: string
 }
 
+/* ── Cinematic movement ────────────────────────────────────────────────── */
+
+export type OrbiCinematicType = 'hero' | 'precision' | 'projects'
+
+/** Where ORBI can park relative to a cinematic target. */
+export type OrbiCinematicSide =
+  | 'right'
+  | 'left'
+  | 'above-right'
+  | 'above-left'
+  | 'below-right'
+  | 'below-left'
+
+export type OrbiCinematicPhase =
+  | 'idle'
+  | 'out'
+  | 'arrive'
+  | 'perform'
+  | 'back'
+  | 'land'
+
+export interface OrbiCinematicSpec {
+  /** Attribute value that marks the target: `data-orbi-cinematic="…"`. */
+  type: OrbiCinematicType
+  /** Preferred parking spots, best first. Scoring can still overrule. */
+  prefer: readonly OrbiCinematicSide[]
+  /** How long ORBI stays at the destination. */
+  dwellMs: number
+  /** Only ever once per page load. */
+  once: boolean
+  /** Skipped entirely on a phone — no room to cross the screen safely. */
+  desktopOnly: boolean
+}
+
+/**
+ * The three moments ORBI leaves his dock for.
+ *
+ * Rare on purpose: most of the time he stays put, which is what makes going
+ * somewhere read as deliberate rather than as an animation on a loop.
+ */
+export const ORBI_CINEMATICS: Record<OrbiCinematicType, OrbiCinematicSpec> = {
+  hero: {
+    type: 'hero',
+    prefer: ['right', 'below-right', 'left'],
+    dwellMs: 0, // the entrance choreography sets its own pace
+    once: true,
+    desktopOnly: false,
+  },
+  precision: {
+    type: 'precision',
+    prefer: ['left', 'above-right', 'right', 'below-right'],
+    dwellMs: 1550,
+    once: false,
+    desktopOnly: true,
+  },
+  projects: {
+    type: 'projects',
+    prefer: ['above-right', 'right', 'above-left'],
+    dwellMs: 1500,
+    once: false,
+    desktopOnly: true,
+  },
+}
+
+export const ORBI_CINEMATIC = {
+  selector: '[data-orbi-cinematic]',
+
+  /** Clearance kept from the target itself and from the viewport edges. */
+  targetGap: 26,
+  edgeMargin: 24,
+
+  /** A destination this covered by something registered is unusable. */
+  unsafeOverlap: 0.08,
+
+  /* ── Travel ── */
+  /** Anything beyond this counts as a long trip. */
+  longDistance: 620,
+  shortMs: 880,
+  longMs: 1280,
+  mobileMs: 640,
+  /** Arc height as a fraction of the distance travelled. */
+  arcRatio: 0.2,
+  maxArc: 130,
+  /** Degrees ORBI leans into the direction of travel. */
+  leanDeg: 4.5,
+  /** The beat between arriving and reacting — small, and load-bearing. */
+  arriveSettleMs: 200,
+  /** Stabilisation once back on the dock. */
+  landSettleMs: 260,
+
+  /**
+   * Return paths, chosen deterministically by sequence index so a run is
+   * reproducible. Values scale the outbound arc: negative dips below the
+   * straight line, positive lifts above it.
+   */
+  returnStyles: [-0.55, 0.85, 0.06],
+
+  /** Tablet trims the travel; the choreography is otherwise identical. */
+  tabletScale: 0.7,
+
+  /** A target this far out of view mid-flight aborts the trip. */
+  abortVisibility: 0.25,
+
+  /** Precision inspection: a lean, then one glance either side. */
+  inspectLeanDeg: 3.5,
+  inspectScan: [-0.75, 0.55, -0.2],
+  inspectScanMs: 420,
+
+  /** Projects: eyes travel the row, body stays put. */
+  scanMs: 1500,
+
+  /** Beat after a section reaction before ORBI considers going anywhere. */
+  requestDelayMs: 500,
+  /** ...and once more, after the section's own gesture has resolved. */
+  requestRetryMs: 1400,
+  /** A bubble younger than this is still being read; ORBI waits. */
+  messageGraceMs: 900,
+} as const
+
 /* ── Cooldowns ─────────────────────────────────────────────────────────── */
 
 /**
@@ -523,6 +649,10 @@ export const ORBI_COOLDOWNS = {
   sectionReaction: 5000,
   /** Reacting to the same marked CTA again. */
   cta: 8000,
+  /** A cinematic will not re-run for the same section inside this window. */
+  cinematic: 45000,
+  /** Nor will *any* cinematic run again this soon after the last one. */
+  cinematicGlobal: 20000,
   /** The optional pointing gesture on a high-value CTA. */
   ctaPoint: 20000,
   /** Reacting to the navigation opening. */
@@ -677,9 +807,9 @@ export const ORBI_FORM_MESSAGES = {
  */
 export const ORBI_SUCCESS = {
   steps: [
-    { message: 'Message sent! ✨', holdMs: 1900, beat: 'celebrate' },
-    { message: "We'll check your message.", holdMs: 2100, beat: 'acknowledge' },
-    { message: 'Thank you! 💙', holdMs: 2100, beat: 'thank' },
+    { message: 'Yay, I got your message!', holdMs: 1900, beat: 'celebrate' },
+    { message: 'Our team will check it out!', holdMs: 2100, beat: 'acknowledge' },
+    { message: 'Thank You', holdMs: 2100, beat: 'thank' },
   ],
   /**
    * The three lines are different lengths. Pinning the floor just under the
@@ -813,3 +943,18 @@ export const ORBI_CLICK_MESSAGES = [
  * append `?orbi-debug` to the URL instead of editing this.
  */
 export const ORBI_DEBUG = false
+
+/**
+ * Development-only URL switches, resolved in `useOrbiMedia`:
+ *
+ *   ?orbi-debug              the HUD
+ *   ?orbi-cinematic=precision  run a cinematic on load, for visual tuning
+ *   ?orbi-freeze=1           hold ORBI still so screenshots are deterministic
+ *
+ * All three are gated on `NODE_ENV !== 'production'`, which Next inlines.
+ */
+export const ORBI_DEV_PARAMS = {
+  debug: 'orbi-debug',
+  cinematic: 'orbi-cinematic',
+  freeze: 'orbi-freeze',
+} as const

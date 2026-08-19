@@ -60,6 +60,7 @@ export default function Projects() {
         {/* Grid */}
         <motion.div
           layout
+          data-orbi-cinematic="projects"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',

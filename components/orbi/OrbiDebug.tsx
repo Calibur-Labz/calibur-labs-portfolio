@@ -7,6 +7,7 @@ import type { OrbiScrollDirection } from './useOrbiScroll'
 import type { OrbiDrowsiness, OrbiProximity } from './useOrbiInteraction'
 import type { OrbiEnvironmentApi } from './useOrbiEnvironment'
 import type { OrbiFormApi } from './useOrbiForm'
+import type { OrbiCinematicApi } from './useOrbiCinematic'
 import { ORBI_PRIORITY, type OrbiState } from './orbiConfig'
 
 /**
@@ -38,6 +39,7 @@ export default function OrbiDebug({
   drowsiness,
   environment,
   form,
+  cinematic,
   arbiter,
   gazeRef,
   eventRef,
@@ -50,6 +52,7 @@ export default function OrbiDebug({
   drowsiness: OrbiDrowsiness
   environment: OrbiEnvironmentApi
   form: OrbiFormApi
+  cinematic: OrbiCinematicApi
   arbiter: OrbiArbiter
   gazeRef: RefObject<OrbiGazeController | null>
   eventRef: RefObject<string>
@@ -80,6 +83,7 @@ export default function OrbiDebug({
     return () => cancelAnimationFrame(frame)
   }, [arbiter, gazeRef, eventRef])
 
+  const dock = environment.dock
   const rows: Array<[string, string]> = [
     ['section', section ?? '—'],
     ['expression', state.expression],
@@ -129,6 +133,20 @@ export default function OrbiDebug({
     ],
     ['submission', String(form.submissionId)],
     ['form event', form.lastEvent],
+    ['—cinematic—', ''],
+    ['running', cinematic.active ? 'yes' : '—'],
+    ['type', cinematic.type ?? '—'],
+    ['phase', cinematic.phase],
+    [
+      'destination',
+      cinematic.destination
+        ? `${Math.round(cinematic.destination.x)},${Math.round(cinematic.destination.y)}`
+        : '—',
+    ],
+    ['dest safe', cinematic.safe ? 'yes' : 'NO'],
+    ['from dock', dock],
+    ['elapsed', cinematic.active ? `${cinematic.elapsedMs}ms` : '—'],
+    ['cancel', cinematic.cancelReason ?? '—'],
   ]
 
   return (

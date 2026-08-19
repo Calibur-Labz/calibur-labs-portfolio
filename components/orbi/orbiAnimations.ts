@@ -18,6 +18,7 @@
 import { gsap } from 'gsap'
 import {
   ORBI_ART,
+  ORBI_CINEMATIC,
   ORBI_EASE,
   ORBI_ENVIRONMENT,
   ORBI_FLIGHT,
@@ -601,6 +602,147 @@ export function createCuriousTimeline(
     })
 
   return tl
+}
+
+/* ── Cinematic travel ──────────────────────────────────────────────────── */
+
+export interface OrbiCinematicFlightOptions {
+  /** Offsets from ORBI's anchor, in px. Absolute — never accumulated. */
+  from: { x: number; y: number }
+  to: { x: number; y: number }
+  /**
+   * Arc height as a signed fraction of the distance. Positive lifts the path
+   * above the straight line, negative dips it below. Zero is a direct glide.
+   */
+  arc: number
+  durationMs: number
+  /** Degrees to lean into the direction of travel. */
+  lean: number
+  onComplete?: () => void
+}
+
+/**
+ * Move ORBI across the page.
+ *
+ * A quadratic Bézier rather than a straight line, so travel reads as flight
+ * instead of a slide — and computed from a proxy value rather than a motion
+ * path plugin, which keeps the dependency surface where it is.
+ *
+ * `from` and `to` are absolute offsets from ORBI's anchor. Nothing here ever
+ * reads the element's current transform, so a sequence can be interrupted and
+ * restarted without the offsets creeping.
+ */
+export function createCinematicFlight(
+  travel: HTMLElement,
+  options: OrbiCinematicFlightOptions,
+): gsap.core.Timeline {
+  const { from, to, arc, durationMs, lean, onComplete } = options
+  const duration = durationMs / 1000
+  const tl = gsap.timeline({ onComplete })
+
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const distance = Math.hypot(dx, dy)
+
+  // Control point: the midpoint, pushed perpendicular to the path.
+  const lift = Math.max(
+    -ORBI_CINEMATIC.maxArc,
+    Math.min(ORBI_CINEMATIC.maxArc, distance * arc),
+  )
+  const cx = (from.x + to.x) / 2
+  const cy = (from.y + to.y) / 2 - lift
+
+  const at = { t: 0 }
+  tl.to(at, {
+    t: 1,
+    duration,
+    ease: 'power2.inOut',
+    onUpdate: () => {
+      const t = at.t
+      const inv = 1 - t
+      gsap.set(travel, {
+        x: inv * inv * from.x + 2 * inv * t * cx + t * t * to.x,
+        y: inv * inv * from.y + 2 * inv * t * cy + t * t * to.y,
+      })
+    },
+  })
+
+  // Lean in, then straighten up on arrival. A separate property on the same
+  // element, so it composes with the path rather than fighting it.
+  if (lean) {
+    const tilt = dx === 0 ? 0 : Math.sign(dx) * lean
+    tl.to(
+      travel,
+      { rotation: tilt, duration: duration * 0.3, ease: ORBI_EASE.soft },
+      0,
+    ).to(
+      travel,
+      { rotation: 0, duration: duration * 0.45, ease: ORBI_EASE.soft },
+      duration * 0.55,
+    )
+  }
+
+  return tl
+}
+
+/**
+ * The precision beat: lean toward the object, then one unhurried glance either
+ * side of it. Eyes do most of the work — the body barely moves, and it never
+ * orbits or circles.
+ */
+export function createInspectTimeline(
+  tilt: HTMLElement,
+  toward: -1 | 1,
+  options: OrbiMotionOptions,
+  onComplete?: () => void,
+): gsap.core.Timeline {
+  const tl = gsap.timeline({ onComplete })
+  const hold = ORBI_CINEMATIC.inspectScanMs / 1000
+
+  if (options.reducedMotion) {
+    tl.to({}, { duration: hold * ORBI_CINEMATIC.inspectScan.length })
+    return tl
+  }
+
+  tl.to(tilt, {
+    rotation: toward * ORBI_CINEMATIC.inspectLeanDeg,
+    duration: 0.5,
+    ease: ORBI_EASE.soft,
+    transformOrigin: '50% 85%',
+    overwrite: 'auto',
+  })
+    .to({}, { duration: hold * ORBI_CINEMATIC.inspectScan.length })
+    .to(tilt, {
+      rotation: 0,
+      duration: 0.55,
+      ease: ORBI_EASE.inOut,
+      transformOrigin: '50% 85%',
+      overwrite: 'auto',
+    })
+
+  return tl
+}
+
+/**
+ * Where the cinematic layer currently sits.
+ *
+ * Here rather than in the controller so that every GSAP call stays in this
+ * module — and because `gsap` ships a global ambient type, a stray call
+ * elsewhere type-checks and builds happily before failing at runtime.
+ */
+export function readCinematicOffset(travel: HTMLElement | null) {
+  if (!travel) return { x: 0, y: 0 }
+  return {
+    x: (gsap.getProperty(travel, 'x') as number) || 0,
+    y: (gsap.getProperty(travel, 'y') as number) || 0,
+  }
+}
+
+/** Put the cinematic layer back to exactly nothing. */
+export function resetCinematic(travel: HTMLElement | null) {
+  if (!travel) return
+  gsap.killTweensOf(travel)
+  gsap.set(travel, { x: 0, y: 0, rotation: 0 })
 }
 
 /* ── Nod ───────────────────────────────────────────────────────────────── */

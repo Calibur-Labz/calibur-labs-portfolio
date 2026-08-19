@@ -17,7 +17,9 @@ import { createGazeController, type OrbiGazeController } from './orbiGaze'
 import {
   useFinePointer,
   useOrbiBreakpoint,
+  useOrbiCinematicRequest,
   useOrbiDebugEnabled,
+  useOrbiFrozen,
   useReducedMotion,
 } from './useOrbiMedia'
 import { useOrbiScroll, type OrbiScrollDirection } from './useOrbiScroll'
@@ -31,17 +33,21 @@ import {
 } from './useOrbiInteraction'
 import { useOrbiEnvironment } from './useOrbiEnvironment'
 import { useOrbiForm } from './useOrbiForm'
+import { useOrbiCinematic, type OrbiCinematicApi } from './useOrbiCinematic'
 import {
   ORBI_SECTION_BEHAVIORS,
   resolveSectionAnimation,
   sectionClaimMs,
 } from './orbiSections'
+import { gsap } from 'gsap'
 import {
   applyDock,
   applyTilt,
   createBlinkScheduler,
   createCuriousTimeline,
   createExcitedTimeline,
+  createCinematicFlight,
+  createInspectTimeline,
   createNodTimeline,
   createFlight,
   createIntroTimeline,
@@ -52,6 +58,7 @@ import {
   lookTiltAngle,
   playHide,
   playShow,
+  resetCinematic,
   resetLayer,
   setInitialPose,
   type OrbiFlightHandle,
@@ -62,10 +69,12 @@ import {
   isLookAnimation,
   isRestingAnimation,
   ORBI_ART,
+  ORBI_CINEMATIC,
   ORBI_CLICK_MESSAGES,
   ORBI_COOLDOWNS,
   ORBI_INITIAL_STATE,
   ORBI_INTERACTION,
+  ORBI_MEDIA,
   ORBI_MESSAGES,
   ORBI_ENVIRONMENT,
   ORBI_FORM,
@@ -73,11 +82,14 @@ import {
   ORBI_PLACEMENT,
   ORBI_PRIORITY,
   ORBI_SCROLL,
+  ORBI_SELECTORS,
   ORBI_SUCCESS,
   ORBI_TIMING,
   ORBI_VIEWBOX,
   ORBI_Z_INDEX,
   type OrbiAnimation,
+  type OrbiBreakpoint,
+  type OrbiCinematicType,
   type OrbiExpression,
   type OrbiSayOptions,
   type OrbiSectionBehavior,
@@ -90,6 +102,56 @@ import {
  * production build, so this is never rendered and the chunk is never fetched.
  */
 const OrbiDebug = dynamic(() => import('./OrbiDebug'), { ssr: false })
+
+/**
+ * Where ORBI enters the page.
+ *
+ * Measured from the hero's own geometry rather than hardcoded, and only when
+ * there is room: on a phone, or with motion reduced, he simply arrives at the
+ * dock and greets from there. Never over the headline — the offset puts him in
+ * the open space beside it.
+ */
+function resolveHeroSpot(
+  root: HTMLElement | null,
+  motion: OrbiMotionOptions,
+  breakpoint: OrbiBreakpoint,
+): { x: number; y: number } | null {
+  if (!root || motion.reducedMotion) return null
+  if (breakpoint === 'mobile') return null
+
+  const target = document.querySelector('[data-orbi-cinematic="hero"]')
+  if (!target) return null
+
+  const hero = target.getBoundingClientRect()
+  const box = root.getBoundingClientRect()
+  if (!hero.width || !box.width) return null
+
+  const margin = ORBI_CINEMATIC.edgeMargin
+  const gap = ORBI_CINEMATIC.targetGap
+
+  // Beside the content, vertically level with it, clamped inside the viewport.
+  let left = hero.right + gap
+  if (left + box.width > window.innerWidth - margin) {
+    left = hero.left - gap - box.width
+  }
+  if (left < margin) return null
+
+  const top = Math.min(
+    Math.max(hero.top + hero.height / 2 - box.height / 2, margin),
+    window.innerHeight - margin - box.height,
+  )
+
+  return { x: Math.round(left - box.left), y: Math.round(top - box.top) }
+}
+
+/**
+ * Which section earns which cinematic. Sections declare the *target* with
+ * `data-orbi-cinematic`; this is the only place that says when to go.
+ */
+const SECTION_CINEMATICS: Record<string, OrbiCinematicType | undefined> = {
+  precision: 'precision',
+  work: 'projects',
+}
 
 /** Where each sustained look orientation points the pupils. */
 const LOOK_GAZE: Partial<Record<OrbiAnimation, { x: number; y: number }>> = {
@@ -157,6 +219,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const breakpoint = useOrbiBreakpoint()
   const finePointer = useFinePointer()
   const debugEnabled = useOrbiDebugEnabled()
+  /** `?orbi-freeze=1` — hold still for deterministic screenshots. Dev only. */
+  const frozen = useOrbiFrozen()
+  const devCinematic = useOrbiCinematicRequest()
   const placement = ORBI_PLACEMENT[breakpoint]
   /** Mobile keeps the eyes and drops the body movement. */
   const quietBody = breakpoint === 'mobile'
@@ -202,6 +267,12 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const cursorGazeRef = useRef({ x: 0, y: 0 })
   /** Newest thing ORBI reacted to. Debug HUD only. */
   const lastEventRef = useRef('—')
+  const navOpenRef = useRef(false)
+  const frozenRef = useRef(false)
+  /** Where the entrance parks ORBI before he flies to the dock. */
+  const heroSpotRef = useRef<{ x: number; y: number } | null>(null)
+  /** When the current bubble went up, so a fresh line is never cut short. */
+  const messageAtRef = useRef(0)
   /**
    * Invalidates pending "relax the face" timers. Bumped whenever something
    * newer takes over the expression, so an older timer becomes a no-op.
@@ -220,6 +291,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     quietBodyRef.current = quietBody
     drowsinessRef.current = drowsiness
     stationRef.current = station
+    frozenRef.current = frozen
   })
 
   /* ── Timers ──────────────────────────────────────────────────────────── */
@@ -303,9 +375,27 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     mobile: quietBody,
   })
 
+  /** The dedicated travel layer — cinematic movement and nothing else. */
+  const travelRef = useRef<HTMLDivElement>(null)
+  /**
+   * Mirror of the cinematic controller. Declared here, ahead of every effect
+   * that reaches for it — several of them cancel a flight and run before the
+   * controller itself is created.
+   */
+  const cinematicRef = useRef<OrbiCinematicApi | null>(null)
+
+  /** Mirror, so callbacks can read the environment without re-binding. */
+  const environmentRef = useRef(environment)
+  useEffect(() => {
+    environmentRef.current = environment
+  })
+
   /** True while the visitor is working in the form. Read from callbacks. */
   const companionRef = useRef(false)
   useEffect(() => {
+    // Someone filling in a form is doing something more important than
+    // watching ORBI fly somewhere.
+    if (form.companion) cinematicRef.current?.cancel('form-companion')
     companionRef.current = form.companion
     formFieldRef.current = form.field
     // A section reaction schedules a revert to `normal`. Once the visitor is
@@ -314,6 +404,75 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     if (form.companion) expressionTokenRef.current += 1
   }, [form.companion, form.field])
 
+
+  /* ── Cinematic movement ──────────────────────────────────────────────── */
+
+  const cinematicClaim = useCallback(
+    (owner: string, durationMs: number) =>
+      arbiter.claim(ORBI_PRIORITY.cinematic, owner, durationMs),
+    [arbiter],
+  )
+  const cinematicRelease = useCallback(
+    (owner: string) => arbiter.release(owner),
+    [arbiter],
+  )
+
+  /**
+   * Whether ORBI is free to go anywhere at all. Safety and the visitor's own
+   * business come first: a modal, an open menu, or someone filling in the
+   * contact form all mean he stays exactly where he is.
+   */
+  const canRunCinematic = useCallback(() => {
+    if (companionRef.current) return false
+    if (environmentRef.current?.modal) return false
+    if (environmentRef.current?.crowded) return false
+    if (navOpenRef.current) return false
+    if (frozenRef.current) return false
+    if (drowsinessRef.current !== 0) return false
+
+    // A sustained look orientation is a resting pose, not a gesture — and it
+    // is exactly what a section reaction leaves behind, so refusing it here
+    // would mean the cinematic could never follow its own section.
+    const animation = stateRef.current.animation
+    if (!isRestingAnimation(animation) && !isLookAnimation(animation)) return false
+
+    // A line still being read gets to finish. An older one is stale and gets
+    // cleared when he leaves (see the `out` beat) — travel stays wordless.
+    if (
+      stateRef.current.message &&
+      performance.now() - messageAtRef.current < ORBI_CINEMATIC.messageGraceMs
+    ) {
+      return false
+    }
+
+    return arbiter.level() <= ORBI_PRIORITY.section
+  }, [arbiter])
+
+  const readEnvironment = useCallback(
+    () => environmentRef.current?.read() ?? null,
+    [],
+  )
+
+  const handleLanded = useCallback((reason: string) => {
+    environmentRef.current?.refresh(reason)
+  }, [])
+
+  const cinematic = useOrbiCinematic({
+    enabled: settled && !frozen,
+    travelRef,
+    rootRef,
+    motion,
+    breakpoint,
+    readEnvironment,
+    canRun: canRunCinematic,
+    claim: cinematicClaim,
+    release: cinematicRelease,
+    onLanded: handleLanded,
+  })
+
+  useEffect(() => {
+    cinematicRef.current = cinematic
+  })
 
   /* ── Controller (arbitrated) ─────────────────────────────────────────── */
 
@@ -467,7 +626,30 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       'entrance',
       ORBI_TIMING.entranceClaimMs,
     )
-    setInitialPose(root, motionRef.current)
+
+    /**
+     * Read the motion preference *now*, not from the mirror.
+     *
+     * `useReducedMotion` goes through `useSyncExternalStore`, which serves the
+     * server snapshot (`false`) for the hydration render — and this effect runs
+     * on that commit, before the correction lands. Trusting the mirror here
+     * means the entrance plays its full-travel version for someone who asked
+     * for reduced motion, exactly once, on the one occasion it matters most.
+     */
+    const live: OrbiMotionOptions = {
+      ...motionRef.current,
+      reducedMotion: window.matchMedia(ORBI_MEDIA.reducedMotion).matches,
+    }
+
+    setInitialPose(root, live)
+
+    // Park the travel layer beside the hero before ORBI is visible, so the
+    // existing rise lands him *in the composition* rather than on the dock.
+    // He flies home once the greeting has played (see the effect below).
+    heroSpotRef.current = resolveHeroSpot(root, live, breakpointRef.current)
+    if (heroSpotRef.current && travelRef.current) {
+      gsap.set(travelRef.current, heroSpotRef.current)
+    }
 
     const tl = createIntroTimeline(
       root,
@@ -478,7 +660,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           setState((s) => ({ ...s, expression: 'happy', animation: 'wave' })),
         onGreet: () => applySay(ORBI_MESSAGES.greeting),
       },
-      motionRef.current,
+      live,
     )
 
     return () => {
@@ -486,10 +668,41 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     }
   }, [arbiter, blink, applySay])
 
+  /**
+   * Fly home from the hero once the greeting has run — the last beat of the
+   * entrance, and the only cinematic that is part of it.
+   */
+  useEffect(() => {
+    if (!settled) return
+    const spot = heroSpotRef.current
+    const travel = travelRef.current
+    if (!spot || !travel) return
+    heroSpotRef.current = null
+
+    const tl = createCinematicFlight(travel, {
+      from: spot,
+      to: { x: 0, y: 0 },
+      arc: ORBI_CINEMATIC.returnStyles[0],
+      durationMs: breakpointRef.current === 'tablet'
+        ? Math.round(ORBI_CINEMATIC.shortMs * ORBI_CINEMATIC.tabletScale)
+        : ORBI_CINEMATIC.shortMs,
+      lean: ORBI_CINEMATIC.leanDeg,
+      onComplete: () => {
+        lastEventRef.current = 'hero-landed'
+        environmentRef.current?.refresh('cinematic-land')
+      },
+    })
+    return () => {
+      tl.kill()
+      resetCinematic(travel)
+    }
+  }, [settled])
+
   /* ── Message lifetime ────────────────────────────────────────────────── */
 
   useEffect(() => {
     if (!state.message) return
+    messageAtRef.current = performance.now()
     const id = state.messageId
     const timer = setTimeout(() => {
       setState((s) => {
@@ -582,6 +795,22 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
       // Relax the face again afterwards; the token guards against an older
       // section's timer landing on a newer expression.
+      // A section with a registered cinematic target may earn a trip. The
+      // controller refuses on its own if now is a bad time.
+      // A section with a registered cinematic target may earn a trip. Asked
+      // twice: the section's own gesture is often still playing on the first
+      // attempt, and the controller refuses while anything is mid-move.
+      const cinematicFor = SECTION_CINEMATICS[id]
+      if (cinematicFor) {
+        later(() => {
+          if (cinematicRef.current?.request(cinematicFor)) return
+          later(
+            () => cinematicRef.current?.request(cinematicFor),
+            ORBI_CINEMATIC.requestRetryMs,
+          )
+        }, ORBI_CINEMATIC.requestDelayMs)
+      }
+
       if (behavior.expression) {
         const token = ++expressionTokenRef.current
         const hold =
@@ -801,6 +1030,18 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     const now = performance.now()
     if (now - lastClickRef.current < ORBI_COOLDOWNS.clickMessage) return
 
+    // Mid-flight, a poke gets a look and a blink — not a speech bubble and
+    // certainly not a wave. Interrupting the trip would strand him between
+    // destinations.
+    if (cinematicRef.current?.active) {
+      lastClickRef.current = now
+      note('click-during-cinematic')
+      setBright(true)
+      blink()
+      later(() => setBright(false), 600)
+      return
+    }
+
     // Explicit interaction outranks a section gesture, so poking ORBI
     // mid-wave cleanly replaces it rather than layering on top.
     if (
@@ -837,7 +1078,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         messageId: s.messageId + 1,
       }))
     }, ORBI_TIMING.clickStartleMs)
-  }, [arbiter, later, note, wake])
+  }, [arbiter, blink, later, note, wake])
 
   /* ── Hover ───────────────────────────────────────────────────────────── */
 
@@ -1032,12 +1273,18 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       const gaze = gazeRef.current
 
       if (!open) {
+        navOpenRef.current = false
         gaze?.clear('interaction')
         softExpression(null)
         auxTiltRef.current.nav = 0
         applyBodyTilt()
         return
       }
+
+      navOpenRef.current = true
+      // Safety outranks the flourish: an overlay opening ends a cinematic
+      // rather than pausing it.
+      cinematicRef.current?.cancel('nav-open')
 
       // The menu is above ORBI, so it glances up. Mobile gets the eyes and the
       // expression, never the body.
@@ -1239,6 +1486,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
     if (environment.modal) {
       note('modal-open')
+      // Safety wins: cancel rather than try to pause and resume.
+      cinematicRef.current?.cancel('modal-open')
       later(
         () =>
           notice(
@@ -1641,6 +1890,154 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     interaction.refreshGeometry()
   }, [interaction, station, placement.size])
 
+  /**
+   * Where the visible project cards are, relative to ORBI. Read once when the
+   * scan starts, never per frame.
+   */
+  const projectGazeStops = useCallback(() => {
+    const root = rootRef.current
+    if (!root) return [{ x: 0, y: 0 }]
+    const box = root.getBoundingClientRect()
+    const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+
+    const cards = Array.from(
+      document.querySelectorAll(ORBI_SELECTORS.project),
+    ).filter((card) => {
+      const r = card.getBoundingClientRect()
+      return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight
+    })
+
+    if (!cards.length) return [{ x: 0, y: 0 }]
+
+    return cards.slice(0, 4).map((card) => {
+      const r = card.getBoundingClientRect()
+      const dx = r.left + r.width / 2 - from.x
+      const dy = r.top + r.height / 2 - from.y
+      const length = Math.hypot(dx, dy) || 1
+      return { x: dx / length, y: dy / length }
+    })
+  }, [rootRef])
+
+  /* ── Cinematic beats ─────────────────────────────────────────────────── */
+  // The controller owns the travel; this owns the face and the gesture. Each
+  // phase is a beat, and the guide stays the single authority over state.
+
+  const cinematicTargetRef = useRef<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    const gaze = gazeRef.current
+    const type = cinematic.type
+    const phase = cinematic.phase
+
+    if (!cinematic.active || !type) {
+      gaze?.clear('interaction')
+      cinematicTargetRef.current = null
+      return
+    }
+
+    // Where the destination sits relative to ORBI's dock, normalized — used
+    // to point the eyes at where he is going and at what he finds there.
+    if (cinematic.destination && !cinematicTargetRef.current) {
+      const { x, y } = cinematic.destination
+      const length = Math.hypot(x, y) || 1
+      cinematicTargetRef.current = { x: x / length, y: y / length }
+    }
+    const toward = cinematicTargetRef.current
+
+    if (phase === 'out') {
+      note(`cinematic:${type}`)
+      // Looking where he is going, all the way there.
+      if (toward) {
+        gaze?.set('interaction', toward.x, toward.y)
+        later(() => setGazeLead('interaction'), 0)
+      }
+      later(
+        () =>
+          setState((current) => ({
+            ...current,
+            expression: type === 'precision' ? 'normal' : 'happy',
+            // Travel is wordless: anything left over from a section is stale
+            // by the time ORBI is on his way somewhere.
+            message: null,
+          })),
+        0,
+      )
+      return
+    }
+
+    if (phase === 'perform') {
+      if (type === 'precision') {
+        // Curious, leaning in, with one unhurried glance either side.
+        later(
+          () =>
+            setState((current) => ({
+              ...current,
+              expression: 'thinking',
+              animation: 'inspect',
+            })),
+          0,
+        )
+        ORBI_CINEMATIC.inspectScan.forEach((offset, index) => {
+          later(() => {
+            gazeRef.current?.set('interaction', offset, 0.1)
+          }, index * ORBI_CINEMATIC.inspectScanMs)
+        })
+        return
+      }
+
+      if (type === 'projects') {
+        // Eyes travel the row; the body stays put. Looking at three cards is
+        // not a reason to visit three places.
+        later(() => {
+          setBright(true)
+          setState((current) => ({ ...current, expression: 'happy' }))
+        }, 0)
+        const stops = projectGazeStops()
+        stops.forEach((stop, index) => {
+          later(
+            () => gazeRef.current?.set('interaction', stop.x, stop.y),
+            (index * ORBI_CINEMATIC.scanMs) / Math.max(1, stops.length),
+          )
+        })
+        later(() => {
+          setState((current) =>
+            isRestingAnimation(current.animation)
+              ? { ...current, animation: 'excited' }
+              : current,
+          )
+        }, ORBI_CINEMATIC.scanMs * 0.72)
+        return
+      }
+      return
+    }
+
+    if (phase === 'back') {
+      // Home is behind him now.
+      if (toward) gaze?.set('interaction', -toward.x, -toward.y)
+      later(() => {
+        setBright(false)
+        setState((current) => ({
+          ...current,
+          expression: 'happy',
+          animation: isRestingAnimation(current.animation)
+            ? current.animation
+            : 'settle',
+        }))
+      }, 0)
+      return
+    }
+
+    if (phase === 'land' || phase === 'idle') {
+      gaze?.clear('interaction')
+      cinematicTargetRef.current = null
+      later(() => {
+        setBright(false)
+        setGazeLead('gesture')
+        setState((current) => ({ ...current, expression: 'normal' }))
+      }, 0)
+    }
+  }, [cinematic.active, cinematic.type, cinematic.phase, cinematic.destination, cinematic.runId, later, note, projectGazeStops])
+
   /* ── The one scroll system ───────────────────────────────────────────── */
 
   const handleDirection = useCallback((direction: OrbiScrollDirection) => {
@@ -1717,6 +2114,16 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       return () => {
         tl.kill()
         resetLayer(gestureEl)
+      }
+    }
+
+    if (animation === 'inspect') {
+      // Lean toward whatever ORBI came to look at, then straighten up.
+      const toward = (cinematicTargetRef.current?.x ?? 0) < 0 ? -1 : 1
+      const tl = createInspectTimeline(tilt, toward, motion, oneShotDone('inspect'))
+      return () => {
+        tl.kill()
+        applyBodyTilt()
       }
     }
 
@@ -1816,6 +2223,12 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
   useEffect(() => {
     if (!settled) return
+    if (frozen) {
+      // `?orbi-freeze=1` — rendered, but perfectly still, so a screenshot has
+      // something stable to capture. Dev only.
+      resetLayer(floaterRef.current)
+      return
+    }
     const floater = floaterRef.current
     if (!floater) return
 
@@ -1830,7 +2243,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       flight.kill()
       flightRef.current = null
     }
-  }, [settled, motion, flightVariant, quietBody, canAdjustFlight])
+  }, [settled, frozen, motion, flightVariant, quietBody, canAdjustFlight])
 
   // Nothing to hold station for while the tab is in the background. Pausing
   // rather than killing means ORBI resumes from the pose he was in, so coming
@@ -1841,6 +2254,21 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     if (tabVisible) flight.resume()
     else flight.pause()
   }, [tabVisible])
+
+  /* ── Development cinematic trigger ───────────────────────────────────── */
+  // `?orbi-cinematic=precision` runs one on load so it can be tuned without
+  // scrolling to it and waiting out the cooldown. Stripped in production.
+
+  useEffect(() => {
+    if (!devCinematic || !settled) return
+    const id = setTimeout(() => {
+      document
+        .querySelector(`[data-orbi-cinematic="${devCinematic}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      setTimeout(() => cinematicRef.current?.request(devCinematic), 1200)
+    }, 600)
+    return () => clearTimeout(id)
+  }, [devCinematic, settled])
 
   /* ── Idle blinking ───────────────────────────────────────────────────── */
 
@@ -1901,9 +2329,13 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           visibility: 'hidden',
         }}
       >
-        {/* Outside the dock layer on purpose: the bubble stays anchored where
-            ORBI normally lives, so sliding to the footer perch can never drag
-            it off the right edge of the screen. */}
+        {/* Cinematic travel. Its own layer, written by nothing else — and the
+            bubble sits inside it, so the Hero greeting travels with ORBI while
+            the footer perch (below) still leaves it behind. */}
+        <div ref={travelRef} style={{ ...layer, willChange: 'transform' }}>
+        {/* Outside the *dock* layer on purpose — sliding to the footer perch
+            must not drag the bubble off the right edge — but inside the
+            travel layer, so the Hero greeting goes where ORBI goes. */}
         <OrbiSpeech
           message={state.message}
           messageId={state.messageId}
@@ -1942,6 +2374,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
             </div>
           </div>
         </div>
+        </div>
       </div>
       {debugEnabled && (
         <OrbiDebug
@@ -1953,6 +2386,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           drowsiness={drowsiness}
           environment={environment}
           form={form}
+          cinematic={cinematic}
           arbiter={arbiter}
           gazeRef={gazeRef}
           eventRef={lastEventRef}
