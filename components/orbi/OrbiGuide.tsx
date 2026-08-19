@@ -12,41 +12,56 @@ import dynamic from 'next/dynamic'
 import OrbiRobot from './OrbiRobot'
 import OrbiSpeech from './OrbiSpeech'
 import { OrbiContext } from './OrbiContext'
-import { ORBI_GAZE_CENTER, type OrbiGaze } from './OrbiFace'
 import { createOrbiArbiter } from './orbiArbiter'
+import { createGazeController, type OrbiGazeController } from './orbiGaze'
 import {
+  useFinePointer,
   useOrbiBreakpoint,
   useOrbiDebugEnabled,
   useReducedMotion,
 } from './useOrbiMedia'
 import { useOrbiScroll, type OrbiScrollDirection } from './useOrbiScroll'
 import {
+  useOrbiInteraction,
+  type OrbiCtaSignal,
+  type OrbiDrowsiness,
+  type OrbiInteractionApi,
+  type OrbiProximity,
+} from './useOrbiInteraction'
+import {
   ORBI_SECTION_BEHAVIORS,
   resolveSectionAnimation,
   sectionClaimMs,
 } from './orbiSections'
 import {
-  applyLookTilt,
+  applyTilt,
   createBlinkScheduler,
+  createCuriousTimeline,
   createExcitedTimeline,
-  createFloat,
+  createFlight,
   createIntroTimeline,
   createPointTimeline,
   createRecoilTimeline,
   createSettleTimeline,
   createWaveTimeline,
+  lookTiltAngle,
   playDock,
   playHide,
   playShow,
   resetLayer,
   setInitialPose,
+  type OrbiFlightHandle,
   type OrbiMotionOptions,
 } from './orbiAnimations'
 import {
+  holdsEyes,
   isLookAnimation,
   isRestingAnimation,
   ORBI_ART,
+  ORBI_CLICK_MESSAGES,
+  ORBI_COOLDOWNS,
   ORBI_INITIAL_STATE,
+  ORBI_INTERACTION,
   ORBI_MESSAGES,
   ORBI_PLACEMENT,
   ORBI_PRIORITY,
@@ -67,6 +82,14 @@ import {
  * production build, so this is never rendered and the chunk is never fetched.
  */
 const OrbiDebug = dynamic(() => import('./OrbiDebug'), { ssr: false })
+
+/** Where each sustained look orientation points the pupils. */
+const LOOK_GAZE: Partial<Record<OrbiAnimation, { x: number; y: number }>> = {
+  'look-left': { x: -1, y: 0 },
+  'look-right': { x: 1, y: 0 },
+  'look-up': { x: 0, y: -1 },
+  'look-down': { x: 0, y: 1 },
+}
 
 /**
  * ORBI — the website companion.
@@ -90,6 +113,11 @@ const OrbiDebug = dynamic(() => import('./OrbiDebug'), { ssr: false })
  *  2. **One priority claim.** Every request goes through the arbiter, so a
  *     scroll glance can never cut a section gesture short, and the entrance
  *     outranks everything.
+ *
+ * Phase 3 adds personality on top without disturbing either. The eyes move
+ * through `orbiGaze` — imperatively, outside React — so tracking the cursor
+ * costs no renders; the body tilt has exactly one writer that sums every
+ * contribution; and every new reaction claims priority like any other.
  */
 export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const [state, setState] = useState<OrbiState>(ORBI_INITIAL_STATE)
@@ -105,11 +133,22 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const [station, setStation] = useState<'home' | 'edge'>('home')
   /** Lifted eye glow for the excited beat. */
   const [bright, setBright] = useState(false)
+  /** How close the pointer is. Only ever set on a threshold crossing. */
+  const [proximity, setProximity] = useState<OrbiProximity>('far')
+  /** 0 awake, 1 drowsy, 2 eyes closed. */
+  const [drowsiness, setDrowsiness] = useState<OrbiDrowsiness>(0)
+  /** Which slot leads the eyes during the current gesture. */
+  const [gazeLead, setGazeLead] = useState<'gesture' | 'interaction'>('gesture')
+  /** False while the tab is in the background. */
+  const [tabVisible, setTabVisible] = useState(true)
 
   const reducedMotion = useReducedMotion()
   const breakpoint = useOrbiBreakpoint()
+  const finePointer = useFinePointer()
   const debugEnabled = useOrbiDebugEnabled()
   const placement = ORBI_PLACEMENT[breakpoint]
+  /** Mobile keeps the eyes and drops the body movement. */
+  const quietBody = breakpoint === 'mobile'
 
   const [arbiter] = useState(createOrbiArbiter)
   const [registry] = useState(
@@ -130,6 +169,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const floaterRef = useRef<HTMLDivElement>(null)
   const armRef = useRef<SVGGElement>(null)
   const leftArmRef = useRef<SVGGElement>(null)
+  /** The pupil group. `orbiGaze` owns its transform; React never sets one. */
+  const gazeElementRef = useRef<SVGGElement>(null)
+  const gazeRef = useRef<OrbiGazeController | null>(null)
 
   const motion: OrbiMotionOptions = useMemo(
     () => ({ reducedMotion, size: placement.size }),
@@ -141,6 +183,14 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const motionRef = useRef(motion)
   const settledRef = useRef(settled)
   const breakpointRef = useRef(breakpoint)
+  const quietBodyRef = useRef(quietBody)
+  const drowsinessRef = useRef<OrbiDrowsiness>(drowsiness)
+  const stationRef = useRef(station)
+  const hoveringRef = useRef(false)
+  /** Last cursor direction, so a hover lean does not need a fresh event. */
+  const cursorGazeRef = useRef({ x: 0, y: 0 })
+  /** Newest thing ORBI reacted to. Debug HUD only. */
+  const lastEventRef = useRef('—')
 
   // Synced from an effect, not during render, and declared ahead of every
   // effect that reads them so the mirrors are current by the time they run.
@@ -149,6 +199,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     motionRef.current = motion
     settledRef.current = settled
     breakpointRef.current = breakpoint
+    quietBodyRef.current = quietBody
+    drowsinessRef.current = drowsiness
+    stationRef.current = station
   })
 
   /* ── Timers ──────────────────────────────────────────────────────────── */
@@ -289,8 +342,12 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const blinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const blink = useCallback(() => {
-    const current = stateRef.current.expression
-    if (current === 'blink') return
+    const { expression: current, animation } = stateRef.current
+    // Something else already owns the eyelids: blinking over a startle, a
+    // sleepy droop, or a curious hold would fight it and read as a glitch.
+    if (holdsEyes(current)) return
+    if (drowsinessRef.current > 0) return
+    if (animation === 'curious') return
     preBlinkRef.current = current
     setState((s) => ({ ...s, expression: 'blink' }))
 
@@ -327,6 +384,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
       const rest = restAnimationRef.current ?? 'idle'
       restAnimationRef.current = null
+      setGazeLead('gesture')
       setState((s) => (s.animation === animation ? { ...s, animation: rest } : s))
     },
     [arbiter],
@@ -405,7 +463,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       const firedAt = sectionFiredRef.current.get(id)
       if (
         firedAt !== undefined &&
-        now - firedAt < ORBI_SCROLL.sectionCooldownMs
+        now - firedAt < ORBI_COOLDOWNS.sectionReaction
       ) {
         return
       }
@@ -425,6 +483,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         return
       }
       sectionFiredRef.current.set(id, now)
+      setGazeLead('gesture')
       restAnimationRef.current = behavior.restAnimation ?? null
 
       // One bubble at a time, and never the same line twice in quick
@@ -435,7 +494,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         !!message &&
         !stateRef.current.message &&
         (spokenAt === undefined ||
-          now - spokenAt >= ORBI_SCROLL.messageCooldownMs)
+          now - spokenAt >= ORBI_COOLDOWNS.sectionMessage)
 
       if (speak && message) {
         spokenRef.current.set(message, now)
@@ -482,7 +541,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     if (!settledRef.current) return
 
     const now = performance.now()
-    if (now - lastStartleRef.current < ORBI_SCROLL.fastCooldownMs) return
+    if (now - lastStartleRef.current < ORBI_COOLDOWNS.fastScroll) return
 
     if (
       !arbiter.claim(
@@ -528,16 +587,495 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     )
   }, [])
 
+  /* ── Gaze ────────────────────────────────────────────────────────────── */
+  // The eyes live outside React. `orbiGaze` owns the pupil group's transform,
+  // each source writes to its own slot, and the highest-priority occupied slot
+  // wins: gesture > interaction > scroll > cursor > neutral. That is what lets
+  // the cursor be followed at pointer-event rate without a single render, and
+  // what stops it stealing the eyes from a section gesture.
+
+  useEffect(() => {
+    const element = gazeElementRef.current
+    if (!element) return
+    const controller = createGazeController(element, { reducedMotion })
+    gazeRef.current = controller
+    return () => {
+      controller.kill()
+      gazeRef.current = null
+    }
+  }, [reducedMotion])
+
+  // A `look-*` animation aims the eyes; any other gesture holds them centred
+  // for its duration, so a scroll glance cannot drag them mid-wave.
+  //
+  // Except when the gesture exists *because* of something to look at — a
+  // curious glance, a point at a hovered CTA. Those are led by the interaction
+  // slot instead, and `gazeLead` is set in the same batch as the animation so
+  // this effect can never read it a beat late.
+  useEffect(() => {
+    const gaze = gazeRef.current
+    if (!gaze) return
+
+    const animation = state.animation
+    const look = LOOK_GAZE[animation as keyof typeof LOOK_GAZE]
+
+    if (look) gaze.set('gesture', look.x, look.y)
+    else if (!isRestingAnimation(animation) && gazeLead === 'gesture') {
+      gaze.set('gesture', 0, 0)
+    } else gaze.clear('gesture')
+  }, [state.animation, gazeLead, reducedMotion])
+
+  useEffect(() => {
+    const gaze = gazeRef.current
+    if (!gaze) return
+
+    if (scrollDirection === 'down') {
+      gaze.set('scroll', 0, ORBI_SCROLL.glanceAmount)
+    } else if (scrollDirection === 'up') {
+      gaze.set('scroll', 0, -ORBI_SCROLL.glanceAmount)
+    } else {
+      gaze.clear('scroll')
+    }
+  }, [scrollDirection, reducedMotion])
+
+  /* ── Body tilt ───────────────────────────────────────────────────────── */
+  // One writer, always. The section orientation and the small leans toward a
+  // cursor or an open menu are summed into a single tween, so two behaviours
+  // can never own this rotation at the same time.
+
+  const auxTiltRef = useRef({ hover: 0, nav: 0 })
+  /** Set once `useOrbiInteraction` has run; callbacks above reach it through here. */
+  const interactionRef = useRef<OrbiInteractionApi | null>(null)
+
+  const applyBodyTilt = useCallback(() => {
+    const tilt = tiltRef.current
+    if (!tilt) return
+    const base = lookTiltAngle(
+      stateRef.current.animation,
+      motionRef.current,
+      quietBodyRef.current,
+    )
+    const aux = quietBodyRef.current
+      ? 0
+      : auxTiltRef.current.hover + auxTiltRef.current.nav
+    applyTilt(tilt, base + aux, motionRef.current)
+  }, [])
+
+  /* ── Personality ─────────────────────────────────────────────────────── */
+  // Every reaction below goes through the arbiter and a named cooldown. None of
+  // them are allowed to talk over a section beat, and none of them can fire
+  // twice in a row just because a pointer wobbled across a boundary.
+
+  const lastClickRef = useRef(-Infinity)
+  const lastHoverGreetRef = useRef(-Infinity)
+  const lastCuriousRef = useRef(-Infinity)
+  const lastNavRef = useRef(-Infinity)
+  const lastCtaRef = useRef(new Map<string, number>())
+  const ctaPointRef = useRef(new Map<string, number>())
+  const clickMessageRef = useRef(-1)
+  const curiousSideRef = useRef<-1 | 1>(-1)
+  /** Expressions this layer applied, so it only ever takes back its own. */
+  const softExpressionRef = useRef<OrbiExpression | null>(null)
+
+  const note = useCallback((event: string) => {
+    lastEventRef.current = event
+  }, [])
+
+  /**
+   * Apply a light-touch expression — hover, CTA, navigation. These are moods,
+   * not gestures: they defer to anything that actually holds the body, and
+   * they only ever revert an expression they set themselves.
+   */
+  const softExpression = useCallback(
+    (expression: OrbiExpression | null) => {
+      if (expression === null) {
+        const previous = softExpressionRef.current
+        softExpressionRef.current = null
+        if (!previous) return
+        setState((s) => (s.expression === previous ? { ...s, expression: 'normal' } : s))
+        return
+      }
+      if (arbiter.level() > ORBI_PRIORITY.ambient) return
+      softExpressionRef.current = expression
+      setState((s) => ({ ...s, expression }))
+    },
+    [arbiter],
+  )
+
+  /* ── Waking ──────────────────────────────────────────────────────────── */
+
+  const wake = useCallback(
+    (startle: boolean) => {
+      if (drowsinessRef.current === 0) return
+      const deep = drowsinessRef.current === 2
+      drowsinessRef.current = 0
+      setDrowsiness(0)
+      arbiter.release('drowsy')
+      note('wake')
+
+      // Coming out of a proper doze deserves a small flinch; merely drowsy
+      // just opens its eyes again.
+      if (startle && deep) {
+        setState((s) => ({ ...s, expression: 'surprised' }))
+        later(() => {
+          setState((s) =>
+            s.expression === 'surprised' ? { ...s, expression: 'normal' } : s,
+          )
+        }, ORBI_TIMING.wakeStartleMs)
+        return
+      }
+      setState((s) => (s.expression === 'sleepy' ? { ...s, expression: 'normal' } : s))
+    },
+    [arbiter, later, note],
+  )
+
+  /* ── Click / tap ─────────────────────────────────────────────────────── */
+
+  const handleActivate = useCallback(() => {
+    const now = performance.now()
+    if (now - lastClickRef.current < ORBI_COOLDOWNS.clickMessage) return
+
+    // Explicit interaction outranks a section gesture, so poking ORBI
+    // mid-wave cleanly replaces it rather than layering on top.
+    if (
+      !arbiter.claim(
+        ORBI_PRIORITY.interaction,
+        'click',
+        ORBI_TIMING.clickStartleMs + ORBI_TIMING.messageHoldMs,
+      )
+    ) {
+      return
+    }
+    lastClickRef.current = now
+    wake(false)
+    note('click')
+
+    const pool = ORBI_CLICK_MESSAGES
+    let index = Math.floor(Math.random() * pool.length)
+    if (index === clickMessageRef.current) index = (index + 1) % pool.length
+    clickMessageRef.current = index
+
+    softExpressionRef.current = null
+    restAnimationRef.current = null
+    setGazeLead('gesture')
+    // Startled first — ORBI did not expect to be poked — then pleased.
+    setState((s) => ({ ...s, expression: 'surprised', animation: 'idle' }))
+
+    later(() => {
+      holdRef.current = ORBI_TIMING.messageHoldMs
+      setState((s) => ({
+        ...s,
+        expression: 'happy',
+        animation: 'wave',
+        message: pool[index],
+        messageId: s.messageId + 1,
+      }))
+    }, ORBI_TIMING.clickStartleMs)
+  }, [arbiter, later, note, wake])
+
+  /* ── Hover ───────────────────────────────────────────────────────────── */
+
+  const handleHoverStart = useCallback(() => {
+    hoveringRef.current = true
+    interactionRef.current?.setHovering(true)
+    wake(false)
+    note('hover')
+    softExpression('happy')
+    if (!quietBodyRef.current) {
+      // A single lean toward wherever the cursor came from — not a tween per
+      // mouse move.
+      auxTiltRef.current.hover =
+        cursorGazeRef.current.x * ORBI_INTERACTION.hoverTilt
+      applyBodyTilt()
+    }
+  }, [applyBodyTilt, note, softExpression, wake])
+
+  const handleHoverEnd = useCallback(() => {
+    hoveringRef.current = false
+    interactionRef.current?.setHovering(false)
+    softExpression(null)
+    auxTiltRef.current.hover = 0
+    applyBodyTilt()
+  }, [applyBodyTilt, softExpression])
+
+  const handleHoverGreet = useCallback(() => {
+    const now = performance.now()
+    if (now - lastHoverGreetRef.current < ORBI_COOLDOWNS.hoverGreeting) return
+    if (stateRef.current.message) return
+    if (
+      !arbiter.claim(
+        ORBI_PRIORITY.interaction,
+        'hover-greet',
+        ORBI_INTERACTION.hoverGreetingHold,
+      )
+    ) {
+      return
+    }
+    lastHoverGreetRef.current = now
+    note('hover-greet')
+    holdRef.current = ORBI_INTERACTION.hoverGreetingHold
+    setState((s) => ({
+      ...s,
+      expression: 'happy',
+      message: ORBI_MESSAGES.hoverGreeting,
+      messageId: s.messageId + 1,
+    }))
+  }, [arbiter, note])
+
+  /* ── Curious glance ──────────────────────────────────────────────────── */
+
+  const handleQuiet = useCallback(() => {
+    // Too fidgety on a phone, where there is no cursor to explain it.
+    if (quietBodyRef.current) return
+    const now = performance.now()
+    if (now - lastCuriousRef.current < ORBI_COOLDOWNS.curious) return
+    if (stateRef.current.message) return
+    if (!isRestingAnimation(stateRef.current.animation)) return
+    if (
+      !arbiter.claim(
+        ORBI_PRIORITY.ambient,
+        'curious',
+        ORBI_INTERACTION.curiousHold + 1600,
+      )
+    ) {
+      return
+    }
+    lastCuriousRef.current = now
+    note('curious')
+
+    const side: -1 | 1 = Math.random() < 0.5 ? -1 : 1
+    curiousSideRef.current = side
+    gazeRef.current?.set('interaction', side * 0.85, -0.2)
+    setGazeLead('interaction')
+    restAnimationRef.current = null
+    setState((s) => ({ ...s, expression: 'thinking', animation: 'curious' }))
+
+    later(() => {
+      setState((s) =>
+        s.expression === 'thinking' ? { ...s, expression: 'normal' } : s,
+      )
+    }, ORBI_INTERACTION.curiousHold + 900)
+  }, [arbiter, later, note])
+
+  /* ── Getting sleepy ──────────────────────────────────────────────────── */
+
+  const handleDrowsy = useCallback(
+    (level: 1 | 2) => {
+      if (!isRestingAnimation(stateRef.current.animation)) return
+      if (
+        !arbiter.claim(
+          ORBI_PRIORITY.ambient,
+          'drowsy',
+          ORBI_INTERACTION.dozeDelay * 4,
+        )
+      ) {
+        return
+      }
+      note(level === 2 ? 'doze' : 'drowsy')
+      drowsinessRef.current = level
+      setDrowsiness(level)
+      softExpressionRef.current = null
+      setState((s) => ({ ...s, expression: 'sleepy' }))
+    },
+    [arbiter, note],
+  )
+
+  const handleActive = useCallback(() => {
+    wake(true)
+    // A curious glance holds the eyes; the moment the user is back, give them
+    // to the cursor.
+    //
+    // Gated on the arbiter rather than on `state.animation`, because the same
+    // pointer event that wakes ORBI may already have started something better
+    // — `pointerover` on a CTA runs before `pointermove` — and the mirrored
+    // state would still be reporting the glance. Whoever holds the claim is
+    // the truth.
+    if (arbiter.current()?.owner !== 'curious') return
+    gazeRef.current?.clear('interaction')
+    setGazeLead('gesture')
+    arbiter.release('curious')
+  }, [arbiter, wake])
+
+  /* ── Marked CTAs ─────────────────────────────────────────────────────── */
+
+  const handleCta = useCallback(
+    (signal: OrbiCtaSignal | null) => {
+      const gaze = gazeRef.current
+
+      if (!signal) {
+        gaze?.clear('interaction')
+        setGazeLead('gesture')
+        softExpression(null)
+        return
+      }
+
+      // Following it with the eyes is free, so that always happens.
+      gaze?.set('interaction', signal.gaze.x, signal.gaze.y)
+
+      const now = performance.now()
+      const seen = lastCtaRef.current.get(signal.key)
+      if (seen !== undefined && now - seen < ORBI_COOLDOWNS.cta) return
+      lastCtaRef.current.set(signal.key, now)
+      note(`cta:${signal.key}`)
+
+      softExpression('happy')
+
+      if (signal.message && !stateRef.current.message) {
+        if (
+          arbiter.claim(ORBI_PRIORITY.ambient, 'cta-say', ORBI_TIMING.messageHoldMs)
+        ) {
+          holdRef.current = ORBI_TIMING.messageHoldMs
+          setState((s) => ({
+            ...s,
+            message: signal.message,
+            messageId: s.messageId + 1,
+          }))
+        }
+      }
+
+      // The pointing gesture is the loud option: desktop only, opt-in per CTA,
+      // and rationed hard.
+      if (!signal.point || quietBodyRef.current || motionRef.current.reducedMotion) {
+        return
+      }
+      const pointed = ctaPointRef.current.get(signal.key)
+      if (pointed !== undefined && now - pointed < ORBI_COOLDOWNS.ctaPoint) return
+      if (!arbiter.claim(ORBI_PRIORITY.section, `cta:${signal.key}`, 1800)) return
+
+      ctaPointRef.current.set(signal.key, now)
+      setGazeLead('interaction')
+      restAnimationRef.current = null
+      setState((s) => ({
+        ...s,
+        animation: signal.side === 'left' ? 'point-left' : 'point-right',
+      }))
+    },
+    [arbiter, note, softExpression],
+  )
+
+  /* ── Navigation ──────────────────────────────────────────────────────── */
+
+  const handleNav = useCallback(
+    (open: boolean) => {
+      const gaze = gazeRef.current
+
+      if (!open) {
+        gaze?.clear('interaction')
+        softExpression(null)
+        auxTiltRef.current.nav = 0
+        applyBodyTilt()
+        return
+      }
+
+      // The menu is above ORBI, so it glances up. Mobile gets the eyes and the
+      // expression, never the body.
+      gaze?.set('interaction', 0, -0.9)
+
+      const now = performance.now()
+      if (now - lastNavRef.current < ORBI_COOLDOWNS.nav) return
+      lastNavRef.current = now
+      note('nav')
+
+      softExpression('thinking')
+      if (!quietBodyRef.current) {
+        auxTiltRef.current.nav = -ORBI_ART.curiousTilt * 0.7
+        applyBodyTilt()
+      }
+    },
+    [applyBodyTilt, note, softExpression],
+  )
+
+  /* ── Coming back to the tab ──────────────────────────────────────────── */
+
+  const handleReturn = useCallback(
+    (awayMs: number) => {
+      // Never the entrance again — just a blink, as if ORBI looked back up.
+      if (awayMs >= ORBI_INTERACTION.awayWakeMs) {
+        note('return')
+        blink()
+      }
+    },
+    [blink, note],
+  )
+
+  /* ── Senses ──────────────────────────────────────────────────────────── */
+
+  const handleGaze = useCallback((x: number, y: number) => {
+    cursorGazeRef.current.x = x
+    cursorGazeRef.current.y = y
+    gazeRef.current?.set('cursor', x, y)
+  }, [])
+
+  const handleGazeEnd = useCallback(() => {
+    cursorGazeRef.current.x = 0
+    cursorGazeRef.current.y = 0
+    gazeRef.current?.clear('cursor')
+  }, [])
+
+  const interactionHandlers = useMemo(
+    () => ({
+      onGaze: handleGaze,
+      onGazeEnd: handleGazeEnd,
+      onProximity: setProximity,
+      onHoverGreet: handleHoverGreet,
+      onActivate: handleActivate,
+      onQuiet: handleQuiet,
+      onDrowsy: handleDrowsy,
+      onActive: handleActive,
+      onCta: handleCta,
+      onNav: handleNav,
+      onReturn: handleReturn,
+      onVisibility: setTabVisible,
+    }),
+    [
+      handleGaze,
+      handleGazeEnd,
+      handleHoverGreet,
+      handleActivate,
+      handleQuiet,
+      handleDrowsy,
+      handleActive,
+      handleCta,
+      handleNav,
+      handleReturn,
+    ],
+  )
+
+  const interaction = useOrbiInteraction({
+    enabled: settled,
+    // Touch devices get no cursor tracking, no proximity, no hover greeting.
+    pointerEnabled: finePointer,
+    rootRef,
+    handlers: interactionHandlers,
+  })
+  useEffect(() => {
+    interactionRef.current = interaction
+  })
+
+  // ORBI's box moves when it perches at the footer or the breakpoint changes;
+  // proximity is measured against a cached rect, so re-measure then.
+  useEffect(() => {
+    interaction.refreshGeometry()
+  }, [interaction, station, placement.size])
+
   /* ── The one scroll system ───────────────────────────────────────────── */
+
+  const handleDirection = useCallback((direction: OrbiScrollDirection) => {
+    setScrollDirection(direction)
+    // Scrolling is the user being present. The scroll hook owns the scrolling;
+    // this is the one line that tells the interaction hook it happened, so
+    // ORBI cannot doze off while someone is reading their way down the page.
+    if (direction) interactionRef.current?.noteActivity()
+  }, [])
 
   const scrollHandlers = useMemo(
     () => ({
       onSection: handleSection,
       onFooter: handleFooter,
-      onDirection: setScrollDirection,
+      onDirection: handleDirection,
       onFastScroll: handleFastScroll,
     }),
-    [handleSection, handleFooter, handleFastScroll],
+    [handleSection, handleFooter, handleDirection, handleFastScroll],
   )
 
   useOrbiScroll({
@@ -549,39 +1087,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     handlers: scrollHandlers,
   })
 
-  /* ── Gaze ────────────────────────────────────────────────────────────── */
-  // Looking is done with the pupils. An explicit `look-*` wins; otherwise the
-  // scroll glance applies, but only while ORBI is at rest — it is the
-  // lowest-priority behaviour and must never fight a gesture.
-
-  const gaze = useMemo<OrbiGaze>(() => {
-    switch (state.animation) {
-      case 'look-left':
-        return { x: -1, y: 0 }
-      case 'look-right':
-        return { x: 1, y: 0 }
-      case 'look-up':
-        return { x: 0, y: -1 }
-      case 'look-down':
-        return { x: 0, y: 1 }
-      default:
-        break
-    }
-    if (!isRestingAnimation(state.animation)) return ORBI_GAZE_CENTER
-    if (scrollDirection === 'down') {
-      return { x: 0, y: ORBI_SCROLL.glanceAmount }
-    }
-    if (scrollDirection === 'up') {
-      return { x: 0, y: -ORBI_SCROLL.glanceAmount }
-    }
-    return ORBI_GAZE_CENTER
-  }, [state.animation, scrollDirection])
-
   /* ── Body animation ──────────────────────────────────────────────────── */
 
   const prevAnimationRef = useRef<OrbiAnimation | null>(null)
-  /** Mobile drops the body rotation and keeps the eye movement. */
-  const quietBody = breakpoint === 'mobile'
 
   useEffect(() => {
     const root = rootRef.current
@@ -641,6 +1149,20 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       }
     }
 
+    if (animation === 'curious') {
+      const tl = createCuriousTimeline(
+        tilt,
+        curiousSideRef.current,
+        motion,
+        oneShotDone('curious'),
+      )
+      return () => {
+        tl.kill()
+        gazeRef.current?.clear('interaction')
+        applyBodyTilt()
+      }
+    }
+
     if (animation === 'settle') {
       const tl = createSettleTimeline(
         {
@@ -660,22 +1182,66 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     }
 
     // Resting states and sustained look orientations.
-    applyLookTilt(tilt, animation, motion, quietBody)
-  }, [state.animation, motion, quietBody, oneShotDone])
+    applyBodyTilt()
+  }, [state.animation, motion, quietBody, oneShotDone, applyBodyTilt])
 
-  /* ── Idle float ──────────────────────────────────────────────────────── */
-  // Its own layer and its own effect, so it keeps breathing underneath every
-  // gesture instead of freezing whenever one plays.
+  /* ── Flight ──────────────────────────────────────────────────────────── */
+  // Its own layer and its own effect, so ORBI keeps holding station underneath
+  // every gesture instead of freezing whenever one plays.
 
-  const floatVariant = state.animation === 'float' ? 'float' : 'idle'
+  const flightRef = useRef<OrbiFlightHandle | null>(null)
+
+  const flightVariant =
+    drowsiness > 0 ? 'drowsy' : state.animation === 'float' ? 'active' : 'hover'
+
+  /**
+   * Flight is the lowest-priority thing ORBI does, so the larger reposition
+   * only happens when genuinely nothing else is: no gesture, no claim, no
+   * bubble, not perched, not hovered, not drowsy, tab in front. Asked at the
+   * moment of decision rather than tracked in state, so it is always current
+   * and never re-runs the effect.
+   */
+  const canAdjustFlight = useCallback(() => {
+    if (!settledRef.current) return false
+    if (drowsinessRef.current !== 0) return false
+    if (hoveringRef.current) return false
+    if (stationRef.current !== 'home') return false
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      return false
+    }
+    const current = stateRef.current
+    if (current.message) return false
+    if (!isRestingAnimation(current.animation)) return false
+    return arbiter.level() <= ORBI_PRIORITY.idle
+  }, [arbiter])
 
   useEffect(() => {
     if (!settled) return
     const floater = floaterRef.current
     if (!floater) return
-    const float = createFloat(floater, motion, floatVariant)
-    return () => float.kill()
-  }, [settled, motion, floatVariant])
+
+    const flight = createFlight(floater, motion, {
+      variant: flightVariant,
+      quiet: quietBody,
+      canAdjust: canAdjustFlight,
+    })
+    flightRef.current = flight
+
+    return () => {
+      flight.kill()
+      flightRef.current = null
+    }
+  }, [settled, motion, flightVariant, quietBody, canAdjustFlight])
+
+  // Nothing to hold station for while the tab is in the background. Pausing
+  // rather than killing means ORBI resumes from the pose he was in, so coming
+  // back never looks like a jump.
+  useEffect(() => {
+    const flight = flightRef.current
+    if (!flight) return
+    if (tabVisible) flight.resume()
+    else flight.pause()
+  }, [tabVisible])
 
   /* ── Footer perch ────────────────────────────────────────────────────── */
   // Position, not personality: this runs regardless of who holds the priority
@@ -745,10 +1311,14 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
                 <OrbiRobot
                   expression={state.expression}
                   awake={awake}
-                  gaze={gaze}
                   bright={bright}
+                  dozing={drowsiness === 2}
+                  gazeRef={gazeElementRef}
                   armRef={armRef}
                   leftArmRef={leftArmRef}
+                  onActivate={handleActivate}
+                  onHoverStart={handleHoverStart}
+                  onHoverEnd={handleHoverEnd}
                 />
               </div>
             </div>
@@ -761,7 +1331,11 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           section={activeSection}
           direction={scrollDirection}
           station={station}
+          proximity={proximity}
+          drowsiness={drowsiness}
           arbiter={arbiter}
+          gazeRef={gazeRef}
+          eventRef={lastEventRef}
         />
       )}
     </OrbiContext.Provider>

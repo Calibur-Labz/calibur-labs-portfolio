@@ -16,6 +16,7 @@ export { useOrbiSection } from './useOrbiSection'
 export {
   useOrbiPlacement,
   useOrbiBreakpoint,
+  useFinePointer,
   useReducedMotion,
 } from './useOrbiMedia'
 export {
@@ -24,6 +25,12 @@ export {
 } from './orbiSections'
 export type { OrbiGaze } from './OrbiFace'
 export type { OrbiScrollDirection } from './useOrbiScroll'
+export type {
+  OrbiCtaSignal,
+  OrbiDrowsiness,
+  OrbiProximity,
+} from './useOrbiInteraction'
+export type { OrbiGazeSource } from './orbiConfig'
 export type {
   OrbiAnimation,
   OrbiBreakpoint,
@@ -37,12 +44,16 @@ export type {
   OrbiStatePatch,
 } from './orbiConfig'
 export {
+  ORBI_CLICK_MESSAGES,
+  ORBI_COOLDOWNS,
   ORBI_DEBUG,
+  ORBI_INTERACTION,
   ORBI_MESSAGES,
   ORBI_PLACEMENT,
   ORBI_PRIORITY,
   ORBI_SCROLL,
   ORBI_TIMING,
+  holdsEyes,
   isLookAnimation,
   isOneShotAnimation,
   isRestingAnimation,

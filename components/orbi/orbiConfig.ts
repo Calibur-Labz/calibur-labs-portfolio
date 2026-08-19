@@ -17,6 +17,13 @@ export type OrbiExpression =
   | 'blink'
   | 'thinking'
   | 'surprised'
+  | 'sleepy'
+
+/** Expressions that already own the eyelids — the blink scheduler stays out. */
+const EYES_BUSY = ['blink', 'surprised', 'sleepy'] as const
+
+export const holdsEyes = (e: OrbiExpression): boolean =>
+  (EYES_BUSY as readonly string[]).includes(e)
 
 /**
  * What ORBI's body is doing.
@@ -41,6 +48,7 @@ export type OrbiAnimation =
   | 'excited'
   | 'surprised'
   | 'settle'
+  | 'curious'
 
 const RESTING = ['idle', 'float', 'peek'] as const
 const LOOKING = ['look-left', 'look-right', 'look-up', 'look-down'] as const
@@ -51,6 +59,7 @@ const ONE_SHOT = [
   'excited',
   'surprised',
   'settle',
+  'curious',
 ] as const
 
 export type OrbiLookAnimation = (typeof LOOKING)[number]
@@ -149,6 +158,8 @@ export const ORBI_PRIORITY = {
   idle: 0,
   /** Scroll-direction eye movement. */
   gaze: 10,
+  /** ORBI's own idle personality — the curious glance, getting drowsy. */
+  ambient: 15,
   /** The startled reaction to a fast flick. */
   fastScroll: 20,
   /** A section becoming meaningfully visible. */
@@ -199,6 +210,7 @@ export const ORBI_MEDIA = {
   mobile: '(max-width: 640px)',
   tablet: '(max-width: 1024px)',
   reducedMotion: '(prefers-reduced-motion: reduce)',
+  finePointer: '(hover: hover) and (pointer: fine)',
 } as const
 
 /** Under the fixed navbar (z-index 100), above every section (z-index 10). */
@@ -227,15 +239,6 @@ export const ORBI_TIMING = {
   messageHoldMs: 2600,
   speechIn: 0.5,
   speechOut: 0.34,
-  /** Idle float — one full up-and-back cycle. */
-  floatDuration: 3.4,
-  /** Vertical travel as a fraction of ORBI's rendered width (~6px at 148px). */
-  floatTravelRatio: 0.042,
-  floatTravelRatioActive: 0.062,
-  floatRotation: 1.4,
-  /** Auto-blink cadence while idle. */
-  blinkIntervalMin: 3.6,
-  blinkIntervalMax: 8,
   /** Enter / exit. */
   hideDuration: 0.7,
   peekDuration: 0.8,
@@ -274,6 +277,18 @@ export const ORBI_TIMING = {
   interactionClaimMs: 1400,
   /** Long enough to cover rise → blink → wave → greeting. */
   entranceClaimMs: 9000,
+
+  /* ── Phase 3 personality ── */
+  /** Randomized blink cadence. */
+  blinkIntervalMin: 3.5,
+  blinkIntervalMax: 7,
+  /** How often a blink is a double blink. Rare on purpose. */
+  doubleBlinkChance: 0.12,
+  doubleBlinkGapMs: 150,
+  /** The startled beat before ORBI realizes it has been poked. */
+  clickStartleMs: 260,
+  /** How long the wake-up flinch is held. */
+  wakeStartleMs: 420,
 } as const
 
 /** Long, silky settles — the same family as `lib/motion.ts`. */
@@ -310,6 +325,8 @@ export const ORBI_COLORS = {
 
 export const ORBI_MESSAGES = {
   greeting: 'Hi 👋',
+  /** When the cursor rests on ORBI for a beat. */
+  hoverGreeting: 'Hey 👀',
 } as const
 
 /* ── Geometry ──────────────────────────────────────────────────────────── */
@@ -340,6 +357,8 @@ export const ORBI_ART = {
   pointLeftAngle: 88,
   /** Body tilt for a look orientation. Deliberately tiny — eyes do the work. */
   lookTilt: 4.5,
+  /** The head cock on a curious glance. Smaller still. */
+  curiousTilt: 3.2,
   /** How far the pupils travel at full gaze, SVG units. */
   gazeMaxX: 3.6,
   gazeMaxY: 3,
@@ -370,15 +389,179 @@ export const ORBI_SCROLL = {
   glanceAmount: 0.55,
   /** px/sec. Anything faster than this startles ORBI. */
   fastVelocity: 2800,
-  fastCooldownMs: 2600,
-  /** The same section will not re-fire inside this window. */
-  sectionCooldownMs: 5000,
-  /** The same message will not replay inside this window. */
-  messageCooldownMs: 12000,
   /** How far ORBI slides toward the edge at the footer, % of its own size. */
   dockX: 40,
   dockY: 10,
 } as const
+
+/* ── Flight ────────────────────────────────────────────────────────────── */
+
+/**
+ * How ORBI stays in the air.
+ *
+ * Not a loop — a walk through a short list of poses. Each is a slightly
+ * different place to be, so the motion never lands on the same coordinates
+ * twice in a row, but the sequence is fixed rather than random: ORBI looks
+ * organic and still animates identically on every run, which is what makes it
+ * testable.
+ *
+ * Poses are authored at `referenceSize` and scaled from there, so a smaller
+ * ORBI flies proportionally smaller.
+ */
+export const ORBI_FLIGHT = {
+  /** Rendered width the pose values below were tuned against. */
+  referenceSize: 148,
+
+  /**
+   * The resting hover. Rise, ease off near the top, drift a little sideways,
+   * tip a fraction, come back down, correct. ~5–9px of lift, 2–5px of drift,
+   * under 1.5° of roll, 2.5–4s a segment.
+   */
+  poses: [
+    { x: 0, y: -6.4, rotation: -0.6, duration: 3.2 },
+    { x: 2.6, y: -3.1, rotation: 0.5, duration: 2.8 },
+    { x: 3.4, y: -8.4, rotation: 1.1, duration: 3.7 },
+    { x: 0.9, y: -4.3, rotation: 0.3, duration: 2.6 },
+    { x: -2.2, y: -7.6, rotation: -1.0, duration: 3.4 },
+    { x: -3.1, y: -3.4, rotation: -0.4, duration: 2.9 },
+    { x: -0.7, y: -5.9, rotation: 0.7, duration: 3.1 },
+    { x: 1.8, y: -2.7, rotation: -0.2, duration: 2.7 },
+  ],
+
+  /**
+   * The rare beat where ORBI repositions himself: a firmer climb, a tip into
+   * it, a slide sideways, then a settle. Still no bounce and no overshoot —
+   * this should read as station-keeping, not as an animation playing.
+   */
+  adjustment: [
+    { x: 0.4, y: -12.6, rotation: 1.4, duration: 1.5, ease: 'power2.out' },
+    { x: 4.6, y: -11.2, rotation: 0.2, duration: 1.4, ease: 'sine.inOut' },
+    { x: 1.5, y: -7.4, rotation: -0.5, duration: 1.7, ease: 'power2.inOut' },
+  ],
+
+  /** Segments between adjustments — roughly 12–20s at the durations above. */
+  adjustmentGapMin: 4,
+  adjustmentGapMax: 6,
+
+  /** Amplitude and pacing per variant. */
+  activeScale: 1.35,
+  drowsyScale: 0.6,
+  drowsyDurationScale: 1.9,
+
+  /**
+   * Mobile. Lift already scales with ORBI's size; drift and roll are cut
+   * further so he never wanders toward a neighbouring control and his hit area
+   * stays where the user expects it.
+   */
+  quietDriftScale: 0.5,
+  quietRotationScale: 0.3,
+  /**
+   * Lift already shrinks with ORBI's size; this trims it a little further so
+   * even the larger reposition stays inside ~6px on a phone.
+   */
+  quietLiftScale: 0.8,
+} as const
+
+export type OrbiFlightPose = {
+  x: number
+  y: number
+  rotation: number
+  duration: number
+  ease?: string
+}
+
+/* ── Cooldowns ─────────────────────────────────────────────────────────── */
+
+/**
+ * Every "don't do that again yet" window, in one place. Personality lives or
+ * dies on these numbers, so they are tuned here rather than scattered through
+ * the components.
+ */
+export const ORBI_COOLDOWNS = {
+  /** "Hey 👀" when the cursor lingers on ORBI. */
+  hoverGreeting: 30000,
+  /** Between click reactions — also stops a double-click double-bubbling. */
+  clickMessage: 1500,
+  /** The self-initiated curious glance. */
+  curious: 25000,
+  /** The startled reaction to a fast flick. */
+  fastScroll: 2600,
+  /** The same section message replaying. */
+  sectionMessage: 12000,
+  /** A section reaction re-firing at all. */
+  sectionReaction: 5000,
+  /** Reacting to the same marked CTA again. */
+  cta: 8000,
+  /** The optional pointing gesture on a high-value CTA. */
+  ctaPoint: 20000,
+  /** Reacting to the navigation opening. */
+  nav: 5000,
+} as const
+
+/* ── Interaction ───────────────────────────────────────────────────────── */
+
+export const ORBI_INTERACTION = {
+  /**
+   * Cursor tracking. The pupils track the pointer across the viewport but the
+   * travel is clamped hard — ORBI glances, it does not stare.
+   */
+  cursorRange: 0.55,
+  /** How far the cursor reaches before ORBI notices it approaching, px. */
+  proximityRadius: 150,
+  /** Inside this, the pointer counts as being on ORBI. */
+  hoverPadding: 6,
+  /** Gaze gain once the pointer is inside `proximityRadius`. */
+  proximityGain: 1,
+  /** Degrees of body lean toward a hovering cursor. */
+  hoverTilt: 3,
+  /** Cursor must rest on ORBI this long before it says hello. */
+  hoverGreetingDelay: 1500,
+  hoverGreetingHold: 1800,
+  /** Eye-follow smoothing. Long enough to read as a glance, not a servo. */
+  gazeEase: 'power3.out',
+  gazeDuration: 0.5,
+  /** Quiet spell before the curious glance may fire, ms (randomized). */
+  curiousMinDelay: 8000,
+  curiousMaxDelay: 12000,
+  curiousHold: 2200,
+  /** Quiet spell before ORBI gets drowsy, then closes its eyes. */
+  drowsyDelay: 24000,
+  dozeDelay: 45000,
+  /** Away this long and ORBI does a small wake-up blink on return. */
+  awayWakeMs: 30000,
+  /** Opt-in attribute a CTA sets to be noticed. No ORBI import required. */
+  ctaSelector: '[data-orbi-interest]',
+  /** Opt-in attribute on a nav toggle; ORBI watches its `aria-expanded`. */
+  navSelector: '[data-orbi-nav]',
+} as const
+
+/** Where ORBI's pupils are currently pointed, highest priority first. */
+export const ORBI_GAZE_PRIORITY = [
+  /** A section gesture or explicit `look-*`. */
+  'gesture',
+  /** A CTA, the navigation, or a deliberate cue. */
+  'interaction',
+  /** Scroll direction. */
+  'scroll',
+  /** The cursor. */
+  'cursor',
+] as const
+
+export type OrbiGazeSource = (typeof ORBI_GAZE_PRIORITY)[number]
+
+/* ── Personality copy ──────────────────────────────────────────────────── */
+
+/**
+ * Kept short on purpose — roughly 30 characters. The bubble is a beat of
+ * personality, not a place to put information.
+ */
+export const ORBI_CLICK_MESSAGES = [
+  'Hi again 👋',
+  'You found me!',
+  'Keep exploring 👀',
+  'Nice to meet you!',
+  "I'm ORBI ✨",
+] as const
 
 /* ── Debug ─────────────────────────────────────────────────────────────── */
 

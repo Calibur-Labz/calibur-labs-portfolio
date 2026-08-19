@@ -183,12 +183,14 @@ export default function Hero() {
                 textDecoration: 'none',
               }}
               className="btn-shimmer btn-primary"
+              data-orbi-interest="point"
             >
               View Our Work
               <ArrowIcon />
             </a>
             <a
               href="#contact"
+              data-orbi-interest="point"
               className="btn-shimmer btn-primary btn-primary--alt"
               style={{
                 display: 'inline-flex',

@@ -1,19 +1,22 @@
 'use client'
 
+import type { RefObject } from 'react'
 import { ORBI_ART, ORBI_COLORS, type OrbiExpression } from './orbiConfig'
 
 /**
- * ORBI's face — everything that lives inside the visor.
+ * ORBI's face — everything that lives inside the visor, and where most of the
+ * personality actually comes from.
  *
- * Pure presentation: it maps an expression onto eye/mouth poses and lets CSS
- * transitions do the interpolation. No GSAP here, so expression changes stay
- * cheap and can fire at any time without touching a timeline. Under
- * `prefers-reduced-motion` the global reset in `globals.css` collapses these
- * transitions, so expressions snap instantly but still work.
+ * Two channels, deliberately separate:
  *
- * `gaze` is where ORBI's scroll awareness lands. Looking is done here, with
- * the pupils, rather than by swinging the body around — the body only ever
- * contributes a few degrees of shoulder (see `applyLookTilt`).
+ *  - **Expression** is React's. Poses are declarative and CSS transitions do
+ *    the interpolation, so an expression can change at any time without
+ *    touching a timeline. Under `prefers-reduced-motion` the global reset in
+ *    `globals.css` collapses these transitions: expressions snap, but still read.
+ *
+ *  - **Gaze** is GSAP's. `gazeRef` hands the pupil group to `orbiGaze`, which
+ *    drives its transform imperatively. Cursor tracking therefore costs no
+ *    renders at all. Nothing here may set `transform` on that group.
  */
 
 /** Normalized −1…1 on each axis; scaled by `ORBI_ART.gazeMax*`. */
@@ -58,22 +61,35 @@ function eyePoses(expression: OrbiExpression): [EyePose, EyePose] {
         { scaleX: 1.22, scaleY: 1.22, dx: 0, dy: -1, opacity: 1 },
         { scaleX: 1.22, scaleY: 1.22, dx: 0, dy: -1, opacity: 1 },
       ]
+    case 'sleepy':
+      // Lids down and the whole eye sitting lower — heavy, not squinting.
+      // The shape change has to survive an 88px-wide robot, so it is a big
+      // squash rather than a subtle one.
+      return [
+        { scaleX: 1, scaleY: 0.34, dx: 0, dy: 2.2, opacity: 1 },
+        { scaleX: 1, scaleY: 0.34, dx: 0, dy: 2.2, opacity: 1 },
+      ]
     case 'normal':
     default:
       return [OPEN, OPEN]
   }
 }
 
+/**
+ * Slow, heavy, and clearly not a blink — a blink snaps shut in 130ms, this
+ * takes most of a second.
+ */
+const DOZE_POSE: EyePose = { scaleX: 1, scaleY: 0.05, dx: 0, dy: 3, opacity: 1 }
+
 const EYE_TRANSITION =
-  'transform 190ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease'
+  'transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease'
+const DOZE_TRANSITION =
+  'transform 900ms cubic-bezier(0.4, 0, 0.2, 1), opacity 400ms ease'
 
-/** Glances are slower than blinks — a drift, not a snap. */
-const GAZE_TRANSITION =
-  'transform 420ms cubic-bezier(0.16, 1, 0.3, 1), filter 300ms ease'
+/** The gaze group's transform belongs to GSAP — only `filter` is animated here. */
+const GAZE_FILTER_TRANSITION = 'filter 320ms ease'
 
-const clampGaze = (v: number) => Math.max(-1, Math.min(1, v))
-
-function Eye({ pose }: { pose: EyePose }) {
+function Eye({ pose, dozing }: { pose: EyePose; dozing: boolean }) {
   return (
     <g
       style={{
@@ -81,7 +97,7 @@ function Eye({ pose }: { pose: EyePose }) {
         transformBox: 'fill-box',
         transformOrigin: 'center',
         opacity: pose.opacity,
-        transition: EYE_TRANSITION,
+        transition: dozing ? DOZE_TRANSITION : EYE_TRANSITION,
       }}
     >
       <ellipse
@@ -101,24 +117,28 @@ function Eye({ pose }: { pose: EyePose }) {
 export default function OrbiFace({
   expression,
   awake,
-  gaze = ORBI_GAZE_CENTER,
   bright = false,
+  dozing = false,
+  gazeRef,
 }: {
   expression: OrbiExpression
   /** Eyes are dark until the entrance timeline switches them on. */
   awake: boolean
-  /** Where ORBI is looking. Drives the pupils only. */
-  gaze?: OrbiGaze
-  /** Lifts the eye glow — used for the excited beat on the work section. */
+  /** Lifts the eye glow — the excited beat on the work section. */
   bright?: boolean
+  /** Deep inactivity: the lids come all the way down. */
+  dozing?: boolean
+  /** Handed to `orbiGaze`, which owns this group's transform. */
+  gazeRef?: RefObject<SVGGElement | null>
 }) {
-  const [left, right] = eyePoses(expression)
-  const isHappy = expression === 'happy'
-  const isSurprised = expression === 'surprised'
-  const { eyeLeft, eyeRight, mouth } = ORBI_ART
+  const posed = eyePoses(expression)
+  const left = dozing ? DOZE_POSE : posed[0]
+  const right = dozing ? DOZE_POSE : posed[1]
 
-  const gazeX = clampGaze(gaze.x) * ORBI_ART.gazeMaxX
-  const gazeY = clampGaze(gaze.y) * ORBI_ART.gazeMaxY
+  const isHappy = expression === 'happy' && !dozing
+  const isSurprised = expression === 'surprised'
+  const isSleepy = expression === 'sleepy' || dozing
+  const { eyeLeft, eyeRight, mouth } = ORBI_ART
 
   return (
     <g
@@ -141,27 +161,36 @@ export default function OrbiFace({
         </filter>
       </defs>
 
-      {/* Everything that follows ORBI's gaze travels together. */}
+      {/* Everything that follows ORBI's gaze travels together. GSAP owns the
+          transform on this node — do not set one here. */}
       <g
+        ref={gazeRef}
         style={{
-          transform: `translate(${gazeX}px, ${gazeY}px)`,
-          filter: bright ? 'brightness(1.5)' : 'brightness(1)',
-          transition: GAZE_TRANSITION,
+          // Dimmed while dozing, lifted on the excited beat.
+          filter: bright
+            ? 'brightness(1.5)'
+            : dozing
+              ? 'brightness(0.62)'
+              : 'brightness(1)',
+          transition: GAZE_FILTER_TRANSITION,
         }}
       >
         {/* Pupils */}
         <g transform={`translate(${eyeLeft.x} ${eyeLeft.y})`}>
-          <Eye pose={left} />
+          <Eye pose={left} dozing={dozing} />
         </g>
         <g transform={`translate(${eyeRight.x} ${eyeRight.y})`}>
-          <Eye pose={right} />
+          <Eye pose={right} dozing={dozing} />
         </g>
 
-        {/* Happy arcs — cross-fade in as the pupils fade out. */}
+        {/* Happy arcs. The pupils clear out fast and the arcs arrive just
+            behind them, so the two never read as a double image. */}
         <g
           style={{
             opacity: isHappy ? 1 : 0,
-            transition: 'opacity 170ms ease',
+            transition: isHappy
+              ? 'opacity 190ms ease 60ms'
+              : 'opacity 120ms ease',
           }}
         >
           {[eyeLeft, eyeRight].map((eye) => (
@@ -179,20 +208,18 @@ export default function OrbiFace({
       </g>
 
       {/* Cheek tint — only when happy. */}
-      <g
-        style={{ opacity: isHappy ? 0.4 : 0, transition: 'opacity 220ms ease' }}
-      >
+      <g style={{ opacity: isHappy ? 0.4 : 0, transition: 'opacity 220ms ease' }}>
         <ellipse cx={eyeLeft.x - 11} cy={eyeLeft.y + 15} rx={5.5} ry={3} fill={ORBI_COLORS.accent} />
         <ellipse cx={eyeRight.x + 11} cy={eyeRight.y + 15} rx={5.5} ry={3} fill={ORBI_COLORS.accent} />
       </g>
 
-      {/* Mouth — three fixed shapes cross-faded, so no path morphing is needed. */}
+      {/* Mouth — fixed shapes cross-faded, so no path morphing is needed. */}
       <g fill="none" stroke={ORBI_COLORS.accentSoft} strokeLinecap="round">
         <path
           d={`M ${mouth.x - 8} ${mouth.y} Q ${mouth.x} ${mouth.y + 3.5} ${mouth.x + 8} ${mouth.y}`}
           strokeWidth={2.2}
           style={{
-            opacity: isHappy || isSurprised ? 0 : 0.32,
+            opacity: isHappy || isSurprised || isSleepy ? 0 : 0.32,
             transition: 'opacity 200ms ease',
           }}
         />
@@ -208,6 +235,12 @@ export default function OrbiFace({
           ry={4.2}
           strokeWidth={2.2}
           style={{ opacity: isSurprised ? 0.75 : 0, transition: 'opacity 200ms ease' }}
+        />
+        {/* Sleepy: a short flat line, softer than the resting smile. */}
+        <path
+          d={`M ${mouth.x - 5} ${mouth.y + 1} L ${mouth.x + 5} ${mouth.y + 1}`}
+          strokeWidth={2}
+          style={{ opacity: isSleepy ? 0.28 : 0, transition: 'opacity 300ms ease' }}
         />
       </g>
     </g>

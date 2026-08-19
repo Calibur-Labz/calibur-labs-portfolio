@@ -11,7 +11,7 @@
  *   dock    — footer perch at the screen edge  (translateX/Y)
  *   tilt    — look orientation                 (rotate)
  *   gesture — excited hop, startled recoil     (translateY + rotate)
- *   floater — idle bob + micro-tilt            (translateY + rotate)
+ *   floater — staying airborne                 (translateX/Y + rotate)
  *   arms    — wave, point                      (rotate about a shoulder)
  */
 
@@ -19,9 +19,12 @@ import { gsap } from 'gsap'
 import {
   ORBI_ART,
   ORBI_EASE,
+  ORBI_FLIGHT,
+  ORBI_INTERACTION,
   ORBI_SCROLL,
   ORBI_TIMING,
   type OrbiAnimation,
+  type OrbiFlightPose,
 } from './orbiConfig'
 
 export interface OrbiMotionOptions {
@@ -109,58 +112,153 @@ export function createIntroTimeline(
   return tl
 }
 
-/* ── Idle float ────────────────────────────────────────────────────────── */
+/* ── Flight ────────────────────────────────────────────────────────────── */
+
+export interface OrbiFlightHandle extends OrbiMotionHandle {
+  /** Stop mid-pose without losing it — used while the tab is hidden. */
+  pause: () => void
+  resume: () => void
+}
+
+export interface OrbiFlightOptions {
+  /** `hover` at rest, `active` a touch livelier, `drowsy` slow and shallow. */
+  variant?: 'hover' | 'active' | 'drowsy'
+  /** Mobile: less drift, almost no roll. */
+  quiet?: boolean
+  /**
+   * Asked immediately before each larger reposition. Flight is the lowest
+   * priority thing ORBI does, so it only takes the extra room when nothing
+   * else is happening at all.
+   */
+  canAdjust?: () => boolean
+}
+
+const FLIGHT_EASE = 'sine.inOut'
+
+const inert: OrbiFlightHandle = {
+  kill: () => {},
+  pause: () => {},
+  resume: () => {},
+}
 
 /**
- * The resting animation: a few pixels of vertical drift plus a barely-there
- * tilt. The two run on different periods so the loop never reads as a metronome.
+ * Keeps ORBI in the air.
+ *
+ * Rather than a symmetrical up-and-down loop, this walks a short table of
+ * poses — each one a slightly different height, offset and roll — so the
+ * motion reads as a small stabilisation system holding position rather than as
+ * an animation cycling. Every segment tweens to an *absolute* pose, which is
+ * what lets it be interrupted and resumed without a snap.
+ *
+ * The whole thing lives on the `floater` layer and writes x, y and rotation
+ * there and nowhere else. No gesture, section orientation, or footer dock
+ * touches that layer, so flight can never fight anything — and the occasional
+ * larger reposition additionally asks `canAdjust()` first, so it stays out of
+ * the way perceptually too.
+ *
+ * Nothing scales: ORBI is exactly as sharp in the air as on the ground.
  */
-export function createFloat(
+export function createFlight(
   floater: HTMLElement,
   options: OrbiMotionOptions,
-  variant: 'idle' | 'float' = 'idle',
-): OrbiMotionHandle {
+  { variant = 'hover', quiet = false, canAdjust }: OrbiFlightOptions = {},
+): OrbiFlightHandle {
   if (options.reducedMotion) {
-    gsap.set(floater, { y: 0, rotation: 0 })
-    return noop
+    // Stationary, by request. Expressions, gaze and speech carry on.
+    gsap.set(floater, { x: 0, y: 0, rotation: 0 })
+    return inert
   }
 
-  const t = ORBI_TIMING
-  const ratio =
-    variant === 'float' ? t.floatTravelRatioActive : t.floatTravelRatio
-  const travel = options.size * ratio
+  const cfg = ORBI_FLIGHT
+  const scale = options.size / cfg.referenceSize
+  const amplitude =
+    scale *
+    (variant === 'active'
+      ? cfg.activeScale
+      : variant === 'drowsy'
+        ? cfg.drowsyScale
+        : 1)
 
-  const drift = gsap.to(floater, {
-    y: -travel,
-    duration: t.floatDuration,
-    ease: ORBI_EASE.float,
-    repeat: -1,
-    yoyo: true,
-  })
+  const lift = amplitude * (quiet ? cfg.quietLiftScale : 1)
+  const drift = amplitude * (quiet ? cfg.quietDriftScale : 1)
+  const roll = quiet ? cfg.quietRotationScale : 1
+  const pace = variant === 'drowsy' ? cfg.drowsyDurationScale : 1
 
-  const tilt = gsap.fromTo(
-    floater,
-    { rotation: -t.floatRotation },
-    {
-      rotation: t.floatRotation,
-      duration: t.floatDuration * 1.45,
-      ease: ORBI_EASE.float,
-      repeat: -1,
-      yoyo: true,
-      transformOrigin: '50% 80%',
-    },
+  let tween: gsap.core.Tween | null = null
+  let killed = false
+  let paused = false
+  let index = 0
+  let queued: OrbiFlightPose[] = []
+  let untilAdjustment = gsap.utils.random(
+    cfg.adjustmentGapMin,
+    cfg.adjustmentGapMax,
+    1,
   )
+
+  const play = (pose: OrbiFlightPose) => {
+    tween = gsap.to(floater, {
+      x: pose.x * drift,
+      y: pose.y * lift,
+      rotation: pose.rotation * roll,
+      duration: pose.duration * pace,
+      ease: pose.ease ?? FLIGHT_EASE,
+      transformOrigin: '50% 80%',
+      onComplete: step,
+    })
+    if (paused) tween.pause()
+  }
+
+  const step = () => {
+    if (killed) return
+
+    // Finish a reposition before considering anything else.
+    const pending = queued.shift()
+    if (pending) {
+      play(pending)
+      return
+    }
+
+    if (untilAdjustment <= 0 && (canAdjust ? canAdjust() : true)) {
+      untilAdjustment = gsap.utils.random(
+        cfg.adjustmentGapMin,
+        cfg.adjustmentGapMax,
+        1,
+      )
+      queued = [...cfg.adjustment]
+      play(queued.shift()!)
+      return
+    }
+
+    // Not the moment for it — try again after the next segment.
+    untilAdjustment -= 1
+    play(cfg.poses[index++ % cfg.poses.length])
+  }
+
+  step()
 
   return {
     kill: () => {
-      drift.kill()
-      tilt.kill()
+      killed = true
+      tween?.kill()
+      // Ease home rather than snapping, so a breakpoint change or unmount is
+      // never a jump.
       gsap.to(floater, {
+        x: 0,
         y: 0,
         rotation: 0,
         duration: 0.4,
         ease: ORBI_EASE.soft,
       })
+    },
+    pause: () => {
+      paused = true
+      tween?.pause()
+    },
+    resume: () => {
+      if (!paused) return
+      paused = false
+      // Picks up exactly where it stopped — no jump to a new pose on return.
+      tween?.resume()
     },
   }
 }
@@ -268,26 +366,39 @@ export function playDock(
 /* ── Looking ───────────────────────────────────────────────────────────── */
 
 /**
- * Orient the body toward whatever ORBI is looking at.
+ * How far the body leans for a sustained look orientation.
  *
  * Intentionally almost nothing — a few degrees. The eyes carry the look (see
- * the `gaze` prop on `OrbiFace`); this is just enough shoulder to sell it.
- * Reduced motion and mobile drop the rotation entirely and keep the eyes.
+ * `orbiGaze`); this is just enough shoulder to sell it. Reduced motion and
+ * mobile get none of it and keep the eyes.
  */
-export function applyLookTilt(
-  tilt: HTMLElement,
+export function lookTiltAngle(
   animation: OrbiAnimation,
   options: OrbiMotionOptions,
   quiet = false,
+): number {
+  if (options.reducedMotion || quiet) return 0
+  if (animation === 'look-left') return -ORBI_ART.lookTilt
+  if (animation === 'look-right') return ORBI_ART.lookTilt
+  return 0
+}
+
+/**
+ * The single writer for the tilt layer.
+ *
+ * Both the section orientation and the lean toward a hovering cursor want this
+ * rotation, so callers sum their contributions and hand over one number.
+ * `overwrite: 'auto'` guarantees exactly one tween owns the property.
+ */
+export function applyTilt(
+  tilt: HTMLElement,
+  rotation: number,
+  options: OrbiMotionOptions,
+  duration = ORBI_TIMING.lookDuration,
 ): gsap.core.Tween {
-  let rotation = 0
-  if (!options.reducedMotion && !quiet) {
-    if (animation === 'look-left') rotation = -ORBI_ART.lookTilt
-    else if (animation === 'look-right') rotation = ORBI_ART.lookTilt
-  }
   return gsap.to(tilt, {
-    rotation,
-    duration: options.reducedMotion ? 0.2 : ORBI_TIMING.lookDuration,
+    rotation: options.reducedMotion ? 0 : rotation,
+    duration: options.reducedMotion ? 0.2 : duration,
     ease: ORBI_EASE.soft,
     transformOrigin: '50% 85%',
     overwrite: 'auto',
@@ -422,6 +533,51 @@ export function createRecoilTimeline(
   return tl
 }
 
+/* ── Curious ───────────────────────────────────────────────────────────── */
+
+/**
+ * The self-initiated "hm?" — a tiny head cock, held, then released. The eyes
+ * do the looking (`orbiGaze` gets an `interaction` target for the duration);
+ * this is only the body's share of it, which is a degree or two.
+ *
+ * Under reduced motion it is a pure pause: the thinking face still happens,
+ * the body does not move at all.
+ */
+export function createCuriousTimeline(
+  tilt: HTMLElement,
+  side: -1 | 1,
+  options: OrbiMotionOptions,
+  onComplete?: () => void,
+): gsap.core.Timeline {
+  const hold = ORBI_INTERACTION.curiousHold / 1000
+  const tl = gsap.timeline({ onComplete })
+
+  if (options.reducedMotion) {
+    tl.to({}, { duration: hold })
+    return tl
+  }
+
+  const angle = side * ORBI_ART.curiousTilt
+
+  tl.to(tilt, {
+    rotation: angle,
+    duration: 0.6,
+    ease: ORBI_EASE.soft,
+    transformOrigin: '50% 85%',
+    overwrite: 'auto',
+  })
+    .to({}, { duration: hold })
+    .to(tilt, {
+      rotation: 0,
+      duration: 0.7,
+      ease: ORBI_EASE.inOut,
+      transformOrigin: '50% 85%',
+      overwrite: 'auto',
+    })
+
+  return tl
+}
+
 /* ── Settling ──────────────────────────────────────────────────────────── */
 
 export interface OrbiSettleTargets {
@@ -481,8 +637,11 @@ export function resetLayer(el: HTMLElement | SVGGElement | null, svgOrigin?: str
 
 /**
  * Fires `blink` at irregular intervals so ORBI reads as alive rather than
- * looped. Disabled entirely under reduced motion — with transitions suppressed
- * a blink would snap rather than close, which is worse than not blinking.
+ * looped, and occasionally — rarely — twice in quick succession, which is the
+ * detail that stops it feeling metronomic.
+ *
+ * Disabled entirely under reduced motion: with transitions suppressed a blink
+ * snaps rather than closes, which is worse than not blinking.
  */
 export function createBlinkScheduler(
   blink: () => void,
@@ -491,18 +650,31 @@ export function createBlinkScheduler(
   if (options.reducedMotion) return noop
 
   const t = ORBI_TIMING
-  let pending: gsap.core.Tween | null = null
+  const pending = new Set<gsap.core.Tween>()
+
+  const at = (delay: number, fn: () => void) => {
+    const call = gsap.delayedCall(delay, () => {
+      pending.delete(call)
+      fn()
+    })
+    pending.add(call)
+  }
 
   const schedule = () => {
-    pending = gsap.delayedCall(
-      gsap.utils.random(t.blinkIntervalMin, t.blinkIntervalMax),
-      () => {
-        blink()
-        schedule()
-      },
-    )
+    at(gsap.utils.random(t.blinkIntervalMin, t.blinkIntervalMax), () => {
+      blink()
+      if (Math.random() < t.doubleBlinkChance) {
+        at(t.doubleBlinkGapMs / 1000 + t.blinkCloseMs / 1000, blink)
+      }
+      schedule()
+    })
   }
   schedule()
 
-  return { kill: () => pending?.kill() }
+  return {
+    kill: () => {
+      pending.forEach((call) => call.kill())
+      pending.clear()
+    },
+  }
 }

@@ -1,7 +1,7 @@
 'use client'
 
-import type { RefObject } from 'react'
-import OrbiFace, { type OrbiGaze } from './OrbiFace'
+import { useState, type RefObject } from 'react'
+import OrbiFace from './OrbiFace'
 import {
   ORBI_COLORS,
   ORBI_VIEWBOX,
@@ -22,32 +22,92 @@ import {
 export default function OrbiRobot({
   expression,
   awake,
-  gaze,
   bright,
+  dozing,
+  gazeRef,
   armRef,
   leftArmRef,
+  onActivate,
+  onHoverStart,
+  onHoverEnd,
 }: {
   expression: OrbiExpression
   awake: boolean
-  gaze?: OrbiGaze
   bright?: boolean
+  dozing?: boolean
+  /** Handed to `orbiGaze`, which drives the pupils imperatively. */
+  gazeRef?: RefObject<SVGGElement | null>
   /** Waves, and points to ORBI's right. */
   armRef: RefObject<SVGGElement | null>
   /** Points to ORBI's left. */
   leftArmRef: RefObject<SVGGElement | null>
+  /** Click or tap on the robot itself. */
+  onActivate?: () => void
+  /**
+   * Pointer entered / left the *painted* robot. Taken from the SVG's own hit
+   * testing rather than inferred from geometry, so it is exact and free.
+   */
+  onHoverStart?: () => void
+  onHoverEnd?: () => void
 }) {
+  /**
+   * Keyboard focus only. `:focus-visible` is the browser's own
+   * mouse-vs-keyboard heuristic, so asking the element directly gives exactly
+   * the right answer without us having to guess at input modality.
+   */
+  const [keyboardFocus, setKeyboardFocus] = useState(false)
   return (
     <svg
       viewBox={`0 0 ${ORBI_VIEWBOX.width} ${ORBI_VIEWBOX.height}`}
       width="100%"
       height="100%"
-      // Decorative — ORBI's meaning is carried by the speech bubble, which is
-      // a live region.
-      aria-hidden="true"
+      // Once ORBI is clickable it is a control, not decoration, so it keeps an
+      // accessible name. Its *meaning* still travels through the speech
+      // bubble, which is a live region.
       focusable="false"
-      // `auto` here means SVG hit-testing applies: only the painted robot
-      // is clickable, never the transparent box around it.
-      style={{ overflow: 'visible', display: 'block', pointerEvents: 'auto' }}
+      role={onActivate ? 'button' : undefined}
+      tabIndex={onActivate ? 0 : undefined}
+      aria-label={onActivate ? 'ORBI, your guide' : undefined}
+      onClick={onActivate}
+      onFocus={(event) => setKeyboardFocus(isKeyboardFocus(event.currentTarget))}
+      onBlur={() => setKeyboardFocus(false)}
+      onPointerEnter={(event) => {
+        if (event.pointerType === 'touch') return
+        onHoverStart?.()
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === 'touch') return
+        onHoverEnd?.()
+      }}
+      onKeyDown={
+        onActivate
+          ? (event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return
+              event.preventDefault()
+              onActivate()
+            }
+          : undefined
+      }
+      style={{
+        overflow: 'visible',
+        display: 'block',
+        // `auto` here means SVG hit-testing applies: only the painted robot is
+        // clickable, never the transparent box around it.
+        pointerEvents: 'auto',
+        cursor: onActivate ? 'pointer' : undefined,
+        // Taps resolve as clicks without the 300ms wait, and a touch that turns
+        // into a scroll is still a scroll — ORBI never swallows the gesture.
+        touchAction: 'manipulation',
+        // A rectangular outline around a round robot looks like a mistake. The
+        // global `:focus-visible` rule in globals.css is overridden here only —
+        // inline beats it without `!important` — and replaced with the halo
+        // below, so keyboard users are never left without an indicator.
+        outline: 'none',
+        WebkitTapHighlightColor: 'transparent',
+        WebkitTouchCallout: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+      }}
     >
       <defs>
         <linearGradient id="orbi-shell" x1="0" y1="0" x2="0.25" y2="1">
@@ -71,6 +131,11 @@ export default function OrbiRobot({
           <stop offset="0%" stopColor={ORBI_COLORS.accent} stopOpacity="0.42" />
           <stop offset="100%" stopColor={ORBI_COLORS.accent} stopOpacity="0" />
         </radialGradient>
+        <radialGradient id="orbi-focus" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="55%" stopColor={ORBI_COLORS.accentSoft} stopOpacity="0" />
+          <stop offset="82%" stopColor={ORBI_COLORS.accentSoft} stopOpacity="0.38" />
+          <stop offset="100%" stopColor={ORBI_COLORS.accent} stopOpacity="0" />
+        </radialGradient>
         <filter id="orbi-bloom" x="-140%" y="-140%" width="380%" height="380%">
           <feGaussianBlur stdDeviation="3" result="b" />
           <feMerge>
@@ -79,6 +144,21 @@ export default function OrbiRobot({
           </feMerge>
         </filter>
       </defs>
+
+      {/* Keyboard focus: a halo that follows ORBI's own shape rather than a
+          box drawn around his bounding rect. */}
+      <ellipse
+        cx={85}
+        cy={72}
+        rx={82}
+        ry={76}
+        fill="url(#orbi-focus)"
+        style={{
+          opacity: keyboardFocus ? 1 : 0,
+          transition: 'opacity 200ms ease',
+          pointerEvents: 'none',
+        }}
+      />
 
       {/* Hover pad — the cyan pool ORBI floats over. */}
       <ellipse cx={85} cy={134} rx={38} ry={9} fill="url(#orbi-pad)" />
@@ -141,7 +221,13 @@ export default function OrbiRobot({
         strokeWidth={1.2}
       />
 
-      <OrbiFace expression={expression} awake={awake} gaze={gaze} bright={bright} />
+      <OrbiFace
+        expression={expression}
+        awake={awake}
+        bright={bright}
+        dozing={dozing}
+        gazeRef={gazeRef}
+      />
 
       {/* Core light on the chest — a quiet "powered on" tell. */}
       <ellipse
@@ -156,4 +242,18 @@ export default function OrbiRobot({
       />
     </svg>
   )
+}
+
+/**
+ * `Element.matches(':focus-visible')` is how the browser itself decides whether
+ * focus deserves an indicator — keyboard yes, mouse no. Guarded because a
+ * browser without the selector would throw on an unknown pseudo-class, and in
+ * that case showing the halo is the safer failure.
+ */
+function isKeyboardFocus(element: Element): boolean {
+  try {
+    return element.matches(':focus-visible')
+  } catch {
+    return true
+  }
 }

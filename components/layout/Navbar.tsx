@@ -110,6 +110,10 @@ export default function Navbar() {
         <button
           className="show-mobile"
           onClick={() => setMenuOpen(!menuOpen)}
+          aria-expanded={menuOpen}
+          // ORBI watches `aria-expanded` on this element and glances up when
+          // the menu opens. Attribute only — nothing here imports ORBI.
+          data-orbi-nav=""
           style={{
             background: 'none',
             border: 'none',

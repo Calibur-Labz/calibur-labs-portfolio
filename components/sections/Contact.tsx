@@ -182,6 +182,7 @@ export default function Contact() {
             </p>
             <motion.a
               href="mailto:caliburlabz@gmail.com"
+              data-orbi-interest="say:Go on, say hi 👋"
               whileHover={{ scale: 1 }}
               whileTap={{ scale: 0.97 }}
               className="btn-shimmer btn-ghost"

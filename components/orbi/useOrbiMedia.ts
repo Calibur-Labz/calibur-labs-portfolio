@@ -38,6 +38,15 @@ export function useReducedMotion(): boolean {
   return useMediaQuery(ORBI_MEDIA.reducedMotion)
 }
 
+/**
+ * A real cursor, not a finger. This — not the breakpoint — is what decides
+ * whether ORBI tracks the pointer, since a small laptop still has a mouse and
+ * a large tablet does not.
+ */
+export function useFinePointer(): boolean {
+  return useMediaQuery(ORBI_MEDIA.finePointer)
+}
+
 export function useOrbiBreakpoint(): OrbiBreakpoint {
   const isMobile = useMediaQuery(ORBI_MEDIA.mobile)
   const isTablet = useMediaQuery(ORBI_MEDIA.tablet)

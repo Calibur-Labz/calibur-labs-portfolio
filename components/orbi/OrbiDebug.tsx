@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type RefObject } from 'react'
 import type { OrbiArbiter } from './orbiArbiter'
+import type { OrbiGazeController } from './orbiGaze'
 import type { OrbiScrollDirection } from './useOrbiScroll'
+import type { OrbiDrowsiness, OrbiProximity } from './useOrbiInteraction'
 import { ORBI_PRIORITY, type OrbiState } from './orbiConfig'
 
 /**
@@ -23,37 +25,60 @@ export default function OrbiDebug({
   section,
   direction,
   station,
+  proximity,
+  drowsiness,
   arbiter,
+  gazeRef,
+  eventRef,
 }: {
   state: OrbiState
   section: string | null
   direction: OrbiScrollDirection
   station: 'home' | 'edge'
+  proximity: OrbiProximity
+  drowsiness: OrbiDrowsiness
   arbiter: OrbiArbiter
+  gazeRef: RefObject<OrbiGazeController | null>
+  eventRef: RefObject<string>
 }) {
-  const [lock, setLock] = useState('idle')
+  const [live, setLive] = useState({ lock: 'idle', gaze: 'neutral', event: '—' })
 
   useEffect(() => {
     let frame = 0
     const tick = () => {
       const claim = arbiter.current()
-      setLock(
-        claim ? `${LEVEL_NAMES[claim.level] ?? claim.level} · ${claim.owner}` : 'idle',
+      const next = {
+        lock: claim
+          ? `${LEVEL_NAMES[claim.level] ?? claim.level} · ${claim.owner}`
+          : 'idle',
+        gaze: gazeRef.current?.source() ?? 'neutral',
+        event: eventRef.current ?? '—',
+      }
+      setLive((previous) =>
+        previous.lock === next.lock &&
+        previous.gaze === next.gaze &&
+        previous.event === next.event
+          ? previous
+          : next,
       )
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [arbiter])
+  }, [arbiter, gazeRef, eventRef])
 
   const rows: Array<[string, string]> = [
     ['section', section ?? '—'],
     ['expression', state.expression],
     ['animation', state.animation],
     ['scroll', direction ?? 'still'],
-    ['lock', lock],
+    ['gaze', live.gaze],
+    ['pointer', proximity],
+    ['idle', drowsiness === 0 ? 'awake' : drowsiness === 1 ? 'drowsy' : 'dozing'],
+    ['lock', live.lock],
     ['station', station],
     ['speech', state.message ?? '—'],
+    ['event', live.event],
   ]
 
   return (
@@ -72,7 +97,7 @@ export default function OrbiDebug({
         color: '#93A6BC',
         font: '500 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace',
         letterSpacing: '0.02em',
-        minWidth: '168px',
+        minWidth: '186px',
       }}
     >
       <div style={{ color: '#00B7FF', marginBottom: '3px' }}>ORBI</div>
