@@ -40,6 +40,9 @@ matter more than the reactions. When in doubt, less movement.
 | `orbiDocks.ts` | Dock geometry and scoring. Pure functions — no DOM, no React, no GSAP. |
 | `useOrbiForm.ts` | The contact form's lifecycle: focus, validity, submission. Never its contents. |
 | `useOrbiCinematic.ts` | Leaving the dock: destination geometry, travel, cancellation. |
+| `useOrbiEasterEggs.ts` | The hidden reactions: detection, eligibility, cooldowns, discovery state. |
+| `orbiEasterDetect.ts` | The arithmetic behind them. Pure, allocation-free, unit-tested. |
+| `orbiEasterDetect.test.mts` | Those unit tests. `node --test` — see the header for how to run them. |
 | `orbiConfig.ts` | Types, placement, timing, easing, palette, geometry, scroll tuning. |
 | `OrbiContext.ts` | `useOrbi()`. |
 | `useOrbiSection.ts` | Runtime section registration. |
@@ -407,6 +410,7 @@ preferred to pausing:
 | modal or nav overlay opens | fly home, `modal-open` / `nav-open` |
 | contact companion activates | fly home, `form-companion` |
 | ORBI clicked mid-flight | **not** cancelled — a look and a blink, no bubble |
+| CTA or project card hovered mid-flight | ignored — the sequence keeps the `interaction` gaze slot, and card awareness resumes on landing |
 
 A cancel flies home rather than snapping, and every ending — completed,
 cancelled, unmounted — runs the same teardown: kill the timeline, reset the
@@ -437,14 +441,117 @@ section crossings: travel, dock, tilt, gesture and both arms all at identity.
 The mobile and reduced-motion fallbacks are ordinary section behaviours, so the
 *reaction* survives even when the travel does not.
 
+## Hidden reactions
+
+Phase 8. ORBI has a handful of things he only does if you find them. The whole
+design is built around one number: **most visitors should see one or two of
+these in an entire visit**, and never two in a row.
+
+Rarity is enforced in four places at once — a cooldown per reaction, a 14s
+global cooldown between any two, a hard "only one at a time", and a budget of
+**two Easter-egg bubbles for the whole page view**. Everything else about them
+is ordinary ORBI: `useOrbiEasterEggs` detects and decides, `OrbiGuide` performs,
+and page content opts in with an attribute.
+
+### The ten
+
+| | how you find it | what he does | says |
+| --- | --- | --- | --- |
+| **dizzyClick** | five clicks inside 3s | startled → wobble → dizzy → recovers | "Whoa 😵" once |
+| **headTap** | tap his head rather than his body | eyes up → blink → pleased | "Hehe 👀" once |
+| **cursorChase** | whip the cursor about near him | startled, half a wobble | — |
+| **cursorCircle** | draw a full circle around him | eyes go round → dizzy → recovers | — |
+| **selfAware** | rest the cursor on him for 4.5s | looks himself over, then back at you | — |
+| **logoNod** | rest the cursor on the Calibur mark | looks at it, small proud nod | — |
+| **deepWake** | come back after he has fallen asleep | startle → blink, blink → finds you | "Oh! You're back 👀" once |
+| **footerSecret** | stay at the bottom of the page ~6.5s | leans in, looks around, waves | "You made it! 👋" once |
+| **edgePeek** | nothing — it finds you, once, late in a visit | slips behind the edge, eyes back first | — |
+| **rareIdle** | nothing — a wink, a narrowed eye, a look around | one small beat, three flavours in rotation | — |
+
+Plus one that is not a sequence at all: perched at the footer, a cursor coming
+at ORBI makes him **shrink back a little** (~19px), and he comes out again more
+slowly once it leaves. Desktop only, and never a chase.
+
+### Detection
+
+Three fixed-size detectors in `orbiEasterDetect.ts`, all pure and all unit
+tested. No pointer history is kept, nothing is allocated per sample, and no
+React state is written on a pointer move — the telemetry in the HUD is
+published only while the HUD is open.
+
+The circle is an **angular accumulator**, not gesture recognition: the angle to
+the cursor, summed, with four things policing it — the pointer has to stay in a
+radius band around ORBI, each step has to be small enough to be a real stroke,
+the direction has to stay consistent, and the whole lap has to happen inside
+3.2s. Crossing back and forth over ORBI therefore scores nothing: each crossing
+reverses the direction and abandons the attempt. Verified both ways in the
+tests and in the browser.
+
+### When they cannot run
+
+`canRunEaster` in the guide is the single gate, and it is mostly refusals: not
+before the entrance has settled, not while frozen, not in companion mode, not
+during any part of a submission, not during a cinematic, not with a modal or
+the menu open, not while the environment is relocating him, not while he is
+dozing — and not while he is holding a claim above `easterEgg`.
+
+Two of them are held to different rules, because the visitor is *touching ORBI*
+when they fire: `dizzyClick` and `headTap` may interrupt his own click line, and
+they inherit the `click` claim rather than being refused by it. That is the one
+place a hidden reaction takes over from something above it, and it is a
+handover, not a race — the click that triggered it is the same gesture.
+
+Anything already running is cancelled by a modal, the menu, a cinematic
+starting, or the visitor touching the contact form. Cancellation restores the
+face, the eyes, the lean and the dock, and only ever the ones that reaction set.
+
+### The head
+
+`OrbiRobot` paints a hit region over the top of the shell and the visor
+(`data-orbi-part="head"`). It is deliberately *not* a control — no role, no tab
+stop, `aria-hidden` — because the robot itself is already the button and keeps
+its keyboard activation. The region only redirects a pointer that was going to
+hit ORBI anyway, and `stopPropagation` is what guarantees one tap never fires
+both reactions. When the head beat is on cooldown the tap falls through to the
+ordinary click reaction, so he is never unresponsive to being touched.
+
+### Sleep
+
+Phase 3's `idle → sleepy → dozing` gains a fourth stage at 75s: **asleep**. Lids
+shut rather than nearly shut, the glow down to 45%, and flight drops to the
+`asleep` variant — a sixth of the amplitude, nearly three times slower, sunk a
+few px. It is one more branch on the interval that was already running: no new
+timer and no new listener.
+
+Waking from *that* is its own sequence rather than the ordinary flinch, and it
+is the only reaction that may run while he is under.
+
+### Desktop, mobile, reduced motion
+
+| | desktop | mobile | reduced motion |
+| --- | --- | --- | --- |
+| dizzyClick | full | wobble at 45% | face only, no wobble |
+| headTap | full | full | face only |
+| cursorChase / cursorCircle / selfAware / logoNod | full | **off** (no cursor) | face only |
+| deepWake | full | full | face only |
+| footerSecret | full | full, smaller lean | face + wave, no lean |
+| edgePeek | full | **off** | **off** |
+| rareIdle | full | full | full (it is only a face) |
+| edge play | full | **off** | **off** |
+
+Nothing in Phase 8 is disabled wholesale under reduced motion: the wobble
+becomes a pause of the same length, the leans are skipped, and every reaction
+still reads through the face — which is where ORBI's personality lives anyway.
+
 ## Development switches
 
-Dev only — all three gated on `NODE_ENV`, which Next inlines:
+Dev only — all four gated on `NODE_ENV`, which Next inlines:
 
 | | |
 | --- | --- |
 | `?orbi-debug` | the HUD |
 | `?orbi-cinematic=precision` | run one on load, for visual tuning |
+| `?orbi-easter=dizzyClick` | run one hidden reaction on demand, likewise |
 | `?orbi-freeze=1` | hold ORBI perfectly still |
 
 Freeze exists because continuous flight makes Playwright's element screenshots
@@ -492,9 +599,14 @@ the level in force:
 
 ```
 entrance 70 > interaction 60 > formResult 58 > formSubmitting 55
-  > cinematic 50 > safety 45 > environment 35 > formFocus 32
-  > section 30 > fastScroll 20 > ambient 15 > gaze 10 > idle 0
+  > cinematic 50 > safety 45 > easterEgg 40 > environment 35
+  > formFocus 32 > section 30 > fastScroll 20 > ambient 15
+  > gaze 10 > idle 0
 ```
+
+A hidden reaction outranks a section beat — finding something deserves to
+finish — and yields to safety, the cinematic, the form and anything the visitor
+explicitly asked for.
 
 A cinematic outranks section behaviour, fast scroll, gaze and idle. It sits
 *above* `safety` numerically, so modal and nav interruption is handled by the
@@ -527,6 +639,23 @@ else in the code.
 | Same CTA pointed at | 20s | `ctaPoint` |
 | Navigation | 5s | `nav` |
 | Bubble overlap | one at a time | section/CTA messages skip if one is up |
+
+Phase 8's live in `ORBI_EASTER_EGGS`, for the same reason:
+
+| Guard | Window | Key |
+| --- | --- | --- |
+| Repeated clicking | 5 clicks / 3s, then 40s | `repeatedClickCount` · `repeatedClickWindow` · `repeatedClickCooldown` |
+| Cursor chase | 10s | `cursorChaseCooldown` |
+| Cursor circle | 30s | `cursorCircleCooldown` |
+| Head-tap line | 45s, and once per visit | `headTapBubbleCooldown` |
+| Deep sleep | 75s of quiet | `deepSleepDelay` |
+| Deep-wake line | 120s, and once per visit | `deepWakeBubbleCooldown` |
+| Footer secret | 6.5s at the bottom, once per visit | `footerSecretDelay` |
+| Self-aware | 60s | `selfAwareCooldown` |
+| Rare idle | 47–88s, walked in order | `rareIdleGaps` |
+| Edge peek | not before 120s, once per visit | `edgePeekDelay` |
+| Between *any* two | 14s | `globalCooldown` |
+| Easter-egg bubbles | 2 per page view, ever | `maxBubbles` |
 
 A section also has to genuinely change before it can fire, so hovering on a
 ScrollTrigger boundary cannot make ORBI wave repeatedly.

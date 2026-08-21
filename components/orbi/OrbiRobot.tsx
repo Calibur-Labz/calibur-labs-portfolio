@@ -25,11 +25,13 @@ export default function OrbiRobot({
   awake,
   bright,
   dozing,
+  asleep,
   theme = 'dark',
   gazeRef,
   armRef,
   leftArmRef,
   onActivate,
+  onHead,
   onHoverStart,
   onHoverEnd,
 }: {
@@ -37,6 +39,8 @@ export default function OrbiRobot({
   awake: boolean
   bright?: boolean
   dozing?: boolean
+  /** Deeply asleep — lids shut and the glow right down. */
+  asleep?: boolean
   /**
    * The visual region ORBI is currently over. Only presentation effects
    * change — halo, shadow, rim — never the character's own colours.
@@ -50,6 +54,12 @@ export default function OrbiRobot({
   leftArmRef: RefObject<SVGGElement | null>
   /** Click or tap on the robot itself. */
   onActivate?: () => void
+  /**
+   * Click or tap on the head/visor specifically. Handled instead of
+   * `onActivate`, never as well as it — see the hit region near the bottom of
+   * this file.
+   */
+  onHead?: () => void
   /**
    * Pointer entered / left the *painted* robot. Taken from the SVG's own hit
    * testing rather than inferred from geometry, so it is exact and free.
@@ -274,8 +284,37 @@ export default function OrbiRobot({
         awake={awake}
         bright={bright}
         dozing={dozing}
+        asleep={asleep}
         gazeRef={gazeRef}
       />
+
+      {/*
+        The head. A separate hit region over the top of the shell and the visor,
+        so tapping ORBI on the head is a different gesture from tapping him on
+        the body — which is what makes finding it feel like finding something.
+
+        Deliberately *not* a control: no role, no tab stop, aria-hidden. The
+        robot itself is the button, it keeps its keyboard activation, and this
+        region only ever redirects a pointer that was already going to hit it.
+        `stopPropagation` is what guarantees one gesture never fires both.
+      */}
+      {onHead && (
+        <rect
+          data-orbi-part="head"
+          aria-hidden="true"
+          x={40}
+          y={30}
+          width={90}
+          height={68}
+          rx={30}
+          fill="transparent"
+          onClick={(event) => {
+            event.stopPropagation()
+            onHead()
+          }}
+          style={{ pointerEvents: 'all', cursor: 'pointer' }}
+        />
+      )}
 
       {/* Core light on the chest — a quiet "powered on" tell. */}
       <ellipse

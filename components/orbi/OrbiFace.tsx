@@ -33,6 +33,8 @@ type EyePose = {
   dx: number
   dy: number
   opacity: number
+  /** Degrees. Only the off-balance faces use it. */
+  rotate?: number
 }
 
 const OPEN: EyePose = { scaleX: 1, scaleY: 1, dx: 0, dy: 0, opacity: 1 }
@@ -69,6 +71,20 @@ function eyePoses(expression: OrbiExpression): [EyePose, EyePose] {
         { scaleX: 1, scaleY: 0.34, dx: 0, dy: 2.2, opacity: 1 },
         { scaleX: 1, scaleY: 0.34, dx: 0, dy: 2.2, opacity: 1 },
       ]
+    case 'dizzy':
+      // Off balance, not cartoon: the lids sit at different heights, each eye
+      // is tipped a few degrees the wrong way, and the pupils drift apart.
+      // Still unmistakably ORBI — just not quite level.
+      return [
+        { scaleX: 1.06, scaleY: 0.6, dx: -2.4, dy: 1.5, opacity: 1, rotate: -13 },
+        { scaleX: 0.92, scaleY: 0.92, dx: 2.6, dy: -1.2, opacity: 1, rotate: 11 },
+      ]
+    case 'wink':
+      // One lid down. ORBI's only knowing face, and the rarest of them.
+      return [
+        { ...OPEN, scaleY: 0.07 },
+        { scaleX: 1.04, scaleY: 0.86, dx: 0, dy: -0.6, opacity: 1 },
+      ]
     case 'normal':
     default:
       return [OPEN, OPEN]
@@ -80,6 +96,9 @@ function eyePoses(expression: OrbiExpression): [EyePose, EyePose] {
  * takes most of a second.
  */
 const DOZE_POSE: EyePose = { scaleX: 1, scaleY: 0.05, dx: 0, dy: 3, opacity: 1 }
+
+/** Deeply asleep: shut, not nearly shut, and sitting lower still. */
+const SLEEP_POSE: EyePose = { scaleX: 0.94, scaleY: 0.02, dx: 0, dy: 4, opacity: 1 }
 
 const EYE_TRANSITION =
   'transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease'
@@ -93,7 +112,10 @@ function Eye({ pose, dozing }: { pose: EyePose; dozing: boolean }) {
   return (
     <g
       style={{
-        transform: `translate(${pose.dx}px, ${pose.dy}px) scale(${pose.scaleX}, ${pose.scaleY})`,
+        transform:
+          `translate(${pose.dx}px, ${pose.dy}px)` +
+          (pose.rotate ? ` rotate(${pose.rotate}deg)` : '') +
+          ` scale(${pose.scaleX}, ${pose.scaleY})`,
         transformBox: 'fill-box',
         transformOrigin: 'center',
         opacity: pose.opacity,
@@ -119,6 +141,7 @@ export default function OrbiFace({
   awake,
   bright = false,
   dozing = false,
+  asleep = false,
   gazeRef,
 }: {
   expression: OrbiExpression
@@ -128,16 +151,21 @@ export default function OrbiFace({
   bright?: boolean
   /** Deep inactivity: the lids come all the way down. */
   dozing?: boolean
+  /** Longer still: properly asleep, shut, and dimmer than dozing. */
+  asleep?: boolean
   /** Handed to `orbiGaze`, which owns this group's transform. */
   gazeRef?: RefObject<SVGGElement | null>
 }) {
   const posed = eyePoses(expression)
-  const left = dozing ? DOZE_POSE : posed[0]
-  const right = dozing ? DOZE_POSE : posed[1]
+  const shut = asleep ? SLEEP_POSE : DOZE_POSE
+  const left = dozing || asleep ? shut : posed[0]
+  const right = dozing || asleep ? shut : posed[1]
 
-  const isHappy = expression === 'happy' && !dozing
-  const isSurprised = expression === 'surprised'
-  const isSleepy = expression === 'sleepy' || dozing
+  // The knowing face borrows the happy mouth — a wink with a flat mouth reads
+  // as a malfunction rather than as mischief.
+  const isHappy = (expression === 'happy' || expression === 'wink') && !dozing && !asleep
+  const isSurprised = expression === 'surprised' || expression === 'dizzy'
+  const isSleepy = expression === 'sleepy' || dozing || asleep
   const { eyeLeft, eyeRight, mouth } = ORBI_ART
 
   return (
@@ -169,28 +197,31 @@ export default function OrbiFace({
           // Dimmed while dozing, lifted on the excited beat.
           filter: bright
             ? 'brightness(1.5)'
-            : dozing
-              ? 'brightness(0.62)'
-              : 'brightness(1)',
+            : asleep
+              ? 'brightness(0.45)'
+              : dozing
+                ? 'brightness(0.62)'
+                : 'brightness(1)',
           transition: GAZE_FILTER_TRANSITION,
         }}
       >
         {/* Pupils */}
         <g transform={`translate(${eyeLeft.x} ${eyeLeft.y})`}>
-          <Eye pose={left} dozing={dozing} />
+          <Eye pose={left} dozing={dozing || asleep} />
         </g>
         <g transform={`translate(${eyeRight.x} ${eyeRight.y})`}>
-          <Eye pose={right} dozing={dozing} />
+          <Eye pose={right} dozing={dozing || asleep} />
         </g>
 
         {/* Happy arcs. The pupils clear out fast and the arcs arrive just
             behind them, so the two never read as a double image. */}
         <g
           style={{
-            opacity: isHappy ? 1 : 0,
-            transition: isHappy
-              ? 'opacity 190ms ease 60ms'
-              : 'opacity 120ms ease',
+            opacity: expression === 'happy' && !dozing && !asleep ? 1 : 0,
+            transition:
+              expression === 'happy'
+                ? 'opacity 190ms ease 60ms'
+                : 'opacity 120ms ease',
           }}
         >
           {[eyeLeft, eyeRight].map((eye) => (
@@ -207,8 +238,13 @@ export default function OrbiFace({
         </g>
       </g>
 
-      {/* Cheek tint — only when happy. */}
-      <g style={{ opacity: isHappy ? 0.4 : 0, transition: 'opacity 220ms ease' }}>
+      {/* Cheek tint — only when properly happy, never on a wink. */}
+      <g
+        style={{
+          opacity: expression === 'happy' && !dozing && !asleep ? 0.4 : 0,
+          transition: 'opacity 220ms ease',
+        }}
+      >
         <ellipse cx={eyeLeft.x - 11} cy={eyeLeft.y + 15} rx={5.5} ry={3} fill={ORBI_COLORS.accent} />
         <ellipse cx={eyeRight.x + 11} cy={eyeRight.y + 15} rx={5.5} ry={3} fill={ORBI_COLORS.accent} />
       </g>

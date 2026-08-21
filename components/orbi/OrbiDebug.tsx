@@ -8,7 +8,13 @@ import type { OrbiDrowsiness, OrbiProximity } from './useOrbiInteraction'
 import type { OrbiEnvironmentApi } from './useOrbiEnvironment'
 import type { OrbiFormApi } from './useOrbiForm'
 import type { OrbiCinematicApi } from './useOrbiCinematic'
-import { ORBI_PRIORITY, type OrbiState } from './orbiConfig'
+import type { OrbiEasterApi } from './useOrbiEasterEggs'
+import {
+  ORBI_EASTER_EGGS,
+  ORBI_EASTER_SPECS,
+  ORBI_PRIORITY,
+  type OrbiState,
+} from './orbiConfig'
 
 /**
  * Development HUD. Never rendered in production — `OrbiGuide` gates it on
@@ -26,6 +32,22 @@ const DOCK_SHORT: Record<string, string> = {
   'mid-left': 'ml',
 }
 
+/** ORBI's own sleep, as opposed to how long the visitor has been quiet. */
+const DROWSY_NAMES: Record<number, string> = {
+  0: 'awake',
+  1: 'drowsy',
+  2: 'dozing',
+  3: 'asleep',
+}
+
+/** How far under the visitor has gone. */
+const DEPTH_NAMES: Record<number, string> = {
+  0: 'awake',
+  1: 'quiet',
+  2: 'drowsy',
+  3: 'asleep',
+}
+
 const LEVEL_NAMES = Object.fromEntries(
   Object.entries(ORBI_PRIORITY).map(([name, level]) => [level, name]),
 ) as Record<number, string>
@@ -40,6 +62,7 @@ export default function OrbiDebug({
   environment,
   form,
   cinematic,
+  easter,
   arbiter,
   gazeRef,
   eventRef,
@@ -53,6 +76,7 @@ export default function OrbiDebug({
   environment: OrbiEnvironmentApi
   form: OrbiFormApi
   cinematic: OrbiCinematicApi
+  easter: OrbiEasterApi
   arbiter: OrbiArbiter
   gazeRef: RefObject<OrbiGazeController | null>
   eventRef: RefObject<string>
@@ -84,6 +108,12 @@ export default function OrbiDebug({
   }, [arbiter, gazeRef, eventRef])
 
   const dock = environment.dock
+  const beats = easter.type ? ORBI_EASTER_SPECS[easter.type].beats.length : 0
+  const found = Object.entries(easter.discoveries)
+    .filter(([, seen]) => seen)
+    .map(([name]) => name)
+    .join(' ')
+
   const rows: Array<[string, string]> = [
     ['section', section ?? '—'],
     ['expression', state.expression],
@@ -91,7 +121,7 @@ export default function OrbiDebug({
     ['scroll', direction ?? 'still'],
     ['gaze', live.gaze],
     ['pointer', proximity],
-    ['idle', drowsiness === 0 ? 'awake' : drowsiness === 1 ? 'drowsy' : 'dozing'],
+    ['idle', DROWSY_NAMES[drowsiness] ?? String(drowsiness)],
     ['lock', live.lock],
     ['station', station],
     ['speech', state.message ?? '—'],
@@ -147,6 +177,17 @@ export default function OrbiDebug({
     ['from dock', dock],
     ['elapsed', cinematic.active ? `${cinematic.elapsedMs}ms` : '—'],
     ['cancel', cinematic.cancelReason ?? '—'],
+    ['—easter—', ''],
+    ['egg', easter.active ? (easter.type ?? '—') : '—'],
+    ['beat', easter.active ? `${easter.step + 1}/${beats}` : '—'],
+    ['clicks', `${easter.clicks}/${ORBI_EASTER_EGGS.repeatedClickCount}`],
+    ['cursor', easter.chasing ? 'fast' : 'calm'],
+    ['circle', `${Math.round(easter.circle * 100)}%`],
+    ['idle depth', DEPTH_NAMES[easter.depth] ?? String(easter.depth)],
+    ['cooldown', easter.cooldownMs ? `${Math.round(easter.cooldownMs / 100) / 10}s` : '—'],
+    ['bubbles', `${easter.bubbles}/${ORBI_EASTER_EGGS.maxBubbles}`],
+    ['found', found || '—'],
+    ['egg event', easter.lastEvent],
   ]
 
   return (

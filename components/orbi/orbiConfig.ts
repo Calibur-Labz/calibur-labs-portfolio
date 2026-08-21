@@ -18,9 +18,13 @@ export type OrbiExpression =
   | 'thinking'
   | 'surprised'
   | 'sleepy'
+  /** Poked once too often, or led round in a circle. Phase 8. */
+  | 'dizzy'
+  /** One lid down. The asymmetric blink, and ORBI's only mischievous face. */
+  | 'wink'
 
 /** Expressions that already own the eyelids — the blink scheduler stays out. */
-const EYES_BUSY = ['blink', 'surprised', 'sleepy'] as const
+const EYES_BUSY = ['blink', 'surprised', 'sleepy', 'dizzy', 'wink'] as const
 
 export const holdsEyes = (e: OrbiExpression): boolean =>
   (EYES_BUSY as readonly string[]).includes(e)
@@ -51,6 +55,8 @@ export type OrbiAnimation =
   | 'curious'
   | 'nod'
   | 'inspect'
+  /** The stabilisation after a shake — tilt, correct, correct smaller, centre. */
+  | 'wobble'
 
 const RESTING = ['idle', 'float', 'peek'] as const
 const LOOKING = ['look-left', 'look-right', 'look-up', 'look-down'] as const
@@ -64,6 +70,7 @@ const ONE_SHOT = [
   'curious',
   'nod',
   'inspect',
+  'wobble',
 ] as const
 
 export type OrbiLookAnimation = (typeof LOOKING)[number]
@@ -179,6 +186,12 @@ export const ORBI_PRIORITY = {
   environment: 35,
   /** The visitor is using a registered form field. */
   formFocus: 32,
+  /**
+   * A hidden reaction the visitor found. Above ORBI's own personality and above
+   * a section beat — a discovery deserves to finish — but below every kind of
+   * safety, the cinematic, and anything the visitor explicitly asked for.
+   */
+  easterEgg: 40,
   /** A modal or navigation overlay taking over the screen. */
   safety: 45,
   /**
@@ -485,6 +498,14 @@ export const ORBI_FLIGHT = {
   /** While a modal owns the screen: quieter, but not asleep. */
   calmScale: 0.55,
   calmDurationScale: 1.35,
+  /**
+   * Deeply asleep. Barely moving and very slow, plus a small sink so ORBI
+   * visibly settles rather than merely slowing down.
+   */
+  sleepScale: 0.16,
+  sleepDurationScale: 2.8,
+  /** How far ORBI sinks while deeply asleep, px at `referenceSize`. */
+  sleepSink: 5,
 
   /**
    * Mobile. Lift already scales with ORBI's size; drift and roll are cut
@@ -627,6 +648,240 @@ export const ORBI_CINEMATIC = {
   messageGraceMs: 900,
 } as const
 
+/* ── Easter eggs ───────────────────────────────────────────────────────── */
+
+/**
+ * The hidden half of ORBI's personality.
+ *
+ * Every one of these is *rare on purpose*. A visitor who spends a few minutes
+ * on the site should find one, perhaps two, and leave with the impression that
+ * there was more to find — not that a robot was performing at them. Nothing
+ * here may interrupt reading, a form, a cinematic, or a safety move, and only
+ * one can ever be running at a time.
+ */
+export type OrbiEasterEgg =
+  /** Poked five times in a hurry. */
+  | 'dizzyClick'
+  /** The cursor whipping about near ORBI. */
+  | 'cursorChase'
+  /** The cursor drawn all the way around him. */
+  | 'cursorCircle'
+  /** A tap on the head rather than the body. */
+  | 'headTap'
+  /** Hovered long enough that ORBI checks himself over. */
+  | 'selfAware'
+  /** The Calibur Labs logo, hovered. */
+  | 'logoNod'
+  /** Coming back after ORBI has properly fallen asleep. */
+  | 'deepWake'
+  /** Staying at the very bottom of the page. */
+  | 'footerSecret'
+  /** The rare disappearing act. */
+  | 'edgePeek'
+  /** A small unprompted beat during a genuinely quiet spell. */
+  | 'rareIdle'
+
+/**
+ * What the visitor has found this page view. Session-lifetime only — nothing
+ * is persisted, so a reload is a clean slate. It exists to stop a first-time
+ * line being shown twice, not to score anything.
+ */
+export interface OrbiDiscoveries {
+  dizzyClick: boolean
+  cursorCircle: boolean
+  headTap: boolean
+  footerSecret: boolean
+  deepWake: boolean
+}
+
+export const ORBI_NO_DISCOVERIES: OrbiDiscoveries = {
+  dizzyClick: false,
+  cursorCircle: false,
+  headTap: false,
+  footerSecret: false,
+  deepWake: false,
+}
+
+export interface OrbiEasterSpec {
+  type: OrbiEasterEgg
+  /**
+   * One entry per beat: how long that step is held before the next one. The
+   * controller advances the step; `OrbiGuide` decides what each step *looks*
+   * like, exactly as it does for a cinematic.
+   */
+  beats: readonly number[]
+  /** Not again inside this window. */
+  cooldown: number
+  /** At most once per page view. */
+  once?: boolean
+  /** Needs a real cursor — never on touch. */
+  pointerOnly?: boolean
+  /** No room for it on a phone. */
+  desktopOnly?: boolean
+  /**
+   * The reaction *is* the movement — there is nothing left of it once travel
+   * is removed, so it does not run under `prefers-reduced-motion` at all.
+   */
+  motionOnly?: boolean
+}
+
+export const ORBI_EASTER_SPECS: Record<OrbiEasterEgg, OrbiEasterSpec> = {
+  // startled → dizzy → recover
+  dizzyClick: { type: 'dizzyClick', beats: [420, 1250, 520], cooldown: 40000 },
+  // one startled beat and a correction; the shortest egg there is
+  cursorChase: {
+    type: 'cursorChase',
+    beats: [640, 320],
+    cooldown: 10000,
+    pointerOnly: true,
+    desktopOnly: true,
+  },
+  // eyes go round with it, then the same recovery as a poking
+  cursorCircle: {
+    type: 'cursorCircle',
+    beats: [560, 1150, 520],
+    cooldown: 30000,
+    pointerOnly: true,
+    desktopOnly: true,
+  },
+  // eyes up → blink → pleased
+  headTap: { type: 'headTap', beats: [360, 260, 900], cooldown: 6000 },
+  // look down at himself → back at the visitor → happy blink
+  selfAware: {
+    type: 'selfAware',
+    beats: [900, 700, 420],
+    cooldown: 60000,
+    pointerOnly: true,
+    desktopOnly: true,
+  },
+  // look at the mark → small proud nod
+  logoNod: {
+    type: 'logoNod',
+    beats: [820, 900],
+    cooldown: 45000,
+    pointerOnly: true,
+    desktopOnly: true,
+  },
+  // startle → blink → blink → find the visitor → settle
+  deepWake: { type: 'deepWake', beats: [380, 220, 200, 220, 900], cooldown: 8000 },
+  // lean in → find the visitor → wave → settle back
+  footerSecret: {
+    type: 'footerSecret',
+    beats: [900, 800, 1500, 520],
+    cooldown: 60000,
+    once: true,
+  },
+  // slip behind the edge → hold → eyes first, then the rest of him
+  edgePeek: {
+    type: 'edgePeek',
+    beats: [1100, 900, 1000],
+    cooldown: 90000,
+    once: true,
+    desktopOnly: true,
+    motionOnly: true,
+  },
+  // one small unprompted beat
+  rareIdle: { type: 'rareIdle', beats: [720, 520, 400], cooldown: 30000 },
+}
+
+/**
+ * Every threshold and every "not again yet" window for the hidden reactions,
+ * in one place — personality lives or dies on these numbers and they are meant
+ * to be tuned here, in the browser, rather than hunted for in a component.
+ */
+export const ORBI_EASTER_EGGS = {
+  /* ── Repeated clicking ── */
+  repeatedClickWindow: 3000,
+  repeatedClickCount: 5,
+  repeatedClickCooldown: 40000,
+
+  /* ── Cursor ── */
+  cursorChaseCooldown: 10000,
+  cursorCircleCooldown: 30000,
+  /** px/s the cursor has to sustain near ORBI before he reacts to it. */
+  chaseVelocity: 2400,
+  /** ...and how near, px from his centre. */
+  chaseRadius: 300,
+  /** Consecutive fast samples required, so one flick is not enough. */
+  chaseSamples: 4,
+
+  /* ── The circle ──
+   * A lightweight angular accumulator, not gesture recognition: the angle of
+   * the cursor around ORBI, summed, with the radius and the direction policed
+   * so ordinary mouse movement across him can never add up to a lap. */
+  circleMinDegrees: 320,
+  /** A single jump larger than this is a teleport, not a stroke. */
+  circleMaxStepDegrees: 62,
+  /** Backtracking further than this abandons the attempt. */
+  circleReverseDegrees: 34,
+  /** Radius band, as multiples of ORBI's own half-width. */
+  circleMinRadius: 0.75,
+  circleMaxRadius: 3.4,
+  /** Fewest samples that can count as a lap. */
+  circleMinSamples: 12,
+  /** The whole lap has to happen inside this. */
+  circleWindowMs: 3200,
+
+  /* ── Head ── */
+  headTapBubbleCooldown: 45000,
+
+  /* ── Sleep ── */
+  /** Quiet for this long and ORBI is properly asleep, not merely dozing. */
+  deepSleepDelay: 75000,
+  deepWakeBubbleCooldown: 120000,
+
+  /* ── Footer ── */
+  /** How long at the bottom of the page before ORBI leans in. */
+  footerSecretDelay: 6500,
+  /** How far he leans into the viewport for it, % of his own width. */
+  footerPeekPercent: 26,
+  /** ...and how far he shrinks back when the cursor comes at him. */
+  edgeRetreatPercent: 12,
+  /** Coming back out is slower than backing off — he is being careful. */
+  edgeReturnDuration: 1.2,
+
+  /* ── Hover ── */
+  selfAwareCooldown: 60000,
+  /** Cursor resting on ORBI this long before he checks himself over. */
+  selfAwareHoverDelay: 4500,
+  /** Cursor resting on the logo this long before he looks at it. */
+  logoHoverDelay: 1750,
+
+  /* ── Idle ── */
+  rareIdleMin: 45000,
+  rareIdleMax: 90000,
+  /**
+   * Deterministic, not random: the gaps between the rare idle beats walk this
+   * table in order, so a long visit is varied and a test run is repeatable.
+   * Every value sits inside [rareIdleMin, rareIdleMax].
+   */
+  rareIdleGaps: [52000, 78000, 61000, 88000, 47000, 69000],
+  /** Nothing at all until the visitor has been here this long. */
+  edgePeekDelay: 120000,
+
+  /* ── House rules ── */
+  /** No two hidden reactions back to back, whichever they are. */
+  globalCooldown: 14000,
+  /** How many Easter-egg bubbles a single page view may ever show. */
+  maxBubbles: 2,
+  /** Degrees of body roll in the stabilisation wobble. Restrained on purpose. */
+  wobbleDegrees: 4.5,
+  /** Mobile keeps the beat and loses most of the movement. */
+  wobbleQuietScale: 0.45,
+  wobbleMs: 900,
+} as const
+
+/**
+ * The only four lines a hidden reaction may ever say, and never more than
+ * `maxBubbles` of them in one visit — each on first discovery only.
+ */
+export const ORBI_EASTER_MESSAGES = {
+  dizzyClick: 'Whoa 😵',
+  headTap: 'Hehe 👀',
+  deepWake: "Oh! You're back 👀",
+  footerSecret: 'You made it! 👋',
+} as const
+
 /* ── Cooldowns ─────────────────────────────────────────────────────────── */
 
 /**
@@ -759,6 +1014,10 @@ export const ORBI_SELECTORS = {
   form: '[data-orbi-form]',
   field: '[data-orbi-field]',
   submit: '[data-orbi-submit]',
+  /** The brand mark. ORBI notices it if you rest the cursor there. */
+  logo: '[data-orbi-logo]',
+  /** The head/visor hit region inside the robot itself. */
+  head: '[data-orbi-part="head"]',
 } as const
 
 /* ── Contact companion ─────────────────────────────────────────────────── */
@@ -949,12 +1208,14 @@ export const ORBI_DEBUG = false
  *
  *   ?orbi-debug              the HUD
  *   ?orbi-cinematic=precision  run a cinematic on load, for visual tuning
+ *   ?orbi-easter=dizzyClick    run a hidden reaction on demand, likewise
  *   ?orbi-freeze=1           hold ORBI still so screenshots are deterministic
  *
- * All three are gated on `NODE_ENV !== 'production'`, which Next inlines.
+ * All four are gated on `NODE_ENV !== 'production'`, which Next inlines.
  */
 export const ORBI_DEV_PARAMS = {
   debug: 'orbi-debug',
   cinematic: 'orbi-cinematic',
+  easter: 'orbi-easter',
   freeze: 'orbi-freeze',
 } as const

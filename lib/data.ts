@@ -76,6 +76,14 @@ export const projects: Project[] = [
     tags: ['Booking System', 'Availability Calendar', 'Responsive Design'],
     url: 'https://premoheritage.com',
   },
+  {
+    id: '2',
+    title: 'SBB Oxygen House',
+    category: 'Web',
+    image: '/images/projects/sbb.png',
+    tags: ['Custom CMS', 'eCommerce Site', 'Online Product Ordering', 'Sales Analytics'],
+    url: 'https://www.sbboxygen.com',
+  },
   // {
   //   id: '2',
   //   title: 'Project Two',

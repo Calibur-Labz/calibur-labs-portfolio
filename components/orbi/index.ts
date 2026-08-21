@@ -26,6 +26,8 @@ export {
 export { useOrbiEnvironment } from './useOrbiEnvironment'
 export { useOrbiCinematic } from './useOrbiCinematic'
 export type { OrbiCinematicApi } from './useOrbiCinematic'
+export { useOrbiEasterEggs } from './useOrbiEasterEggs'
+export type { OrbiEasterApi, OrbiEasterSnapshot } from './useOrbiEasterEggs'
 export type {
   OrbiEnvironmentApi,
   OrbiEnvironmentDecision,
@@ -41,7 +43,9 @@ export type {
 export type {
   OrbiBubblePlacement,
   OrbiCinematicType,
+  OrbiDiscoveries,
   OrbiDock,
+  OrbiEasterEgg,
   OrbiGazeSource,
   OrbiRegionTheme,
 } from './orbiConfig'
@@ -63,6 +67,9 @@ export {
   ORBI_CINEMATIC,
   ORBI_CINEMATICS,
   ORBI_DOCKS,
+  ORBI_EASTER_EGGS,
+  ORBI_EASTER_MESSAGES,
+  ORBI_EASTER_SPECS,
   ORBI_ENVIRONMENT,
   ORBI_SELECTORS,
   ORBI_DEBUG,

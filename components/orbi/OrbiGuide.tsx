@@ -19,6 +19,7 @@ import {
   useOrbiBreakpoint,
   useOrbiCinematicRequest,
   useOrbiDebugEnabled,
+  useOrbiEasterRequest,
   useOrbiFrozen,
   useReducedMotion,
 } from './useOrbiMedia'
@@ -34,6 +35,7 @@ import {
 import { useOrbiEnvironment } from './useOrbiEnvironment'
 import { useOrbiForm } from './useOrbiForm'
 import { useOrbiCinematic, type OrbiCinematicApi } from './useOrbiCinematic'
+import { useOrbiEasterEggs, type OrbiEasterApi } from './useOrbiEasterEggs'
 import {
   ORBI_SECTION_BEHAVIORS,
   resolveSectionAnimation,
@@ -55,6 +57,7 @@ import {
   createRecoilTimeline,
   createSettleTimeline,
   createWaveTimeline,
+  createWobbleTimeline,
   lookTiltAngle,
   playHide,
   playShow,
@@ -72,6 +75,7 @@ import {
   ORBI_CINEMATIC,
   ORBI_CLICK_MESSAGES,
   ORBI_COOLDOWNS,
+  ORBI_EASTER_EGGS,
   ORBI_INITIAL_STATE,
   ORBI_INTERACTION,
   ORBI_MEDIA,
@@ -90,6 +94,7 @@ import {
   type OrbiAnimation,
   type OrbiBreakpoint,
   type OrbiCinematicType,
+  type OrbiEasterEgg,
   type OrbiExpression,
   type OrbiSayOptions,
   type OrbiSectionBehavior,
@@ -222,6 +227,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   /** `?orbi-freeze=1` — hold still for deterministic screenshots. Dev only. */
   const frozen = useOrbiFrozen()
   const devCinematic = useOrbiCinematicRequest()
+  const devEaster = useOrbiEasterRequest()
   const placement = ORBI_PLACEMENT[breakpoint]
   /** Mobile keeps the eyes and drops the body movement. */
   const quietBody = breakpoint === 'mobile'
@@ -383,6 +389,15 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
    * controller itself is created.
    */
   const cinematicRef = useRef<OrbiCinematicApi | null>(null)
+  /** Same again for the hidden reactions: several handlers cancel one. */
+  const easterRef = useRef<OrbiEasterApi | null>(null)
+  /**
+   * How far ORBI leans out of, or into, the viewport beyond his ordinary
+   * perch — the footer secret, the edge peek, and backing off from a cursor
+   * that comes at him. Percent of his own width; summed into the one dock
+   * tween so the layer still has a single writer.
+   */
+  const peekPercentRef = useRef(0)
 
   /** Mirror, so callbacks can read the environment without re-binding. */
   const environmentRef = useRef(environment)
@@ -395,7 +410,11 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   useEffect(() => {
     // Someone filling in a form is doing something more important than
     // watching ORBI fly somewhere.
-    if (form.companion) cinematicRef.current?.cancel('form-companion')
+    if (form.companion) {
+      cinematicRef.current?.cancel('form-companion')
+      // Someone completing a form is doing something; ORBI stops playing.
+      easterRef.current?.cancel('form-companion')
+    }
     companionRef.current = form.companion
     formFieldRef.current = form.field
     // A section reaction schedules a revert to `normal`. Once the visitor is
@@ -472,6 +491,95 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
   useEffect(() => {
     cinematicRef.current = cinematic
+  })
+
+  /* ── Hidden reactions ────────────────────────────────────────────────── */
+
+  /**
+   * The form lifecycle, mirrored for `canRunEaster` — declared here rather
+   * than reusing `formStatusRef`, which is written further down the file than
+   * this hook is called.
+   */
+  const formBusyRef = useRef(false)
+  useEffect(() => {
+    formBusyRef.current = form.status !== 'idle'
+  }, [form.status])
+
+  /**
+   * Whether ORBI is free to do something for his own amusement.
+   *
+   * The list is long because that is the point: a hidden reaction is the least
+   * important thing on the page, so it stands down for the form, for a modal,
+   * for the menu, for a cinematic, for an urgent relocation, and for anything
+   * the visitor explicitly asked for. `easterEgg` sits above a section beat, so
+   * finding something does get to finish over an ambient gesture.
+   */
+  const canRunEaster = useCallback(
+    (type: OrbiEasterEgg) => {
+      if (!settledRef.current) return false
+      if (frozenRef.current) return false
+      if (companionRef.current) return false
+      if (formBusyRef.current) return false
+      if (cinematicRef.current?.active) return false
+      if (environmentRef.current?.modal) return false
+      if (environmentRef.current?.crowded) return false
+      if (navOpenRef.current) return false
+
+      // The visitor poking ORBI is the trigger for these two, so they are held
+      // to different rules: they may cut across his own click reaction, and
+      // they may interrupt the line that reaction just put up.
+      const touch = type === 'dizzyClick' || type === 'headTap'
+
+      // Nothing wakes him but waking up.
+      if (drowsinessRef.current >= 2 && type !== 'deepWake') return false
+
+      if (!touch) {
+        // A line still being read is not interrupted for a joke, and neither
+        // is a gesture — a held look orientation is a resting pose, not one.
+        if (stateRef.current.message) return false
+        const animation = stateRef.current.animation
+        if (!isRestingAnimation(animation) && !isLookAnimation(animation)) {
+          return false
+        }
+      }
+
+      const held = arbiter.current()
+      const inherited = touch && held?.owner === 'click'
+      const level = inherited ? ORBI_PRIORITY.idle : arbiter.level()
+      return level <= ORBI_PRIORITY.easterEgg
+    },
+    [arbiter],
+  )
+
+  const easterClaim = useCallback(
+    (owner: string, durationMs: number, takeOver?: string) => {
+      // The repeated-click beat succeeds the click that triggered it, so it is
+      // allowed to inherit that claim rather than be refused by it.
+      if (takeOver) arbiter.release(takeOver)
+      return arbiter.claim(ORBI_PRIORITY.easterEgg, owner, durationMs)
+    },
+    [arbiter],
+  )
+
+  const easterRelease = useCallback(
+    (owner: string) => arbiter.release(owner),
+    [arbiter],
+  )
+
+  const easter = useOrbiEasterEggs({
+    enabled: settled && !frozen,
+    rootRef,
+    breakpoint,
+    reducedMotion,
+    finePointer,
+    hud: debugEnabled,
+    canRun: canRunEaster,
+    claim: easterClaim,
+    release: easterRelease,
+  })
+
+  useEffect(() => {
+    easterRef.current = easter
   })
 
   /* ── Controller (arbitrated) ─────────────────────────────────────────── */
@@ -795,11 +903,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
       // Relax the face again afterwards; the token guards against an older
       // section's timer landing on a newer expression.
-      // A section with a registered cinematic target may earn a trip. The
-      // controller refuses on its own if now is a bad time.
-      // A section with a registered cinematic target may earn a trip. Asked
-      // twice: the section's own gesture is often still playing on the first
-      // attempt, and the controller refuses while anything is mid-move.
+      // A section with a registered cinematic target may earn a trip; the
+      // controller refuses on its own if now is a bad time. Asked twice: the
+      // section's own gesture is often still playing on the first attempt, and
+      // the controller refuses while anything is mid-move.
       const cinematicFor = SECTION_CINEMATICS[id]
       if (cinematicFor) {
         later(() => {
@@ -871,6 +978,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
   const handleFooter = useCallback((inFooter: boolean) => {
     setStation(inFooter ? 'edge' : 'home')
+    // Staying at the very bottom for a few seconds earns the footer secret;
+    // passing through on the way back up does not.
+    easterRef.current?.setFooter(inFooter)
     if (!inFooter) return
     // Re-arm the section memo so Contact greets again on the way back up.
     lastSectionRef.current = null
@@ -1002,11 +1112,17 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const wake = useCallback(
     (startle: boolean) => {
       if (drowsinessRef.current === 0) return
-      const deep = drowsinessRef.current === 2
+      const asleep = drowsinessRef.current === 3
+      const deep = drowsinessRef.current >= 2
       drowsinessRef.current = 0
       setDrowsiness(0)
       arbiter.release('drowsy')
       note('wake')
+
+      // Being properly asleep is worth waking up from properly: the deep-wake
+      // sequence takes it from here, startle and all. If it is refused — busy,
+      // or on cooldown — the ordinary wake below still runs.
+      if (asleep && startle && easterRef.current?.noteWake()) return
 
       // Coming out of a proper doze deserves a small flinch; merely drowsy
       // just opens its eyes again.
@@ -1028,12 +1144,12 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
   const handleActivate = useCallback(() => {
     const now = performance.now()
-    if (now - lastClickRef.current < ORBI_COOLDOWNS.clickMessage) return
 
     // Mid-flight, a poke gets a look and a blink — not a speech bubble and
     // certainly not a wave. Interrupting the trip would strand him between
-    // destinations.
+    // destinations, and it is explicitly not a way to trigger the dizzy beat.
     if (cinematicRef.current?.active) {
+      if (now - lastClickRef.current < ORBI_COOLDOWNS.clickMessage) return
       lastClickRef.current = now
       note('click-during-cinematic')
       setBright(true)
@@ -1041,6 +1157,20 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       later(() => setBright(false), 600)
       return
     }
+
+    // Counted before the cooldown, because *being* rapid is the whole signal:
+    // the fifth click in three seconds is a different event from the first,
+    // and the reaction to it succeeds the ordinary one rather than stacking.
+    if (easterRef.current?.noteClick()) {
+      lastClickRef.current = now
+      return
+    }
+
+    if (now - lastClickRef.current < ORBI_COOLDOWNS.clickMessage) return
+
+    // An ordinary click outranks a hidden reaction, so end that one properly
+    // instead of leaving its last beat to land on top of this one's face.
+    easterRef.current?.cancel('click')
 
     // Explicit interaction outranks a section gesture, so poking ORBI
     // mid-wave cleanly replaces it rather than layering on top.
@@ -1080,11 +1210,32 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     }, ORBI_TIMING.clickStartleMs)
   }, [arbiter, blink, later, note, wake])
 
+  /**
+   * A tap on the head rather than the body.
+   *
+   * One gesture, one reaction: the head region stops the event before the
+   * robot's own click handler ever sees it. When the head beat is on cooldown
+   * — or ORBI is busy — the tap falls through to the ordinary click reaction,
+   * so he is never unresponsive to being touched.
+   */
+  const handleHead = useCallback(() => {
+    if (cinematicRef.current?.active) {
+      handleActivate()
+      return
+    }
+    if (easterRef.current?.noteHeadTap()) {
+      note('easter:headTap')
+      return
+    }
+    handleActivate()
+  }, [handleActivate, note])
+
   /* ── Hover ───────────────────────────────────────────────────────────── */
 
   const handleHoverStart = useCallback(() => {
     hoveringRef.current = true
     interactionRef.current?.setHovering(true)
+    easterRef.current?.setHovering(true)
     wake(false)
     note('hover')
     softExpression('happy')
@@ -1100,6 +1251,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const handleHoverEnd = useCallback(() => {
     hoveringRef.current = false
     interactionRef.current?.setHovering(false)
+    easterRef.current?.setHovering(false)
     softExpression(null)
     auxTiltRef.current.hover = 0
     applyBodyTilt()
@@ -1109,6 +1261,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     const now = performance.now()
     if (now - lastHoverGreetRef.current < ORBI_COOLDOWNS.hoverGreeting) return
     if (stateRef.current.message) return
+    // One personality beat at a time: greeting over a hidden reaction would
+    // put a bubble on top of it.
+    if (easterRef.current?.active) return
     if (
       !arbiter.claim(
         ORBI_PRIORITY.interaction,
@@ -1132,6 +1287,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   /* ── Curious glance ──────────────────────────────────────────────────── */
 
   const handleQuiet = useCallback(() => {
+    // The unprompted beats only fire during a genuinely quiet spell, and this
+    // is the sensor saying there is one.
+    easterRef.current?.setDepth(1)
     // Too fidgety on a phone, where there is no cursor to explain it.
     if (quietBodyRef.current) return
     // Someone is filling in a form. Idle curiosity is exactly the wrong mood.
@@ -1169,7 +1327,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   /* ── Getting sleepy ──────────────────────────────────────────────────── */
 
   const handleDrowsy = useCallback(
-    (level: 1 | 2) => {
+    (level: 1 | 2 | 3) => {
+      easterRef.current?.setDepth(level)
       if (!isRestingAnimation(stateRef.current.animation)) return
       // Never nod off while the visitor is mid-form.
       if (companionRef.current) return
@@ -1182,7 +1341,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       ) {
         return
       }
-      note(level === 2 ? 'doze' : 'drowsy')
+      note(level === 3 ? 'asleep' : level === 2 ? 'doze' : 'drowsy')
       drowsinessRef.current = level
       setDrowsiness(level)
       softExpressionRef.current = null
@@ -1192,7 +1351,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   )
 
   const handleActive = useCallback(() => {
+    // Wake first: waking from a proper sleep is its own sequence, and it has
+    // to be able to see how deep ORBI was before the counters are cleared.
     wake(true)
+    easterRef.current?.setDepth(0)
     // A curious glance holds the eyes; the moment the user is back, give them
     // to the cursor.
     //
@@ -1212,6 +1374,11 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const handleCta = useCallback(
     (signal: OrbiCtaSignal | null) => {
       const gaze = gazeRef.current
+
+      // Mid-flight — or mid-flourish — the eyes are already spoken for. A CTA
+      // drifting past must neither take the `interaction` slot nor clear it on
+      // the way out.
+      if (cinematicRef.current?.active || easterRef.current?.active) return
 
       if (!signal) {
         gaze?.clear('interaction')
@@ -1282,9 +1449,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       }
 
       navOpenRef.current = true
-      // Safety outranks the flourish: an overlay opening ends a cinematic
-      // rather than pausing it.
+      // Safety outranks the flourish: an overlay opening ends a cinematic —
+      // and any hidden reaction — rather than pausing it.
       cinematicRef.current?.cancel('nav-open')
+      easterRef.current?.cancel('nav-open')
 
       // The menu is above ORBI, so it glances up. Mobile gets the eyes and the
       // expression, never the body.
@@ -1350,7 +1518,11 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     if (!el) return
     applyDock(
       el,
-      { ...dockOffsetRef.current, perched: perchedRef.current },
+      {
+        ...dockOffsetRef.current,
+        perched: perchedRef.current,
+        peekPercent: peekPercentRef.current,
+      },
       motionRef.current,
       duration,
     )
@@ -1488,6 +1660,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       note('modal-open')
       // Safety wins: cancel rather than try to pause and resume.
       cinematicRef.current?.cancel('modal-open')
+      easterRef.current?.cancel('modal-open')
       later(
         () =>
           notice(
@@ -1786,6 +1959,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       // A card drifting past is not more interesting than the form in front of
       // the visitor.
       if (companionRef.current && signal) return
+      // Nor than the cinematic already looking at that whole row: the scan owns
+      // the eyes until it lands, and hover resumes after it does. A hidden
+      // reaction owns them the same way.
+      if (cinematicRef.current?.active || easterRef.current?.active) return
 
       if (!signal) {
         projectKeyRef.current = null
@@ -1821,6 +1998,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
   const handleExpanded = useCallback(
     (signal: OrbiTargetSignal | null) => {
+      if (cinematicRef.current?.active || easterRef.current?.active) return
       if (!signal) {
         gazeRef.current?.clear('interaction')
         softExpression(null)
@@ -1946,6 +2124,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
     if (phase === 'out') {
       note(`cinematic:${type}`)
+      // Phase 7 has priority over Phase 8, and a claim is not enough on its
+      // own: the reaction's remaining beats have to stop as well.
+      easterRef.current?.cancel('cinematic')
       // Looking where he is going, all the way there.
       if (toward) {
         gaze?.set('interaction', toward.x, toward.y)
@@ -2038,6 +2219,338 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     }
   }, [cinematic.active, cinematic.type, cinematic.phase, cinematic.destination, cinematic.runId, later, note, projectGazeStops])
 
+  /* ── Hidden reactions: the beats ─────────────────────────────────────── */
+  // The controller decides *whether* and *when*; this decides what a beat
+  // looks like. Same division as the cinematic, and the same rule: the guide
+  // is the only thing in ORBI that touches an expression or a gesture.
+
+  /** The face, animation and line this reaction applied — only they are taken back. */
+  const eggFaceRef = useRef<OrbiExpression | null>(null)
+  const eggAnimRef = useRef<OrbiAnimation | null>(null)
+  const eggBubbleRef = useRef<string | null>(null)
+  /** `runId:step` of the beat already performed — the HUD publishes a lot. */
+  const eggBeatRef = useRef('')
+  const eggRunningRef = useRef(false)
+  /** Scales the stabilisation wobble down for the smaller reactions. */
+  const wobbleScaleRef = useRef(1)
+
+  const eggFace = useCallback((expression: OrbiExpression) => {
+    eggFaceRef.current = expression
+    setState((current) => ({ ...current, expression }))
+  }, [])
+
+  const eggAnimation = useCallback((animation: OrbiAnimation) => {
+    eggAnimRef.current = animation
+    restAnimationRef.current = null
+    setState((current) => ({ ...current, animation }))
+  }, [])
+
+  /** Toward the visitor: wherever the cursor last was, or straight ahead. */
+  const towardVisitor = useCallback(() => {
+    const { x, y } = cursorGazeRef.current
+    const length = Math.hypot(x, y)
+    if (length < 0.02) return { x: 0, y: -0.12 }
+    return { x: (x / length) * 0.7, y: (y / length) * 0.5 }
+  }, [])
+
+  useEffect(() => {
+    const type = easter.type
+    const step = easter.step
+    const gaze = gazeRef.current
+
+    /* Nothing running: put back exactly what a beat took, and nothing else. */
+    if (!easter.active || !type || step < 0) {
+      if (!eggRunningRef.current) return
+      eggRunningRef.current = false
+      eggBeatRef.current = ''
+
+      const face = eggFaceRef.current
+      const anim = eggAnimRef.current
+      const line = eggBubbleRef.current
+      eggFaceRef.current = null
+      eggAnimRef.current = null
+      eggBubbleRef.current = null
+      wobbleScaleRef.current = 1
+
+      later(() => {
+        gaze?.clear('interaction')
+        setGazeLead('gesture')
+        if (peekPercentRef.current !== 0) {
+          peekPercentRef.current = 0
+          applyDockTransform(ORBI_EASTER_EGGS.edgeReturnDuration)
+        }
+        setState((current) => ({
+          ...current,
+          expression:
+            face && current.expression === face ? 'normal' : current.expression,
+          animation: anim && current.animation === anim ? 'idle' : current.animation,
+          // A reaction cut short takes its line with it. One that simply
+          // finished has already outlived the bubble.
+          message: line && current.message === line ? null : current.message,
+        }))
+      }, 0)
+      return
+    }
+
+    /* The HUD republishes telemetry several times a second; a beat is
+       performed exactly once. */
+    const beat = `${easter.runId}:${step}`
+    if (eggBeatRef.current === beat) return
+    eggBeatRef.current = beat
+    eggRunningRef.current = true
+
+    /* Every beat is applied just after the commit, never during it. */
+    const perform = () => {
+      const say = (message: string | null) => {
+        eggBubbleRef.current = message
+        if (message) holdRef.current = ORBI_EASTER_EGGS.wobbleMs + 700
+        setState((current) => ({
+          ...current,
+          message,
+          messageId: message ? current.messageId + 1 : current.messageId,
+        }))
+      }
+
+      const look = (x: number, y: number) => {
+        gaze?.set('interaction', x, y)
+        setGazeLead('interaction')
+      }
+
+      const lean = (percent: number, duration: number = ORBI_TIMING.dockDuration) => {
+        // Reduced motion keeps the reaction and drops the travel.
+        if (reducedMotion) return
+        peekPercentRef.current = percent
+        applyDockTransform(duration)
+      }
+
+      // A beat never inherits a stale bubble: whatever ORBI was saying when
+      // the reaction started is over, and only the reaction's own line — if it
+      // has earned one — goes up in its place.
+      if (step === 0) {
+        note(`easter:${type}`)
+        say(null)
+      }
+
+      /* ── Poked once too often ── */
+      if (type === 'dizzyClick') {
+        if (step === 0) {
+          setGazeLead('gesture')
+          wobbleScaleRef.current = 1
+          eggFace('surprised')
+          eggAnimation('wobble')
+          say(easter.bubble)
+          return
+        }
+        if (step === 1) return eggFace('dizzy')
+        eggFace('blink')
+        return
+      }
+
+      /* ── Led round in a circle ── */
+      if (type === 'cursorCircle') {
+        if (step === 0) {
+          wobbleScaleRef.current = 1
+          eggFace('surprised')
+          eggAnimation('wobble')
+          // The pupils finish the lap the cursor started.
+          const ring = [
+            [0.9, 0.1],
+            [0.1, 0.85],
+            [-0.9, 0.1],
+            [-0.1, -0.8],
+            [0.6, 0.2],
+          ] as const
+          ring.forEach(([x, y], index) => later(() => look(x, y), index * 105))
+          return
+        }
+        if (step === 1) return eggFace('dizzy')
+        eggFace('blink')
+        return
+      }
+
+      /* ── The cursor whipping about ── */
+      if (type === 'cursorChase') {
+        if (step === 0) {
+          // Half amplitude: this is ORBI flinching, not ORBI being shaken.
+          wobbleScaleRef.current = 0.5
+          eggFace('surprised')
+          eggAnimation('wobble')
+          return
+        }
+        eggFace('normal')
+        return
+      }
+
+      /* ── A tap on the head ── */
+      if (type === 'headTap') {
+        if (step === 0) {
+          look(0, -0.95)
+          eggFace('surprised')
+          return
+        }
+        if (step === 1) return eggFace('blink')
+        eggFace('happy')
+        say(easter.bubble)
+        return
+      }
+
+      /* ── Hovered long enough to check himself over ── */
+      if (type === 'selfAware') {
+        if (step === 0) {
+          look(0, 0.9)
+          eggFace('thinking')
+          return
+        }
+        if (step === 1) {
+          const to = towardVisitor()
+          look(to.x, to.y)
+          eggFace('happy')
+          return
+        }
+        eggFace('blink')
+        return
+      }
+
+      /* ── The mark on the door ── */
+      if (type === 'logoNod') {
+        if (step === 0) {
+          const to = easter.gaze ?? { x: -0.8, y: -0.6 }
+          look(to.x, to.y)
+          eggFace('happy')
+          return
+        }
+        eggAnimation('nod')
+        return
+      }
+
+      /* ── Woken properly ── */
+      if (type === 'deepWake') {
+        if (step === 0) return eggFace('surprised')
+        if (step === 1) return eggFace('blink')
+        if (step === 2) return eggFace('normal')
+        if (step === 3) return eggFace('blink')
+        const to = towardVisitor()
+        look(to.x, to.y)
+        eggFace('happy')
+        say(easter.bubble)
+        return
+      }
+
+      /* ── The bottom of the page ── */
+      if (type === 'footerSecret') {
+        if (step === 0) {
+          // Lean *into* the viewport — the opposite of backing off.
+          lean(-ORBI_EASTER_EGGS.footerPeekPercent)
+          const to = easter.gaze ?? { x: -0.5, y: 0.7 }
+          look(to.x, to.y)
+          eggFace('thinking')
+          return
+        }
+        if (step === 1) {
+          const to = towardVisitor()
+          look(to.x, to.y)
+          eggFace('happy')
+          return
+        }
+        if (step === 2) {
+          eggAnimation('wave')
+          say(easter.bubble)
+          return
+        }
+        lean(0, ORBI_EASTER_EGGS.edgeReturnDuration)
+        return
+      }
+
+      /* ── The disappearing act ── */
+      if (type === 'edgePeek') {
+        if (step === 0) {
+          eggAnimation('peek')
+          lean(ORBI_EASTER_EGGS.footerPeekPercent * 0.8)
+          eggFace('normal')
+          return
+        }
+        if (step === 1) {
+          // Eyes first: he comes back a little, and looks before he leaps.
+          lean(ORBI_EASTER_EGGS.edgeRetreatPercent * 0.5)
+          look(-0.9, -0.1)
+          return
+        }
+        lean(0, ORBI_EASTER_EGGS.edgeReturnDuration)
+        eggAnimation('idle')
+        eggFace('happy')
+        return
+      }
+
+      /* ── One small unprompted beat ── */
+      if (type === 'rareIdle') {
+        const variant = easter.variant % 3
+        if (variant === 0) {
+          if (step === 0) eggFace('wink')
+          else if (step === 1) eggFace('normal')
+          return
+        }
+        if (variant === 1) {
+          if (step === 0) {
+            look(0.35, -0.5)
+            eggFace('thinking')
+          } else if (step === 1) {
+            eggFace('normal')
+          }
+          return
+        }
+        if (step === 0) look(-0.8, 0.05)
+        else if (step === 1) look(0.8, 0.05)
+        return
+      }
+    }
+
+    later(perform, 0)
+  }, [
+    easter.active,
+    easter.type,
+    easter.step,
+    easter.runId,
+    easter.bubble,
+    easter.gaze,
+    easter.variant,
+    applyDockTransform,
+    eggAnimation,
+    eggFace,
+    later,
+    note,
+    reducedMotion,
+    towardVisitor,
+  ])
+
+  /* ── Footer edge play ────────────────────────────────────────────────── */
+  // Perched at the footer, a cursor coming at ORBI makes him shrink back a
+  // little; when it leaves, he comes out again, slower. Tiny, desktop-only,
+  // and never a chase — it is a character noticing he has been noticed.
+
+  useEffect(() => {
+    if (station !== 'edge' || quietBody || !finePointer || reducedMotion) return
+    if (easter.active || cinematic.active) return
+
+    const retreat = proximity !== 'far'
+    peekPercentRef.current = retreat ? ORBI_EASTER_EGGS.edgeRetreatPercent : 0
+    applyDockTransform(
+      retreat ? ORBI_TIMING.dockDuration : ORBI_EASTER_EGGS.edgeReturnDuration,
+    )
+
+    return () => {
+      peekPercentRef.current = 0
+    }
+  }, [
+    station,
+    proximity,
+    quietBody,
+    finePointer,
+    reducedMotion,
+    easter.active,
+    cinematic.active,
+    applyDockTransform,
+  ])
+
   /* ── The one scroll system ───────────────────────────────────────────── */
 
   const handleDirection = useCallback((direction: OrbiScrollDirection) => {
@@ -2117,6 +2630,27 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       }
     }
 
+    if (animation === 'wobble') {
+      // The stabilisation after being shaken. Its own layer, restrained
+      // amplitude, and smaller again on a phone.
+      const tl = createWobbleTimeline(
+        gestureEl,
+        {
+          degrees:
+            ORBI_EASTER_EGGS.wobbleDegrees *
+            wobbleScaleRef.current *
+            (quietBody ? ORBI_EASTER_EGGS.wobbleQuietScale : 1),
+          durationMs: ORBI_EASTER_EGGS.wobbleMs,
+        },
+        motion,
+        oneShotDone('wobble'),
+      )
+      return () => {
+        tl.kill()
+        resetLayer(gestureEl)
+      }
+    }
+
     if (animation === 'inspect') {
       // Lean toward whatever ORBI came to look at, then straighten up.
       const toward = (cinematicTargetRef.current?.x ?? 0) < 0 ? -1 : 1
@@ -2190,13 +2724,15 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const flightRef = useRef<OrbiFlightHandle | null>(null)
 
   const flightVariant =
-    drowsiness > 0
-      ? 'drowsy'
-      : environment.modal
-        ? 'calm'
-        : state.animation === 'float'
-          ? 'active'
-          : 'hover'
+    drowsiness === 3
+      ? 'asleep'
+      : drowsiness > 0
+        ? 'drowsy'
+        : environment.modal
+          ? 'calm'
+          : state.animation === 'float'
+            ? 'active'
+            : 'hover'
 
   /**
    * Flight is the lowest-priority thing ORBI does, so the larger reposition
@@ -2211,6 +2747,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     // The larger reposition is decorative; it has no place mid-form.
     if (companionRef.current) return false
     if (hoveringRef.current) return false
+    // ...and it has no place mid-flourish either.
+    if (easterRef.current?.active) return false
     if (stationRef.current !== 'home') return false
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
       return false
@@ -2269,6 +2807,16 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     }, 600)
     return () => clearTimeout(id)
   }, [devCinematic, settled])
+
+  /* ── Development Easter-egg trigger ──────────────────────────────────── */
+  // `?orbi-easter=dizzyClick` runs one on load, because waiting out a
+  // 40-second cooldown to tune 400ms of animation is no way to work.
+
+  useEffect(() => {
+    if (!devEaster || !settled) return
+    const id = setTimeout(() => easterRef.current?.request(devEaster), 1400)
+    return () => clearTimeout(id)
+  }, [devEaster, settled])
 
   /* ── Idle blinking ───────────────────────────────────────────────────── */
 
@@ -2361,12 +2909,14 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
                   expression={state.expression}
                   awake={awake}
                   bright={bright}
-                  dozing={drowsiness === 2}
+                  dozing={drowsiness >= 2}
+                  asleep={drowsiness === 3}
                   theme={environment.theme}
                   gazeRef={gazeElementRef}
                   armRef={armRef}
                   leftArmRef={leftArmRef}
                   onActivate={handleActivate}
+                  onHead={handleHead}
                   onHoverStart={handleHoverStart}
                   onHoverEnd={handleHoverEnd}
                 />
@@ -2387,6 +2937,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           environment={environment}
           form={form}
           cinematic={cinematic}
+          easter={easter}
           arbiter={arbiter}
           gazeRef={gazeRef}
           eventRef={lastEventRef}

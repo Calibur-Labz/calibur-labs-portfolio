@@ -6,8 +6,10 @@ import {
   ORBI_DEV_PARAMS,
   ORBI_MEDIA,
   ORBI_PLACEMENT,
+  ORBI_EASTER_SPECS,
   type OrbiBreakpoint,
   type OrbiCinematicType,
+  type OrbiEasterEgg,
   type OrbiPlacement,
 } from './orbiConfig'
 
@@ -102,6 +104,17 @@ export function useOrbiCinematicRequest(): OrbiCinematicType | null {
   return value === 'hero' || value === 'precision' || value === 'projects'
     ? value
     : null
+}
+
+/**
+ * `?orbi-easter=dizzyClick` — run one hidden reaction on demand, because
+ * waiting for a 40-second cooldown to tune 400ms of animation is no way to
+ * work. Dev only.
+ */
+export function useOrbiEasterRequest(): OrbiEasterEgg | null {
+  const value = useDevParam(ORBI_DEV_PARAMS.easter)
+  if (!isDev() || !value) return null
+  return value in ORBI_EASTER_SPECS ? (value as OrbiEasterEgg) : null
 }
 
 /** Inlined by Next, so every dev switch above vanishes from a production build. */

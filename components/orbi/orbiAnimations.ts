@@ -125,9 +125,9 @@ export interface OrbiFlightHandle extends OrbiMotionHandle {
 export interface OrbiFlightOptions {
   /**
    * `hover` at rest, `active` a touch livelier, `calm` while an overlay owns
-   * the screen, `drowsy` slow and shallow.
+   * the screen, `drowsy` slow and shallow, `asleep` barely there at all.
    */
-  variant?: 'hover' | 'active' | 'calm' | 'drowsy'
+  variant?: 'hover' | 'active' | 'calm' | 'drowsy' | 'asleep'
   /** Mobile: less drift, almost no roll. */
   quiet?: boolean
   /**
@@ -184,7 +184,13 @@ export function createFlight(
         ? cfg.drowsyScale
         : variant === 'calm'
           ? cfg.calmScale
-          : 1)
+          : variant === 'asleep'
+            ? cfg.sleepScale
+            : 1)
+
+  // Properly asleep, ORBI sinks a little. Applied to the same layer as the
+  // hover itself, so there is still exactly one writer for it.
+  const sink = variant === 'asleep' ? cfg.sleepSink * scale : 0
 
   const lift = amplitude * (quiet ? cfg.quietLiftScale : 1)
   const drift = amplitude * (quiet ? cfg.quietDriftScale : 1)
@@ -194,7 +200,9 @@ export function createFlight(
       ? cfg.drowsyDurationScale
       : variant === 'calm'
         ? cfg.calmDurationScale
-        : 1
+        : variant === 'asleep'
+          ? cfg.sleepDurationScale
+          : 1
 
   let tween: gsap.core.Tween | null = null
   let killed = false
@@ -210,7 +218,7 @@ export function createFlight(
   const play = (pose: OrbiFlightPose) => {
     tween = gsap.to(floater, {
       x: pose.x * drift,
-      y: pose.y * lift,
+      y: pose.y * lift + sink,
       rotation: pose.rotation * roll,
       duration: pose.duration * pace,
       ease: pose.ease ?? FLIGHT_EASE,
@@ -359,6 +367,12 @@ export interface OrbiDockTransform {
   y: number
   /** The footer perch, as a percentage of ORBI's own size. */
   perched: boolean
+  /**
+   * Extra lean beyond the perch, percent of ORBI's own width. Positive backs
+   * him further off the edge, negative leans him into the viewport — the
+   * footer secret and the edge peek both live on this one number.
+   */
+  peekPercent?: number
 }
 
 /**
@@ -379,7 +393,8 @@ export function applyDock(
   return gsap.to(dock, {
     x: transform.x,
     y: transform.y,
-    xPercent: transform.perched ? ORBI_SCROLL.dockX : 0,
+    xPercent:
+      (transform.perched ? ORBI_SCROLL.dockX : 0) + (transform.peekPercent ?? 0),
     yPercent: transform.perched ? ORBI_SCROLL.dockY : 0,
     duration: options.reducedMotion
       ? ORBI_ENVIRONMENT.moveDurationReduced
@@ -780,6 +795,59 @@ export function createNodTimeline(
     duration: t.nodDuration * 1.3,
     ease: ORBI_EASE.inOut,
     transformOrigin: '50% 85%',
+  })
+
+  return tl
+}
+
+/* ── Wobble ────────────────────────────────────────────────────────────── */
+
+export interface OrbiWobbleOptions {
+  /** Peak roll, degrees. Scaled down again on a phone by the caller. */
+  degrees: number
+  /** Whole beat, ms. */
+  durationMs: number
+}
+
+/**
+ * Being shaken, and recovering from it.
+ *
+ * Tip one way, over-correct the other, correct again smaller, centre. It is a
+ * stabiliser catching up — not a shake, not a wiggle, and never a scale. The
+ * amplitude is deliberately close to the look tilt: enough to read as "that
+ * knocked him", nowhere near enough to look like a cartoon.
+ *
+ * Under reduced motion it is a pause of the same length. The dizzy face does
+ * the work instead, so the beat still lands.
+ */
+export function createWobbleTimeline(
+  gesture: HTMLElement,
+  { degrees, durationMs }: OrbiWobbleOptions,
+  options: OrbiMotionOptions,
+  onComplete?: () => void,
+): gsap.core.Timeline {
+  const tl = gsap.timeline({ onComplete })
+  const beat = durationMs / 1000
+
+  if (options.reducedMotion) {
+    tl.to({}, { duration: beat })
+    return tl
+  }
+
+  const steps: Array<[number, number]> = [
+    [-degrees, 0.22],
+    [degrees * 0.68, 0.26],
+    [-degrees * 0.34, 0.24],
+    [0, 0.28],
+  ]
+
+  steps.forEach(([rotation, share]) => {
+    tl.to(gesture, {
+      rotation,
+      duration: beat * share,
+      ease: ORBI_EASE.inOut,
+      transformOrigin: '50% 85%',
+    })
   })
 
   return tl

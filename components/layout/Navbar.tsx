@@ -59,7 +59,13 @@ export default function Navbar() {
         }}
       >
         {/* Logo */}
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+        <Link
+          href="/"
+          // ORBI notices the mark if you rest the cursor on it. One attribute,
+          // no import — see components/orbi/README.md.
+          data-orbi-logo
+          style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}
+        >
           <Image
             src="/images/logoo.png"
             alt="xCalibur Labz"

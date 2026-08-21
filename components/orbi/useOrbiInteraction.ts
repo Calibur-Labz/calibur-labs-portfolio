@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
-import { ORBI_INTERACTION, ORBI_SELECTORS } from './orbiConfig'
+import { ORBI_EASTER_EGGS, ORBI_INTERACTION, ORBI_SELECTORS } from './orbiConfig'
 
 export type OrbiProximity = 'far' | 'near' | 'over'
-export type OrbiDrowsiness = 0 | 1 | 2
+/** 0 awake, 1 drowsy, 2 eyes closed, 3 properly asleep. */
+export type OrbiDrowsiness = 0 | 1 | 2 | 3
 
 export interface OrbiCtaSignal {
   /** Stable-ish identity, for the per-CTA cooldown. */
@@ -40,8 +41,8 @@ export interface OrbiInteractionHandlers {
   onActivate: () => void
   /** A quiet spell long enough for ORBI to get curious. */
   onQuiet: () => void
-  /** Quiet for a lot longer. 1 = drowsy, 2 = eyes closed. */
-  onDrowsy: (level: 1 | 2) => void
+  /** Quiet for a lot longer. 1 = drowsy, 2 = eyes closed, 3 = properly asleep. */
+  onDrowsy: (level: 1 | 2 | 3) => void
   /** Any activity after a quiet spell. */
   onActive: () => void
   /** A marked CTA gained or lost the pointer. */
@@ -115,7 +116,7 @@ export function useOrbiInteraction({
   const lastActivityRef = useRef(0)
   const hoveringRef = useRef(false)
   const proximityRef = useRef<OrbiProximity>('far')
-  const stageRef = useRef<0 | 1 | 2 | 3>(0)
+  const stageRef = useRef<0 | 1 | 2 | 3 | 4>(0)
   const quietTargetRef = useRef<number>(ORBI_INTERACTION.curiousMinDelay)
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -373,6 +374,13 @@ export function useOrbiInteraction({
       if (stageRef.current < 3 && quiet >= ORBI_INTERACTION.dozeDelay) {
         stageRef.current = 3
         handlersRef.current.onDrowsy(2)
+      }
+      // Quiet for over a minute: not dozing any more, asleep. One more branch
+      // on the interval that was already running — no new timer, no new
+      // listener, and it still stops entirely while the tab is hidden.
+      if (stageRef.current < 4 && quiet >= ORBI_EASTER_EGGS.deepSleepDelay) {
+        stageRef.current = 4
+        handlersRef.current.onDrowsy(3)
       }
     }
 
