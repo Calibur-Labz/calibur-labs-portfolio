@@ -66,6 +66,28 @@ export function ClockIcon(props: IconProps) {
   )
 }
 
+/** ORBI's sound control, on. Same Feather weight as the rest of the set. */
+export function SoundOnIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" />
+      <path d="M15.2 9.3a4 4 0 0 1 0 5.4" />
+      <path d="M18 6.6a8 8 0 0 1 0 10.8" />
+    </Base>
+  )
+}
+
+/** ...and off. The slash reads at 16px, which the wave count does not. */
+export function SoundOffIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" />
+      <path d="m16 10 5 4" />
+      <path d="m21 10-5 4" />
+    </Base>
+  )
+}
+
 export function LinkedInIcon(props: IconProps) {
   return (
     <svg

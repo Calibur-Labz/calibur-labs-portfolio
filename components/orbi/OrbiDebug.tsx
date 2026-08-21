@@ -9,10 +9,13 @@ import type { OrbiEnvironmentApi } from './useOrbiEnvironment'
 import type { OrbiFormApi } from './useOrbiForm'
 import type { OrbiCinematicApi } from './useOrbiCinematic'
 import type { OrbiEasterApi } from './useOrbiEasterEggs'
+import type { OrbiAudioApi } from './useOrbiAudio'
 import {
   ORBI_EASTER_EGGS,
   ORBI_EASTER_SPECS,
   ORBI_PRIORITY,
+  ORBI_SOUND_SPECS,
+  type OrbiSound,
   type OrbiState,
 } from './orbiConfig'
 
@@ -63,6 +66,8 @@ export default function OrbiDebug({
   form,
   cinematic,
   easter,
+  audio,
+  audioTools,
   arbiter,
   gazeRef,
   eventRef,
@@ -77,6 +82,9 @@ export default function OrbiDebug({
   form: OrbiFormApi
   cinematic: OrbiCinematicApi
   easter: OrbiEasterApi
+  audio: OrbiAudioApi
+  /** `?orbi-audio-debug=1` — the sound-test buttons below the readout. */
+  audioTools: boolean
   arbiter: OrbiArbiter
   gazeRef: RefObject<OrbiGazeController | null>
   eventRef: RefObject<string>
@@ -188,7 +196,19 @@ export default function OrbiDebug({
     ['bubbles', `${easter.bubbles}/${ORBI_EASTER_EGGS.maxBubbles}`],
     ['found', found || '—'],
     ['egg event', easter.lastEvent],
+    ['—audio—', ''],
+    ['preferred', audio.preferred ? 'on' : 'off'],
+    ['unlocked', audio.unlocked ? 'yes' : 'no'],
+    ['muted', audio.active ? 'no' : 'YES'],
+    ['context', audio.contextState],
+    ['playing', audio.current ?? '—'],
+    ['priority', audio.current ? String(ORBI_SOUND_SPECS[audio.current].priority) : '—'],
+    ['last sound', audio.lastSound ?? '—'],
+    ['rejected', audio.lastReason ?? '—'],
+    ['storage', audio.storageOk ? 'ok' : 'unavailable'],
   ]
+
+  const sounds = Object.keys(ORBI_SOUND_SPECS) as OrbiSound[]
 
   return (
     <div
@@ -234,6 +254,53 @@ export default function OrbiDebug({
           </div>
         ),
       )}
+
+      {/*
+        Sound tests. Gated on `?orbi-audio-debug=1` *and* on the HUD itself,
+        which never renders in production — so these cannot ship. Each button
+        is a real click, which is also what audio unlocking needs.
+      */}
+      {audioTools && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '3px',
+            marginTop: '6px',
+            paddingTop: '6px',
+            borderTop: '1px solid #1B2838',
+            pointerEvents: 'auto',
+          }}
+        >
+          <button
+            type="button"
+            onClick={audio.toggle}
+            style={{ ...TEST_BUTTON, color: audio.preferred ? '#00B7FF' : '#93A6BC' }}
+          >
+            {audio.preferred ? 'mute' : 'unmute'}
+          </button>
+          {sounds.map((sound) => (
+            <button
+              key={sound}
+              type="button"
+              onClick={() => audio.play(sound)}
+              style={TEST_BUTTON}
+            >
+              {sound}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
+
+const TEST_BUTTON = {
+  font: '500 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace',
+  color: '#93A6BC',
+  background: 'rgba(0, 183, 255, 0.08)',
+  border: '1px solid rgba(0, 183, 255, 0.22)',
+  borderRadius: '4px',
+  padding: '2px 5px',
+  cursor: 'pointer',
+} as const

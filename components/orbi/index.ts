@@ -28,6 +28,15 @@ export { useOrbiCinematic } from './useOrbiCinematic'
 export type { OrbiCinematicApi } from './useOrbiCinematic'
 export { useOrbiEasterEggs } from './useOrbiEasterEggs'
 export type { OrbiEasterApi, OrbiEasterSnapshot } from './useOrbiEasterEggs'
+export { useOrbiAudio } from './useOrbiAudio'
+export type { OrbiAudioApi } from './useOrbiAudio'
+export { default as OrbiSoundToggle } from './OrbiSoundToggle'
+export {
+  createOrbiAudioEngine,
+  readAudioPreference,
+  writeAudioPreference,
+} from './orbiAudio'
+export type { OrbiAudioEngine } from './orbiAudio'
 export type {
   OrbiEnvironmentApi,
   OrbiEnvironmentDecision,
@@ -47,6 +56,7 @@ export type {
   OrbiDock,
   OrbiEasterEgg,
   OrbiGazeSource,
+  OrbiSound,
   OrbiRegionTheme,
 } from './orbiConfig'
 export type {
@@ -66,6 +76,8 @@ export {
   ORBI_COOLDOWNS,
   ORBI_CINEMATIC,
   ORBI_CINEMATICS,
+  ORBI_AUDIO,
+  ORBI_AUDIO_TOGGLE,
   ORBI_DOCKS,
   ORBI_EASTER_EGGS,
   ORBI_EASTER_MESSAGES,

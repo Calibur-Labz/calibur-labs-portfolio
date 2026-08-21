@@ -117,6 +117,15 @@ export function useOrbiEasterRequest(): OrbiEasterEgg | null {
   return value in ORBI_EASTER_SPECS ? (value as OrbiEasterEgg) : null
 }
 
+/**
+ * `?orbi-audio-debug=1` — sound-test buttons in the HUD, so each cue can be
+ * heard on demand while tuning it. Dev only.
+ */
+export function useOrbiAudioDebug(): boolean {
+  const value = useDevParam(ORBI_DEV_PARAMS.audio)
+  return isDev() && value !== null
+}
+
 /** Inlined by Next, so every dev switch above vanishes from a production build. */
 const isDev = () => process.env.NODE_ENV !== 'production'
 

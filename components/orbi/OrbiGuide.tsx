@@ -17,6 +17,7 @@ import { createGazeController, type OrbiGazeController } from './orbiGaze'
 import {
   useFinePointer,
   useOrbiBreakpoint,
+  useOrbiAudioDebug,
   useOrbiCinematicRequest,
   useOrbiDebugEnabled,
   useOrbiEasterRequest,
@@ -36,6 +37,8 @@ import { useOrbiEnvironment } from './useOrbiEnvironment'
 import { useOrbiForm } from './useOrbiForm'
 import { useOrbiCinematic, type OrbiCinematicApi } from './useOrbiCinematic'
 import { useOrbiEasterEggs, type OrbiEasterApi } from './useOrbiEasterEggs'
+import { useOrbiAudio, type OrbiAudioApi } from './useOrbiAudio'
+import OrbiSoundToggle from './OrbiSoundToggle'
 import {
   ORBI_SECTION_BEHAVIORS,
   resolveSectionAnimation,
@@ -74,8 +77,11 @@ import {
   ORBI_ART,
   ORBI_CINEMATIC,
   ORBI_CLICK_MESSAGES,
+  ORBI_AUDIO,
+  ORBI_AUDIO_TOGGLE,
   ORBI_COOLDOWNS,
   ORBI_EASTER_EGGS,
+  ORBI_EASTER_SPECS,
   ORBI_INITIAL_STATE,
   ORBI_INTERACTION,
   ORBI_MEDIA,
@@ -96,6 +102,7 @@ import {
   type OrbiCinematicType,
   type OrbiEasterEgg,
   type OrbiExpression,
+  type OrbiSound,
   type OrbiSayOptions,
   type OrbiSectionBehavior,
   type OrbiState,
@@ -153,6 +160,18 @@ function resolveHeroSpot(
  * Which section earns which cinematic. Sections declare the *target* with
  * `data-orbi-cinematic`; this is the only place that says when to go.
  */
+/**
+ * Which hidden reactions have a voice. Phase 8 decides when they fire; this
+ * only says what — if anything — is heard when they do.
+ */
+const EASTER_SOUNDS: Partial<Record<OrbiEasterEgg, OrbiSound>> = {
+  dizzyClick: 'dizzy',
+  cursorCircle: 'dizzy',
+  deepWake: 'wake',
+  headTap: 'acknowledge',
+  footerSecret: 'happy',
+}
+
 const SECTION_CINEMATICS: Record<string, OrbiCinematicType | undefined> = {
   precision: 'precision',
   work: 'projects',
@@ -228,6 +247,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const frozen = useOrbiFrozen()
   const devCinematic = useOrbiCinematicRequest()
   const devEaster = useOrbiEasterRequest()
+  const devAudio = useOrbiAudioDebug()
   const placement = ORBI_PLACEMENT[breakpoint]
   /** Mobile keeps the eyes and drops the body movement. */
   const quietBody = breakpoint === 'mobile'
@@ -274,6 +294,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   /** Newest thing ORBI reacted to. Debug HUD only. */
   const lastEventRef = useRef('—')
   const navOpenRef = useRef(false)
+  /** Which side of ORBI's box the sound control is on. */
+  const toggleSideRef = useRef<'left' | 'right'>('left')
   const frozenRef = useRef(false)
   /** Where the entrance parks ORBI before he flies to the dock. */
   const heroSpotRef = useRef<{ x: number; y: number } | null>(null)
@@ -384,6 +406,15 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   /** The dedicated travel layer — cinematic movement and nothing else. */
   const travelRef = useRef<HTMLDivElement>(null)
   /**
+   * ORBI's own small UI — currently just the sound control.
+   *
+   * Deliberately *outside* the travel layer: the control follows him from dock
+   * to dock, but it does not fly across the page with a cinematic, bob with the
+   * idle flight, or slide off to the footer perch with him. A control that
+   * moves while you are reaching for it is not a control (§42).
+   */
+  const chromeRef = useRef<HTMLDivElement>(null)
+  /**
    * Mirror of the cinematic controller. Declared here, ahead of every effect
    * that reaches for it — several of them cancel a flight and run before the
    * controller itself is created.
@@ -492,6 +523,22 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   useEffect(() => {
     cinematicRef.current = cinematic
   })
+
+  /* ── Sound ───────────────────────────────────────────────────────────── */
+  // Nothing here is created on load: `useOrbiAudio` builds an AudioContext only
+  // once the visitor has asked for one inside a real gesture. Every call below
+  // is a no-op while ORBI is muted, which is how he ships.
+
+  const audio = useOrbiAudio({ hud: debugEnabled })
+  const audioRef = useRef<OrbiAudioApi | null>(null)
+  useEffect(() => {
+    audioRef.current = audio
+  })
+
+  /** Sound is an accompaniment, never a channel of its own. */
+  const cue = useCallback((sound: OrbiSound) => {
+    audioRef.current?.play(sound)
+  }, [])
 
   /* ── Hidden reactions ────────────────────────────────────────────────── */
 
@@ -1072,6 +1119,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   // twice in a row just because a pointer wobbled across a boundary.
 
   const lastClickRef = useRef(-Infinity)
+  /** Whether ORBI has been clicked at all this visit. */
+  const clickedRef = useRef(false)
   const lastHoverGreetRef = useRef(-Infinity)
   const lastCuriousRef = useRef(-Infinity)
   const lastNavRef = useRef(-Infinity)
@@ -1142,7 +1191,18 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
   /* ── Click / tap ─────────────────────────────────────────────────────── */
 
-  const handleActivate = useCallback(() => {
+  /**
+   * Every activation on ORBI, from anywhere on him.
+   *
+   * The order below is the whole point. Being poked repeatedly is a *signal*,
+   * not a reaction, so the repeated-click detector sees every activation
+   * before anything else is allowed to consume it — before the click cooldown,
+   * before the priority claim, before the head gesture, and regardless of what
+   * ORBI currently owns or is saying. Everything after that line is a
+   * reaction, and reactions are allowed to be refused.
+   */
+  const activateOrbi = useCallback(
+    (part: 'body' | 'head') => {
     const now = performance.now()
 
     // Mid-flight, a poke gets a look and a blink — not a speech bubble and
@@ -1158,7 +1218,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       return
     }
 
-    // Counted before the cooldown, because *being* rapid is the whole signal:
+    // Counted before everything, because *being* rapid is the whole signal:
     // the fifth click in three seconds is a different event from the first,
     // and the reaction to it succeeds the ordinary one rather than stacking.
     if (easterRef.current?.noteClick()) {
@@ -1166,11 +1226,26 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       return
     }
 
-    if (now - lastClickRef.current < ORBI_COOLDOWNS.clickMessage) return
+    // A tap on the head is its own gesture — but only once the tap has been
+    // counted, so a run of taps on ORBI's face still adds up to five.
+    if (part === 'head' && easterRef.current?.noteHeadTap()) {
+      lastClickRef.current = now
+      note('easter:headTap')
+      return
+    }
 
-    // An ordinary click outranks a hidden reaction, so end that one properly
-    // instead of leaving its last beat to land on top of this one's face.
-    easterRef.current?.cancel('click')
+    // Already in the middle of a hidden reaction. What happens next depends on
+    // whose idea that reaction was: ORBI's own answer to being poked stands —
+    // interrupting it with a wave is exactly the competing-reaction problem —
+    // while anything he started for his own amusement yields to the visitor,
+    // and yields *properly*, so its last beat cannot land on this one's face.
+    const running = easterRef.current?.active ? easterRef.current.type : null
+    if (running) {
+      if (ORBI_EASTER_SPECS[running].userTriggered) return
+      easterRef.current?.cancel('click')
+    }
+
+    if (now - lastClickRef.current < ORBI_COOLDOWNS.clickMessage) return
 
     // Explicit interaction outranks a section gesture, so poking ORBI
     // mid-wave cleanly replaces it rather than layering on top.
@@ -1186,6 +1261,12 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     lastClickRef.current = now
     wake(false)
     note('click')
+
+    // The first poke of a visit earns the small delight; after that a poke is
+    // an acknowledgement, not an event (§19). Both are throttled by the click
+    // cooldown above and again by the cue's own.
+    cue(clickedRef.current ? 'acknowledge' : 'happy')
+    clickedRef.current = true
 
     const pool = ORBI_CLICK_MESSAGES
     let index = Math.floor(Math.random() * pool.length)
@@ -1208,27 +1289,17 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         messageId: s.messageId + 1,
       }))
     }, ORBI_TIMING.clickStartleMs)
-  }, [arbiter, blink, later, note, wake])
+    },
+    [arbiter, blink, cue, later, note, wake],
+  )
 
+  /** The robot itself. */
+  const handleActivate = useCallback(() => activateOrbi('body'), [activateOrbi])
   /**
-   * A tap on the head rather than the body.
-   *
-   * One gesture, one reaction: the head region stops the event before the
-   * robot's own click handler ever sees it. When the head beat is on cooldown
-   * — or ORBI is busy — the tap falls through to the ordinary click reaction,
-   * so he is never unresponsive to being touched.
+   * The head region. It stops the event before the robot's own handler sees
+   * it, so one tap is still one activation — it just arrives here instead.
    */
-  const handleHead = useCallback(() => {
-    if (cinematicRef.current?.active) {
-      handleActivate()
-      return
-    }
-    if (easterRef.current?.noteHeadTap()) {
-      note('easter:headTap')
-      return
-    }
-    handleActivate()
-  }, [handleActivate, note])
+  const handleHead = useCallback(() => activateOrbi('head'), [activateOrbi])
 
   /* ── Hover ───────────────────────────────────────────────────────────── */
 
@@ -1329,7 +1400,12 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const handleDrowsy = useCallback(
     (level: 1 | 2 | 3) => {
       easterRef.current?.setDepth(level)
-      if (!isRestingAnimation(stateRef.current.animation)) return
+      // A held look orientation is a resting pose, not a gesture — ORBI is
+      // allowed to nod off facing left. Requiring `idle` here meant a section
+      // that leaves him looking sideways kept him awake indefinitely, which
+      // also put deep sleep (and waking from it) out of reach.
+      const animation = stateRef.current.animation
+      if (!isRestingAnimation(animation) && !isLookAnimation(animation)) return
       // Never nod off while the visitor is mid-form.
       if (companionRef.current) return
       if (
@@ -1342,12 +1418,15 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         return
       }
       note(level === 3 ? 'asleep' : level === 2 ? 'doze' : 'drowsy')
+      // Going properly under is the only ambient moment with a sound, and it
+      // is the quietest one there is. Once, never looped (§22).
+      if (level === 3) cue('sleep')
       drowsinessRef.current = level
       setDrowsiness(level)
       softExpressionRef.current = null
       setState((s) => ({ ...s, expression: 'sleepy' }))
     },
-    [arbiter, note],
+    [arbiter, cue, note],
   )
 
   const handleActive = useCallback(() => {
@@ -1499,6 +1578,32 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     gazeRef.current?.clear('cursor')
   }, [])
 
+  /* ── The sound control's place ───────────────────────────────────────── */
+  // Always on ORBI's inward side, so it can never be pushed off the edge of
+  // the viewport by the dock he happens to be using.
+
+  const toggleSide: 'left' | 'right' =
+    environment.dock === 'bottom-left' || environment.dock === 'mid-left'
+      ? 'right'
+      : 'left'
+
+  useEffect(() => {
+    toggleSideRef.current = toggleSide
+  }, [toggleSide])
+
+  /**
+   * The button is a 44px touch target with a smaller disc painted inside it,
+   * so the gap the eye sees is measured from the disc, not from the control.
+   */
+  const toggleLeft = (() => {
+    const painted = quietBody ? ORBI_AUDIO_TOGGLE.mobileSize : ORBI_AUDIO_TOGGLE.size
+    const inset = (ORBI_AUDIO_TOGGLE.touchSize - painted) / 2
+    const offset = ORBI_AUDIO_TOGGLE.gap - inset
+    return toggleSide === 'left'
+      ? -(ORBI_AUDIO_TOGGLE.touchSize + offset)
+      : placement.size + offset
+  })()
+
   /* ── Where ORBI sits ─────────────────────────────────────────────────── */
   // Two things want to move ORBI's box: the environment picking a dock, and
   // the footer perch. Both are *position*, not personality, so neither is
@@ -1523,6 +1628,17 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         perched: perchedRef.current,
         peekPercent: peekPercentRef.current,
       },
+      motionRef.current,
+      duration,
+    )
+
+    // The sound control follows the *dock* and nothing else: no perch, no
+    // peek, no lean. It has one writer, exactly like every other layer.
+    const chrome = chromeRef.current
+    if (!chrome) return
+    applyDock(
+      chrome,
+      { ...dockOffsetRef.current, perched: false },
       motionRef.current,
       duration,
     )
@@ -1579,6 +1695,31 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     },
     [arbiter, later],
   )
+
+  /**
+   * The sound control.
+   *
+   * The click itself is what unlocks audio in Safari and on iOS, so the toggle
+   * is called first and synchronously — nothing is deferred, awaited or queued
+   * ahead of it. The little reaction afterwards is exactly that: afterwards.
+   */
+  const handleAudioToggle = useCallback(() => {
+    const turningOn = !audioRef.current?.preferred
+    audioRef.current?.toggle()
+    note(turningOn ? 'audio:on' : 'audio:off')
+    if (!turningOn) return
+
+    // A glance at the control and a moment of pleasure — under a second, and
+    // no bubble: the control's own state is the feedback (§6).
+    const toward = toggleSideRef.current === 'left' ? -0.85 : 0.85
+    notice(
+      { x: toward, y: -0.1 },
+      'happy',
+      ORBI_PRIORITY.ambient,
+      'audio',
+      ORBI_AUDIO.enableBeatMs,
+    )
+  }, [note, notice])
 
   /**
    * Apply the chosen dock. ORBI's box is CSS-anchored bottom-right, so a dock
@@ -1841,9 +1982,12 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
       restAnimationRef.current = null
 
-      // Beat 0: eyes up and a small lift, before anything is said.
+      // Beat 0: eyes up and a small lift, before anything is said — and the
+      // one warm sound ORBI has, once, at the top of the run. The three lines
+      // that follow are silent; three chimes would be a slot machine (§20).
       later(() => {
         if (run !== successRunRef.current) return
+        cue('success')
         setBright(true)
         setGazeLead('gesture')
         setSuccessRun(run)
@@ -1940,7 +2084,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       arbiter.release('form-submitting')
       arbiter.release('form-focus')
     }
-  }, [form, arbiter, later, note])
+  }, [form, arbiter, cue, later, note])
 
   useEffect(
     () => () => {
@@ -2124,6 +2268,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
     if (phase === 'out') {
       note(`cinematic:${type}`)
+      // One pass of air on the way out — never a loop, and never on the hero
+      // entrance, which happens before anyone has unlocked audio (§15, §26).
+      cue('fly')
       // Phase 7 has priority over Phase 8, and a claim is not enough on its
       // own: the reaction's remaining beats have to stop as well.
       easterRef.current?.cancel('cinematic')
@@ -2193,6 +2340,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     }
 
     if (phase === 'back') {
+      // A trip cut short takes its sound with it; the landing cue still plays
+      // if — and only if — he actually lands (§16).
+      if (cinematic.cancelReason) audioRef.current?.fade()
       // Home is behind him now.
       if (toward) gaze?.set('interaction', -toward.x, -toward.y)
       later(() => {
@@ -2208,6 +2358,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       return
     }
 
+    if (phase === 'land') cue('land')
+
     if (phase === 'land' || phase === 'idle') {
       gaze?.clear('interaction')
       cinematicTargetRef.current = null
@@ -2217,7 +2369,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         setState((current) => ({ ...current, expression: 'normal' }))
       }, 0)
     }
-  }, [cinematic.active, cinematic.type, cinematic.phase, cinematic.destination, cinematic.runId, later, note, projectGazeStops])
+  }, [cinematic.active, cinematic.type, cinematic.phase, cinematic.destination, cinematic.runId, cinematic.cancelReason, cue, later, note, projectGazeStops])
 
   /* ── Hidden reactions: the beats ─────────────────────────────────────── */
   // The controller decides *whether* and *when*; this decides what a beat
@@ -2329,6 +2481,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       if (step === 0) {
         note(`easter:${type}`)
         say(null)
+        // Phase 8 owns *whether* a reaction fires; audio only listens (§45).
+        // Four of the ten have a sound; the rest are silent on purpose.
+        const sound = EASTER_SOUNDS[type]
+        if (sound) cue(sound)
       }
 
       /* ── Poked once too often ── */
@@ -2514,6 +2670,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     easter.gaze,
     easter.variant,
     applyDockTransform,
+    cue,
     eggAnimation,
     eggFace,
     later,
@@ -2877,6 +3034,36 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           visibility: 'hidden',
         }}
       >
+        {/*
+          The sound control. Rendered before the travel layer on purpose: when
+          a bubble is placed on this side it paints over the control rather
+          than the other way round, and the control dims out of its way.
+        */}
+        <div
+          ref={chromeRef}
+          style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              left: `${toggleLeft}px`,
+              top: `${Math.round((height - ORBI_AUDIO_TOGGLE.touchSize) / 2)}px`,
+              pointerEvents: 'none',
+            }}
+          >
+            <OrbiSoundToggle
+              enabled={audio.preferred}
+              onToggle={handleAudioToggle}
+              revealed={proximity !== 'far' || !finePointer}
+              size={quietBody ? ORBI_AUDIO_TOGGLE.mobileSize : ORBI_AUDIO_TOGGLE.size}
+              theme={environment.theme}
+              dimmed={
+                state.message !== null &&
+                environment.bubble.placement === toggleSide
+              }
+            />
+          </div>
+        </div>
         {/* Cinematic travel. Its own layer, written by nothing else — and the
             bubble sits inside it, so the Hero greeting travels with ORBI while
             the footer perch (below) still leaves it behind. */}
@@ -2938,6 +3125,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           form={form}
           cinematic={cinematic}
           easter={easter}
+          audio={audio}
+          audioTools={devAudio}
           arbiter={arbiter}
           gazeRef={gazeRef}
           eventRef={lastEventRef}

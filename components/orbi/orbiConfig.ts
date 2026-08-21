@@ -723,11 +723,30 @@ export interface OrbiEasterSpec {
    * is removed, so it does not run under `prefers-reduced-motion` at all.
    */
   motionOnly?: boolean
+  /**
+   * The visitor caused this directly by touching ORBI, so the rule that keeps
+   * *unprompted* reactions rare does not apply: the global cooldown between
+   * any two reactions is skipped. Its own cooldown still holds, and so does
+   * every safety check.
+   */
+  userTriggered?: boolean
+  /**
+   * May take over a reaction already running. Only the repeated-click beat
+   * has it: someone poking ORBI five times has overtaken whatever he started
+   * doing about the first poke, and both cannot be true at once.
+   */
+  interrupts?: boolean
 }
 
 export const ORBI_EASTER_SPECS: Record<OrbiEasterEgg, OrbiEasterSpec> = {
   // startled → dizzy → recover
-  dizzyClick: { type: 'dizzyClick', beats: [420, 1250, 520], cooldown: 40000 },
+  dizzyClick: {
+    type: 'dizzyClick',
+    beats: [420, 1250, 520],
+    cooldown: 40000,
+    userTriggered: true,
+    interrupts: true,
+  },
   // one startled beat and a correction; the shortest egg there is
   cursorChase: {
     type: 'cursorChase',
@@ -745,7 +764,12 @@ export const ORBI_EASTER_SPECS: Record<OrbiEasterEgg, OrbiEasterSpec> = {
     desktopOnly: true,
   },
   // eyes up → blink → pleased
-  headTap: { type: 'headTap', beats: [360, 260, 900], cooldown: 6000 },
+  headTap: {
+    type: 'headTap',
+    beats: [360, 260, 900],
+    cooldown: 6000,
+    userTriggered: true,
+  },
   // look down at himself → back at the visitor → happy blink
   selfAware: {
     type: 'selfAware',
@@ -880,6 +904,100 @@ export const ORBI_EASTER_MESSAGES = {
   headTap: 'Hehe 👀',
   deepWake: "Oh! You're back 👀",
   footerSecret: 'You made it! 👋',
+} as const
+
+/* ── Audio ─────────────────────────────────────────────────────────────── */
+
+/**
+ * ORBI's voice.
+ *
+ * Nine cues, no more — one per *kind* of moment rather than one per animation,
+ * because a companion that chirps at everything stops being a companion and
+ * becomes a notification. Everything ORBI says with sound he also says with a
+ * face, so muted is not a degraded experience: it is the default one.
+ */
+export type OrbiSound =
+  /** The eyes coming on, and the tone that confirms sound is now on. */
+  | 'activate'
+  /** "Noted" — the ordinary click. */
+  | 'acknowledge'
+  /** Leaving the dock. One airy pass, never a loop. */
+  | 'fly'
+  /** Arriving back on it. */
+  | 'land'
+  /** A small delight. */
+  | 'happy'
+  /** The submission landed. The one moment ORBI is allowed to be warm. */
+  | 'success'
+  /** Going properly under. */
+  | 'sleep'
+  /** Coming back out of it. */
+  | 'wake'
+  /** Poked once too often, or led round in a circle. */
+  | 'dizzy'
+
+/** 2 interrupts 1 interrupts 0. Equal priority also interrupts — newest wins. */
+export type OrbiSoundPriority = 0 | 1 | 2
+
+export interface OrbiSoundSpec {
+  priority: OrbiSoundPriority
+  /** Peak gain for this cue, before the master volume. */
+  volume: number
+  /** How long the cue lasts, ms. Also how long it owns the channel. */
+  durationMs: number
+  /** Not again inside this window. */
+  cooldownMs: number
+}
+
+/**
+ * Volumes and windows in one place, per the same rule as every other tunable
+ * in ORBI: no number that shapes how he feels is allowed to hide in a
+ * component. Everything here is deliberately quiet — the loudest cue peaks at
+ * a quarter of the master gain, which is itself a quarter of full scale.
+ */
+export const ORBI_AUDIO = {
+  /** The only thing ORBI is allowed to remember about a visitor. */
+  storageKey: 'calibur-orbi-audio',
+
+  masterVolume: 0.25,
+  interactionVolume: 0.18,
+  cinematicVolume: 0.2,
+  successVolume: 0.25,
+  /** Sleep and wake — the quietest things he does. */
+  ambientVolume: 0.16,
+
+  /** Every cue is faded rather than cut, so nothing ever clicks. */
+  fadeMs: 45,
+  /** Two cues never butt up against each other. */
+  minGapMs: 90,
+  /** How long the "sound is on" beat holds ORBI's face. */
+  enableBeatMs: 700,
+} as const
+
+export const ORBI_SOUND_SPECS: Record<OrbiSound, OrbiSoundSpec> = {
+  activate:    { priority: 0, volume: ORBI_AUDIO.interactionVolume, durationMs: 140, cooldownMs: 800 },
+  acknowledge: { priority: 0, volume: ORBI_AUDIO.interactionVolume, durationMs: 120, cooldownMs: 400 },
+  fly:         { priority: 1, volume: ORBI_AUDIO.cinematicVolume,   durationMs: 520, cooldownMs: 1200 },
+  land:        { priority: 1, volume: ORBI_AUDIO.cinematicVolume,   durationMs: 220, cooldownMs: 1200 },
+  happy:       { priority: 1, volume: ORBI_AUDIO.interactionVolume, durationMs: 260, cooldownMs: 2000 },
+  success:     { priority: 2, volume: ORBI_AUDIO.successVolume,     durationMs: 520, cooldownMs: 4000 },
+  sleep:       { priority: 2, volume: ORBI_AUDIO.ambientVolume,     durationMs: 620, cooldownMs: 30000 },
+  wake:        { priority: 2, volume: ORBI_AUDIO.ambientVolume,     durationMs: 380, cooldownMs: 4000 },
+  dizzy:       { priority: 2, volume: ORBI_AUDIO.interactionVolume, durationMs: 420, cooldownMs: 4000 },
+}
+
+/** The sound control's own geometry. Small, and never in ORBI's way. */
+export const ORBI_AUDIO_TOGGLE = {
+  /** Rendered size, px. The touch target is padded out to `touchSize`. */
+  size: 34,
+  mobileSize: 40,
+  touchSize: 44,
+  /** Gap between the control and ORBI's box. */
+  gap: 8,
+  /** Resting opacity — present, but not competing with ORBI. */
+  restOpacity: 0.3,
+  /** ...and on touch, where there is no hover to reveal it. */
+  touchOpacity: 0.68,
 } as const
 
 /* ── Cooldowns ─────────────────────────────────────────────────────────── */
@@ -1209,13 +1327,15 @@ export const ORBI_DEBUG = false
  *   ?orbi-debug              the HUD
  *   ?orbi-cinematic=precision  run a cinematic on load, for visual tuning
  *   ?orbi-easter=dizzyClick    run a hidden reaction on demand, likewise
+ *   ?orbi-audio-debug=1      sound-test buttons in the HUD
  *   ?orbi-freeze=1           hold ORBI still so screenshots are deterministic
  *
- * All four are gated on `NODE_ENV !== 'production'`, which Next inlines.
+ * All five are gated on `NODE_ENV !== 'production'`, which Next inlines.
  */
 export const ORBI_DEV_PARAMS = {
   debug: 'orbi-debug',
   cinematic: 'orbi-cinematic',
   easter: 'orbi-easter',
+  audio: 'orbi-audio-debug',
   freeze: 'orbi-freeze',
 } as const

@@ -41,6 +41,10 @@ matter more than the reactions. When in doubt, less movement.
 | `useOrbiForm.ts` | The contact form's lifecycle: focus, validity, submission. Never its contents. |
 | `useOrbiCinematic.ts` | Leaving the dock: destination geometry, travel, cancellation. |
 | `useOrbiEasterEggs.ts` | The hidden reactions: detection, eligibility, cooldowns, discovery state. |
+| `orbiAudio.ts` | ORBI's voice. Synthesised cues, one channel, priority and fades. No React. |
+| `orbiAudio.test.mts` | Its tests — a fake Web Audio graph and a hand-turned clock. |
+| `useOrbiAudio.ts` | Preference, unlocking, visibility. Keeps *wanted* and *allowed* apart. |
+| `OrbiSoundToggle.tsx` | The 34px control. Two states, no settings panel. |
 | `orbiEasterDetect.ts` | The arithmetic behind them. Pure, allocation-free, unit-tested. |
 | `orbiEasterDetect.test.mts` | Those unit tests. `node --test` — see the header for how to run them. |
 | `orbiConfig.ts` | Types, placement, timing, easing, palette, geometry, scroll tuning. |
@@ -495,15 +499,31 @@ during any part of a submission, not during a cinematic, not with a modal or
 the menu open, not while the environment is relocating him, not while he is
 dozing — and not while he is holding a claim above `easterEgg`.
 
-Two of them are held to different rules, because the visitor is *touching ORBI*
-when they fire: `dizzyClick` and `headTap` may interrupt his own click line, and
-they inherit the `click` claim rather than being refused by it. That is the one
-place a hidden reaction takes over from something above it, and it is a
-handover, not a race — the click that triggered it is the same gesture.
+Two of them are marked `userTriggered`, because the visitor is *touching ORBI*
+when they fire: `dizzyClick` and `headTap` may interrupt his own click line,
+they inherit the `click` claim rather than being refused by it, and they skip
+the 14s global cooldown — that rule exists to stop ORBI performing at people
+twice in a row, and being poked is not ORBI performing. Their own cooldowns
+still hold, which is what keeps each of them rare.
+
+`dizzyClick` alone is also `interrupts`: five clicks have overtaken whatever
+ORBI started doing about the first one, and both cannot be true at once. The
+reaction in flight is ended properly — timers killed, claim released, face
+handed back — before the dizzy beat takes over.
+
+**Detection is not a reaction.** Every activation on ORBI, head or body, goes
+through the repeated-click detector *before* the click cooldown, the priority
+claim, the head gesture, or anything else is allowed to consume it. A run of
+taps on ORBI's face therefore still adds up to five, and clicks one to four
+being turned into ordinary reactions — or into nothing at all — cannot stop
+click five from counting.
 
 Anything already running is cancelled by a modal, the menu, a cinematic
-starting, or the visitor touching the contact form. Cancellation restores the
-face, the eyes, the lean and the dock, and only ever the ones that reaction set.
+starting, or the visitor touching the contact form. An ordinary click cancels
+it too, unless it is one of the two ORBI is doing *because* he was poked —
+interrupting those with a wave is the competing-reaction problem, not the fix
+for it. Cancellation restores the face, the eyes, the lean and the dock, and
+only ever the ones that reaction set.
 
 ### The head
 
@@ -514,6 +534,15 @@ its keyboard activation. The region only redirects a pointer that was going to
 hit ORBI anyway, and `stopPropagation` is what guarantees one tap never fires
 both reactions. When the head beat is on cooldown the tap falls through to the
 ordinary click reaction, so he is never unresponsive to being touched.
+
+The region covers the visor and the top of the shell — which is where most
+people aim — so it is on the path of nearly every deliberate poke. That is
+exactly why the detector has to run before it: a head tap is counted first and
+handled second.
+
+Note that ORBI's root now contains more than one `<svg>` (the sound control's
+icon lives there too). Anything selecting the robot must say so —
+`svg[aria-label]`, or the ref — never `root.querySelector('svg')`.
 
 ### Sleep
 
@@ -543,15 +572,108 @@ Nothing in Phase 8 is disabled wholesale under reduced motion: the wobble
 becomes a pause of the same length, the leans are skipped, and every reaction
 still reads through the face — which is where ORBI's personality lives anyway.
 
+## Sound
+
+Phase 9. ORBI has a voice — nine short cues, **off by default**, and entirely
+optional: everything a sound says, a face or an animation says too. Muted is
+not a degraded experience, it is the one ORBI ships with.
+
+### It is synthesised, not sampled
+
+There are no audio files. Every cue is built from a few oscillators and an
+envelope in `orbiAudio.ts`, which buys three things worth more than a sample
+library: nothing to download on a page where sound is off, nothing to license —
+the identity is original by construction — and a cue that can be made quieter
+or shorter by editing a number rather than re-exporting an asset.
+
+Sine and triangle partials between roughly 300 and 2600Hz, exponential decays,
+and one band-passed noise sweep for the flight pass. No square waves, no bass,
+nothing that can read as an alarm.
+
+### The vocabulary
+
+| cue | when | shape | length |
+| --- | --- | --- | --- |
+| `activate` | sound is switched on | two bright partials | 140ms |
+| `acknowledge` | ORBI clicked; head tap | mid, one step up | 120ms |
+| `fly` | leaving the dock | a pass of air | 520ms |
+| `land` | back on it | small dip + air | 220ms |
+| `happy` | first click of a visit; footer secret | three steps up | 260ms |
+| `success` | a submission landed | warm two-note rise | 520ms |
+| `sleep` | going properly under | long slide down | 620ms |
+| `wake` | woken from deep sleep | up, with an overshoot | 380ms |
+| `dizzy` | poked five times; circled | a wobble that settles | 420ms |
+
+Everything else ORBI does is silent — every section reaction, every expression,
+the idle flight, hover, blinking, validation, and the hero entrance.
+
+### Volumes
+
+`ORBI_AUDIO` holds all of them. Master 0.25, interaction 0.18, cinematic 0.20,
+success 0.25, ambient (sleep/wake) 0.16 — and each cue's partials sit at a
+fraction of that again, so the loudest thing ORBI does peaks at about a
+sixteenth of full scale.
+
+### Nothing plays on load
+
+Two separate things have to be true, and keeping them apart is the whole trick:
+
+| | |
+| --- | --- |
+| **preferred** | the visitor asked for sound. `localStorage['calibur-orbi-audio'] = 'on' \| 'off'`, default off |
+| **unlocked** | a browser has actually let us start an AudioContext, which only happens inside a gesture |
+
+No AudioContext is constructed at load — not even a suspended one — so a fresh
+page never touches the autoplay policy and there is nothing for a browser to
+warn about. A returning visitor arrives `preferred: true, unlocked: false`: the
+control shows sound as on, nothing plays, and the next real gesture anywhere on
+the page unlocks it **silently**. The hero entrance therefore always runs in
+silence, because it happens before anyone has touched anything.
+
+Storage is allowed to fail. In a locked-down browser the choice simply does not
+survive the visit; the toggle still works, because the session's own answer is
+authoritative once it exists.
+
+### One voice at a time
+
+`success` `wake` `dizzy` (2) interrupt `fly` `land` `happy` (1) interrupt
+`acknowledge` `activate` (0). Equal priority hands over — the newest thing ORBI
+feels is the true one. A lower-priority cue is refused outright rather than
+mixed in, interruptions are faded rather than cut, and there is always 90ms of
+silence between two cues. Twenty rapid clicks produce three or four sounds, not
+twenty.
+
+### The control
+
+A 34px glass disc beside ORBI (40px on a phone) inside a 44px touch target,
+resting at 30% opacity until the cursor comes near — and permanently visible on
+touch, where there is no hover to reveal it. It is a real `<button>` with
+`aria-pressed` and an explicit label, and it lives *outside* the travel layer:
+it follows ORBI from dock to dock but never flies, bobs or perches with him, so
+it cannot move while you are reaching for it. It always sits on his inward side,
+so no dock can push it off the edge of the viewport.
+
+### Cancellation and interruption
+
+| | |
+| --- | --- |
+| cinematic cancelled | the flight cue fades; `land` only plays if he actually lands |
+| sound switched off mid-cue | fades immediately, context suspended |
+| switched on mid-flight | no travel cue starts halfway; only future events sound |
+| tab hidden | context suspended, cue silenced |
+| tab shown | context resumes; nothing missed is replayed |
+| ORBI unmounted | cue stopped, nodes released, context closed |
+
 ## Development switches
 
-Dev only — all four gated on `NODE_ENV`, which Next inlines:
+Dev only — all five gated on `NODE_ENV`, which Next inlines:
 
 | | |
 | --- | --- |
 | `?orbi-debug` | the HUD |
 | `?orbi-cinematic=precision` | run one on load, for visual tuning |
 | `?orbi-easter=dizzyClick` | run one hidden reaction on demand, likewise |
+| `?orbi-audio-debug=1` | sound-test buttons in the HUD, one per cue |
 | `?orbi-freeze=1` | hold ORBI perfectly still |
 
 Freeze exists because continuous flight makes Playwright's element screenshots
@@ -654,7 +776,7 @@ Phase 8's live in `ORBI_EASTER_EGGS`, for the same reason:
 | Self-aware | 60s | `selfAwareCooldown` |
 | Rare idle | 47–88s, walked in order | `rareIdleGaps` |
 | Edge peek | not before 120s, once per visit | `edgePeekDelay` |
-| Between *any* two | 14s | `globalCooldown` |
+| Between *any* two unprompted reactions | 14s | `globalCooldown` |
 | Easter-egg bubbles | 2 per page view, ever | `maxBubbles` |
 
 A section also has to genuinely change before it can fire, so hovering on a

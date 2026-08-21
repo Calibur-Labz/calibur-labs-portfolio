@@ -257,12 +257,23 @@ export function useOrbiEasterEggs({
     (type: OrbiEasterEgg, now: number) => {
       const spec = ORBI_EASTER_SPECS[type]
       const opts = optionsRef.current
-      if (!spec || activeRef.current) return false
+      if (!spec) return false
+      // One at a time — unless this is the reaction to the visitor overtaking
+      // whatever ORBI started doing about the last thing they did.
+      if (activeRef.current && !spec.interrupts) return false
       if (spec.once && playedRef.current.has(type)) return false
       if (spec.desktopOnly && opts.breakpoint === 'mobile') return false
       if (spec.pointerOnly && !opts.finePointer) return false
       if (spec.motionOnly && opts.reducedMotion) return false
-      if (now - lastAnyRef.current < ORBI_EASTER_EGGS.globalCooldown) return false
+      // The global cooldown keeps ORBI from performing at people twice in a
+      // row. Being poked is not ORBI performing, so it does not apply — the
+      // reaction's own cooldown is what keeps *that* rare.
+      if (
+        !spec.userTriggered &&
+        now - lastAnyRef.current < ORBI_EASTER_EGGS.globalCooldown
+      ) {
+        return false
+      }
       const last = lastRunRef.current.get(type)
       if (last !== undefined && now - last < spec.cooldown) return false
       return opts.canRun(type)
@@ -310,6 +321,10 @@ export function useOrbiEasterEggs({
       const spec = ORBI_EASTER_SPECS[type]
       const now = performance.now()
       if (!eligible(type, now)) return false
+
+      // Taking over: the reaction in flight is ended properly — timers killed,
+      // claim released, face handed back — before this one takes the channel.
+      if (activeRef.current) finish('replaced')
 
       const total = spec.beats.reduce((sum, beat) => sum + beat, 0)
       if (!optionsRef.current.claim('easter', total + 600, takeOver)) return false
