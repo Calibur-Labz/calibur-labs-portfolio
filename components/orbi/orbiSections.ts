@@ -58,6 +58,20 @@ export const ORBI_SECTION_BEHAVIORS: OrbiSectionBehavior[] = [
     expressionDuration: 2200,
   },
   {
+    /*
+     * Warm, and quiet. This is the section people read to decide whether to
+     * trust the company, so ORBI acknowledges it and then keeps facing it
+     * rather than performing over it: a small nod, happy eyes, no bubble, and
+     * no cinematic. It is also Phase 12's "Client Stories" destination — the
+     * guided arrival runs this and nothing else.
+     */
+    id: 'testimonials',
+    expression: 'happy',
+    animation: 'nod',
+    restAnimation: 'look-left',
+    expressionDuration: 3000,
+  },
+  {
     // The strongest beat on the page.
     id: 'contact',
     expression: 'happy',

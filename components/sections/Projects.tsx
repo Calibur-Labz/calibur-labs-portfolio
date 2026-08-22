@@ -53,7 +53,7 @@ export default function Projects() {
               fontFamily: 'var(--font-poppins), system-ui, sans-serif',
             }}
           >
-            A selection of real work we've shipped, built with care and delivered with precision.
+            A selection of real work we&apos;ve shipped, built with care and delivered with precision.
           </motion.p>
         </motion.div>
 

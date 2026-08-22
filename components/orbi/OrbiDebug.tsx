@@ -9,6 +9,7 @@ import type { OrbiEnvironmentApi } from './useOrbiEnvironment'
 import type { OrbiFormApi } from './useOrbiForm'
 import type { OrbiCinematicApi } from './useOrbiCinematic'
 import type { OrbiEasterApi } from './useOrbiEasterEggs'
+import type { OrbiGuideApi } from './useOrbiGuideMode'
 import type { OrbiAudioApi } from './useOrbiAudio'
 import {
   ORBI_EASTER_EGGS,
@@ -66,6 +67,8 @@ export default function OrbiDebug({
   form,
   cinematic,
   easter,
+  guide,
+  guideTools,
   audio,
   audioTools,
   sleep,
@@ -83,6 +86,9 @@ export default function OrbiDebug({
   form: OrbiFormApi
   cinematic: OrbiCinematicApi
   easter: OrbiEasterApi
+  guide: OrbiGuideApi
+  /** `?orbi-guide=1` — the destination buttons below the readout. */
+  guideTools: boolean
   audio: OrbiAudioApi
   /** `?orbi-audio-debug=1` — the sound-test buttons below the readout. */
   audioTools: boolean
@@ -209,6 +215,19 @@ export default function OrbiDebug({
     ['bubbles', `${easter.bubbles}/${ORBI_EASTER_EGGS.maxBubbles}`],
     ['found', found || '—'],
     ['egg event', easter.lastEvent],
+    ['—guide—', ''],
+    ['menu', guide.open ? 'open' : 'closed'],
+    // Prefixed on purpose: the rows are keyed by their label, and `phase` and
+    // `destination` are already taken by the cinematic block above.
+    ['guide phase', guide.phase],
+    ['guide dest', guide.selected?.label ?? '—'],
+    ['guide anchor', guide.selected ? `#${guide.selected.target}` : '—'],
+    ['placement', guide.placement + (guide.blocked ? ' (relaxed)' : '')],
+    ['panel over', guide.blocked ?? '—'],
+    // Who owns the trip. Guide mode holds the claim in short bursts and hands
+    // it back before the destination reacts, so `—` here mid-arrival is right.
+    ['nav owner', guide.owning ? 'guide' : guide.phase === 'closed' ? '—' : 'released'],
+    ['guide cancel', guide.cancelReason ?? '—'],
     ['—audio—', ''],
     ['preferred', audio.preferred ? 'on' : 'off'],
     ['unlocked', audio.unlocked ? 'yes' : 'no'],
@@ -229,6 +248,9 @@ export default function OrbiDebug({
   ]
 
   const sounds = Object.keys(ORBI_SOUND_SPECS) as OrbiSound[]
+
+  /** Same gate as the sound tests: dev-only HUD, dev-only switch. */
+  const guideButtons = guideTools ? guide.items : []
 
   return (
     <div
@@ -273,6 +295,39 @@ export default function OrbiDebug({
             </span>
           </div>
         ),
+      )}
+
+      {/*
+        Guide destinations. Gated on `?orbi-guide=1` *and* on the HUD, which
+        never renders in production. Each button runs the real lifecycle —
+        open, choose, travel, arrive — rather than jumping to the end of it.
+      */}
+      {guideButtons.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '3px',
+            marginTop: '6px',
+            paddingTop: '6px',
+            borderTop: '1px solid #1B2838',
+            pointerEvents: 'auto',
+          }}
+        >
+          {guideButtons.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                guide.openMenu()
+                setTimeout(() => guide.choose(item), 260)
+              }}
+              style={TEST_BUTTON}
+            >
+              {item.id}
+            </button>
+          ))}
+        </div>
       )}
 
       {/*

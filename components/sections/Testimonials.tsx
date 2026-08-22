@@ -281,7 +281,10 @@ export default function Testimonials() {
   const pageItems = testimonials.slice(page * cols, page * cols + cols);
 
   return (
-    <section style={{ position: "relative", zIndex: 10, padding: "60px 24px" }}>
+    <section
+      id="testimonials"
+      style={{ position: "relative", zIndex: 10, padding: "60px 24px" }}
+    >
       <div style={{ maxWidth: "960px", margin: "0 auto" }}>
         {/* ── Header ── */}
         <motion.div

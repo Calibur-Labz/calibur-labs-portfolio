@@ -23,6 +23,7 @@ import {
   useOrbiDebugEnabled,
   useOrbiEasterRequest,
   useOrbiFrozen,
+  useOrbiGuideRequest,
   useReducedMotion,
 } from './useOrbiMedia'
 import { useOrbiScroll, type OrbiScrollDirection } from './useOrbiScroll'
@@ -41,6 +42,15 @@ import { useOrbiEasterEggs, type OrbiEasterApi } from './useOrbiEasterEggs'
 import { useOrbiAudio, type OrbiAudioApi } from './useOrbiAudio'
 import OrbiSoundToggle from './OrbiSoundToggle'
 import OrbiSleepParticles from './OrbiSleepParticles'
+import OrbiGuideControl from './OrbiGuideControl'
+import OrbiGuideMenu from './OrbiGuideMenu'
+import { useOrbiGuideMode, type OrbiGuideApi } from './useOrbiGuideMode'
+import {
+  ORBI_GUIDE,
+  ORBI_GUIDE_ITEMS,
+  ORBI_GUIDE_MESSAGES,
+  type OrbiGuideItem,
+} from './orbiGuideConfig'
 import {
   ORBI_SECTION_BEHAVIORS,
   resolveSectionAnimation,
@@ -255,6 +265,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const devEaster = useOrbiEasterRequest()
   const devAudio = useOrbiAudioDebug()
   const devSleep = useOrbiSleepRequest()
+  const { tools: devGuideTools, target: devGuideTarget } = useOrbiGuideRequest()
   const placement = ORBI_PLACEMENT[breakpoint]
   /** Mobile keeps the eyes and drops the body movement. */
   const quietBody = breakpoint === 'mobile'
@@ -431,6 +442,11 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const cinematicRef = useRef<OrbiCinematicApi | null>(null)
   /** Same again for the hidden reactions: several handlers cancel one. */
   const easterRef = useRef<OrbiEasterApi | null>(null)
+  /**
+   * ...and for guide mode, which several handlers above it stand down: a
+   * modal, the navigation menu, the contact form, a backgrounded tab.
+   */
+  const guideRef = useRef<OrbiGuideApi | null>(null)
   /**
    * How far ORBI leans out of, or into, the viewport beyond his ordinary
    * perch — the footer secret, the edge peek, and backing off from a cursor
@@ -894,11 +910,22 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const sectionFiredRef = useRef(new Map<string, number>())
   const spokenRef = useRef(new Map<string, number>())
 
+  /**
+   * A section taking the middle of the viewport — or, when `force` is set, a
+   * destination the visitor explicitly asked guide mode to take them to.
+   *
+   * Forcing skips exactly three guards, and only those: the "same section as
+   * last time" memo, the re-fire cooldown, and the "don't talk over a live
+   * bubble" check. All three exist to stop ORBI reacting to scrolling he was
+   * not asked about; none of them should be able to swallow the one reaction
+   * someone pressed a button for. Guide mode clears its own acknowledgement in
+   * the same tick, so the bubble it is stepping over is always its own.
+   */
   const handleSection = useCallback(
-    (id: string) => {
+    (id: string, force = false) => {
       // Boundary jitter must not re-fire: only a genuine change of section
       // counts, and even then not twice inside the cooldown.
-      if (id === lastSectionRef.current) return
+      if (id === lastSectionRef.current && !force) return
       lastSectionRef.current = id
       setActiveSection(id)
 
@@ -908,6 +935,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       const now = performance.now()
       const firedAt = sectionFiredRef.current.get(id)
       if (
+        !force &&
         firedAt !== undefined &&
         now - firedAt < ORBI_COOLDOWNS.sectionReaction
       ) {
@@ -941,7 +969,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       const spokenAt = message ? spokenRef.current.get(message) : undefined
       const speak =
         !!message &&
-        !stateRef.current.message &&
+        (force || !stateRef.current.message) &&
         (spokenAt === undefined ||
           now - spokenAt >= ORBI_COOLDOWNS.sectionMessage)
 
@@ -1548,9 +1576,12 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
       navOpenRef.current = true
       // Safety outranks the flourish: an overlay opening ends a cinematic —
-      // and any hidden reaction — rather than pausing it.
+      // and any hidden reaction — rather than pausing it. The navigation is
+      // also a way of going somewhere, so it takes ownership from guide mode
+      // outright rather than racing it.
       cinematicRef.current?.cancel('nav-open')
       easterRef.current?.cancel('nav-open')
+      guideRef.current?.close('nav-open')
 
       // The menu is above ORBI, so it glances up. Mobile gets the eyes and the
       // expression, never the body.
@@ -1596,6 +1627,225 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     cursorGazeRef.current.y = 0
     gazeRef.current?.clear('cursor')
   }, [])
+
+  /* ── Guide mode ──────────────────────────────────────────────────────── */
+  // Phase 12. The one thing ORBI does because he was *asked* to.
+  //
+  // `useOrbiGuideMode` owns the lifecycle; everything here is the beat that
+  // belongs to each phase, which is the same division the cinematic and the
+  // hidden reactions use. Guide mode never moves ORBI itself: it scrolls the
+  // page and then stands aside, so the destination's own section reaction —
+  // and, where the cooldowns allow, its own Phase 7 cinematic — is the single
+  // travel owner.
+
+  const guideClaim = useCallback(
+    (owner: string, durationMs: number) =>
+      arbiter.claim(ORBI_PRIORITY.guide, owner, durationMs),
+    [arbiter],
+  )
+  const guideRelease = useCallback(
+    (owner: string) => arbiter.release(owner),
+    [arbiter],
+  )
+
+  /** Walked in order, so two trips in a row are never the same words. */
+  const ackIndexRef = useRef(0)
+  /** The line guide mode put up — the only one it is ever allowed to take back. */
+  const ackRef = useRef<string | null>(null)
+  /** The control, so focus can go back to it when the panel closes. */
+  const guideButtonRef = useRef<HTMLButtonElement>(null)
+  /** One quiet run of pulses, once, until the visitor has used the control. */
+  const [guideHinted, setGuideHinted] = useState(false)
+  const guideUsedRef = useRef(false)
+
+  /**
+   * Opening. ORBI stops what he was doing, wakes if he was under, looks toward
+   * where the panel is about to be, and offers it. Returns any extra delay the
+   * panel should wait for — the menu must never appear over a robot who still
+   * looks asleep.
+   */
+  const handleGuideOpen = useCallback(() => {
+    note('guide:open')
+    guideUsedRef.current = true
+    setGuideHinted(false)
+
+    // One travel owner: a flourish already in progress is not more important
+    // than a request for directions.
+    cinematicRef.current?.cancel('guide-open')
+    easterRef.current?.cancel('guide-open')
+
+    // Asleep? The existing wake, without the deep-wake sequence — that one is
+    // his reaction to being *found* and runs for the best part of two seconds.
+    // Someone who pressed a button is owed a menu, not a performance.
+    const asleep = drowsinessRef.current > 0
+    if (asleep) wake(false, 'click')
+
+    softExpressionRef.current = null
+    restAnimationRef.current = null
+    // Attentive, and one small presentation gesture. `nod` is the smallest
+    // thing ORBI has that reads as "here you are", and it survives both a
+    // phone and reduced motion — where a point would be swapped out anyway.
+    setState((s) => ({ ...s, expression: 'happy', animation: 'nod', message: null }))
+
+    // ...and he looks at what he is offering. The panel opens on his inward
+    // side and upward, which is the side the controls are on.
+    const toward = toggleSideRef.current === 'left' ? -0.7 : 0.7
+    gazeRef.current?.set('interaction', toward, -0.5)
+    setGazeLead('interaction')
+
+    return asleep ? ORBI_GUIDE.wakeDelayMs : 0
+  }, [note, wake])
+
+  /**
+   * Chosen. One short line — never two, and never at the destination, where
+   * the section has its own — and a beat of stillness before the page moves.
+   */
+  const handleGuideChoose = useCallback(
+    (item: OrbiGuideItem) => {
+      note(`guide:${item.id}`)
+      const lines = ORBI_GUIDE_MESSAGES.acknowledgements
+      const line = lines[ackIndexRef.current % lines.length]
+      ackIndexRef.current += 1
+      ackRef.current = line
+
+      restAnimationRef.current = null
+      gazeRef.current?.clear('interaction')
+      setGazeLead('gesture')
+      holdRef.current = ORBI_GUIDE.ackHoldMs
+      setState((s) => ({
+        ...s,
+        expression: 'happy',
+        animation: 'idle',
+        message: line,
+        messageId: s.messageId + 1,
+      }))
+    },
+    [note],
+  )
+
+  /**
+   * Arrived. The acknowledgement is spent, the page has moved a long way, and
+   * the destination reacts exactly as it always does.
+   */
+  const handleGuideArrive = useCallback(
+    (item: OrbiGuideItem) => {
+      note(`guide-arrive:${item.target}`)
+
+      const line = ackRef.current
+      ackRef.current = null
+      if (line) {
+        setState((s) => (s.message === line ? { ...s, message: null } : s))
+      }
+
+      // Where ORBI can safely sit moved with the page.
+      environmentRef.current?.refresh('guide-arrive')
+
+      // Forced, because the visitor pressed a button for this: the section may
+      // already be the active one, or still inside its own cooldown, and
+      // neither is a reason to arrive somewhere and do nothing.
+      handleSection(item.target, true)
+    },
+    [handleSection, note],
+  )
+
+  /** Ended early. Put back what guide mode put up, and only that. */
+  const handleGuideCancel = useCallback(
+    (reason: string) => {
+      note(`guide-cancel:${reason}`)
+      const line = ackRef.current
+      ackRef.current = null
+      gazeRef.current?.clear('interaction')
+      setGazeLead('gesture')
+      setState((s) => ({
+        ...s,
+        message: line && s.message === line ? null : s.message,
+        expression: s.expression === 'happy' ? 'normal' : s.expression,
+      }))
+    },
+    [note],
+  )
+
+  const guide = useOrbiGuideMode({
+    enabled: settled && !frozen,
+    breakpoint,
+    reducedMotion,
+    // The decided dock, in viewport coordinates — which is exactly where the
+    // chrome layer the panel lives in ends up.
+    orbiRect: environment.rect,
+    dock: environment.dock,
+    readEnvironment,
+    claim: guideClaim,
+    release: guideRelease,
+    onOpen: handleGuideOpen,
+    onChoose: handleGuideChoose,
+    onArrive: handleGuideArrive,
+    onCancel: handleGuideCancel,
+  })
+
+  useEffect(() => {
+    guideRef.current = guide
+  })
+
+  const { open: guideOpen, remeasure: guideRemeasure } = guide
+
+  /**
+   * The panel is anchored to ORBI's box, so it travels with him for free — but
+   * *which side* it opens on is a decision, and the dock changing (or the
+   * viewport resizing) can invalidate it. Re-decided on the environment's own
+   * clock; the panel is never a region the environment can see, so this can
+   * never turn into ORBI and the panel chasing each other (§27).
+   */
+  useEffect(() => {
+    if (!guideOpen) return
+    guideRemeasure()
+  }, [guideOpen, guideRemeasure, environment.rect])
+
+  /** Nothing is guided while nobody is watching. */
+  useEffect(() => {
+    if (tabVisible) return
+    guideRef.current?.close('tab-hidden')
+  }, [tabVisible])
+
+  /**
+   * Guide mode stands down when the visitor actually puts their attention into
+   * the contact form: a field taking focus, or a submission running.
+   *
+   * Deliberately keyed on *those* and not on companion mode, which is a
+   * lingering state rather than an event — it survives focus leaving the form
+   * by 1.6s so that tabbing between fields does not drop it, and its published
+   * value can change on focus moves that have nothing to do with the form.
+   * Keying on it meant a keyboard visitor who had merely tabbed *past* the
+   * form on their way to this very control watched the menu open and shut
+   * itself a frame later. Field focus and submission status are unambiguous.
+   */
+  useEffect(() => {
+    if (!form.field && form.status === 'idle') return
+    guideRef.current?.close('form-focus')
+  }, [form.field, form.status])
+
+  /**
+   * Discoverability: one quiet run of pulses on the control a few seconds in,
+   * once, and never again once the visitor has used it. No bubble, no
+   * automatic opening, and nothing remembered between visits (§30, §31).
+   */
+  useEffect(() => {
+    if (!settled || reducedMotion) return
+    if (guideUsedRef.current) return
+    const id = setTimeout(
+      () => setGuideHinted(true),
+      ORBI_GUIDE.control.pulseAfterMs,
+    )
+    return () => clearTimeout(id)
+  }, [settled, reducedMotion])
+
+  useEffect(() => {
+    if (!guideHinted) return
+    const id = setTimeout(
+      () => setGuideHinted(false),
+      ORBI_GUIDE.control.pulseCycleMs * ORBI_GUIDE.control.pulseCount + 200,
+    )
+    return () => clearTimeout(id)
+  }, [guideHinted])
 
   /* ── The sound control's place ───────────────────────────────────────── */
   // Always on ORBI's inward side, so it can never be pushed off the edge of
@@ -1821,6 +2071,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       // Safety wins: cancel rather than try to pause and resume.
       cinematicRef.current?.cancel('modal-open')
       easterRef.current?.cancel('modal-open')
+      guideRef.current?.close('modal-open')
       later(
         () =>
           notice(
@@ -2922,6 +3173,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     if (drowsinessRef.current !== 0) return false
     // The larger reposition is decorative; it has no place mid-form.
     if (companionRef.current) return false
+    // ...nor under an open menu. The panel is anchored to his dock rather than
+    // to the flight layer, so a reposition would slide ORBI out from under his
+    // own guide (§5, §27).
+    if (guideRef.current?.open) return false
     if (hoveringRef.current) return false
     // ...and it has no place mid-flourish either.
     if (easterRef.current?.active) return false
@@ -3006,6 +3261,23 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     return () => clearTimeout(id)
   }, [devSleep, settled, handleDrowsy])
 
+  /* ── Development guide trigger ───────────────────────────────────────── */
+  // `?orbi-guide=work` opens the menu and takes that trip on load, because
+  // checking one destination's arrival should not cost five clicks each time.
+  // Stripped in production, where `devGuideTarget` is a constant null.
+
+  useEffect(() => {
+    if (!devGuideTarget || !settled) return
+    const item = ORBI_GUIDE_ITEMS.find((entry) => entry.id === devGuideTarget)
+    if (!item) return
+    const open = setTimeout(() => guideRef.current?.openMenu(), 1200)
+    const pick = setTimeout(() => guideRef.current?.choose(item), 2000)
+    return () => {
+      clearTimeout(open)
+      clearTimeout(pick)
+    }
+  }, [devGuideTarget, settled])
+
   /* ── Idle blinking ───────────────────────────────────────────────────── */
 
   useEffect(() => {
@@ -3019,6 +3291,15 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const height = Math.round(
     (placement.size * ORBI_VIEWBOX.height) / ORBI_VIEWBOX.width,
   )
+  /** The two controls, as one column, centred on ORBI's box. */
+  const controlsTop = Math.round(
+    (height -
+      (ORBI_GUIDE.control.touchSize * 2 + ORBI_GUIDE.control.stackGap)) /
+      2,
+  )
+  /** A bubble is opening over this corner; both controls get out of its way. */
+  const dimControls =
+    state.message !== null && environment.bubble.placement === toggleSide
   const layer: React.CSSProperties = {
     width: '100%',
     height: '100%',
@@ -3066,9 +3347,14 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         }}
       >
         {/*
-          The sound control. Rendered before the travel layer on purpose: when
-          a bubble is placed on this side it paints over the control rather
-          than the other way round, and the control dims out of its way.
+          ORBI's own small UI: the guide control, the sound control, and the
+          guide panel. Rendered before the travel layer on purpose — when a
+          bubble is placed on this side it paints over the controls rather than
+          the other way round, and they dim out of its way.
+
+          Two controls, stacked, on ORBI's inward side: one small system rather
+          than a row of buttons growing along his edge. Guide sits above sound
+          because it is the one worth finding.
         */}
         <div
           ref={chromeRef}
@@ -3078,22 +3364,52 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
             style={{
               position: 'absolute',
               left: `${toggleLeft}px`,
-              top: `${Math.round((height - ORBI_AUDIO_TOGGLE.touchSize) / 2)}px`,
+              top: `${controlsTop}px`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: `${ORBI_GUIDE.control.stackGap}px`,
               pointerEvents: 'none',
             }}
           >
+            <OrbiGuideControl
+              open={guide.open}
+              onToggle={guide.toggle}
+              revealed={proximity !== 'far' || !finePointer}
+              size={quietBody ? ORBI_GUIDE.control.mobileSize : ORBI_GUIDE.control.size}
+              theme={environment.theme}
+              dimmed={dimControls}
+              pulsing={guideHinted}
+              buttonRef={guideButtonRef}
+            />
             <OrbiSoundToggle
               enabled={audio.preferred}
               onToggle={handleAudioToggle}
               revealed={proximity !== 'far' || !finePointer}
               size={quietBody ? ORBI_AUDIO_TOGGLE.mobileSize : ORBI_AUDIO_TOGGLE.size}
               theme={environment.theme}
-              dimmed={
-                state.message !== null &&
-                environment.bubble.placement === toggleSide
-              }
+              dimmed={dimControls}
             />
           </div>
+          {/*
+            Rendered after the control, so Tab reaches the control and then the
+            options in the order they are read. Outside the travel and dock
+            layers for the same reason the controls are: a menu that flies,
+            bobs or perches while you are reaching for it is not a menu.
+          */}
+          <OrbiGuideMenu
+            open={guide.open}
+            items={guide.items}
+            placement={guide.placement}
+            box={guide.box}
+            breakpoint={breakpoint}
+            placementMetrics={placement}
+            theme={environment.theme}
+            reducedMotion={reducedMotion}
+            onSelect={guide.choose}
+            onClose={() => guide.close('dismissed')}
+            controlRef={guideButtonRef}
+          />
         </div>
         {/* Cinematic travel. Its own layer, written by nothing else — and the
             bubble sits inside it, so the Hero greeting travels with ORBI while
@@ -3169,6 +3485,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           form={form}
           cinematic={cinematic}
           easter={easter}
+          guide={guide}
+          guideTools={devGuideTools}
           audio={audio}
           audioTools={devAudio}
           sleep={{

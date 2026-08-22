@@ -206,6 +206,19 @@ export const ORBI_PRIORITY = {
   formResult: 58,
   /** Anything a human explicitly asked for via `useOrbi()`. */
   interaction: 60,
+  /**
+   * Guide mode. Above ordinary interaction because the visitor did not merely
+   * touch ORBI, they asked him to take them somewhere — a poke must not derail
+   * a trip already underway.
+   *
+   * Safety still wins, but not through this number: like the cinematic, guide
+   * mode cancels *itself* when a modal or the menu opens, because standing
+   * down is always better than being paused halfway. It is held in short
+   * bursts — the opening beat, and the trip — and released before the
+   * destination's own section reaction runs, so nothing is ever stuck behind
+   * it.
+   */
+  guide: 62,
   /** The page-load sequence. Nothing outranks it. */
   entrance: 70,
 } as const
@@ -367,6 +380,13 @@ export const ORBI_COLORS = {
   speechBg: 'rgba(12, 18, 28, 0.92)',
   speechBorder: 'rgba(0, 183, 255, 0.28)',
   speechText: '#E9F1F8',
+  /**
+   * The guide panel. The same surface as the bubble, a shade deeper and very
+   * nearly opaque — a bubble carries two words and can afford to let the page
+   * ghost through it, but a menu is read carefully, and on a phone it opens
+   * over the largest type on the page.
+   */
+  guideBg: 'rgba(10, 15, 24, 0.97)',
 } as const
 
 /* ── Copy ──────────────────────────────────────────────────────────────── */
@@ -400,6 +420,21 @@ export const ORBI_ART = {
   eyeRx: 7,
   eyeRy: 10,
   mouth: { x: 85, y: 89 },
+  /**
+   * The deep-sleep mouth: a small oval, a little open.
+   *
+   * Drawn at the *middle* of the breath rather than at either end, because
+   * `prefers-reduced-motion` stops the animation and leaves exactly this on
+   * screen — it has to read as an open mouth standing still.
+   *
+   * 11.2 × 5.8 SVG units. ORBI is drawn at 148 CSS px across a 170-unit box on
+   * a desktop, so that is **9.7 × 5.0 px** on screen, and 5.8 × 3.0 px on a
+   * phone. Sized by looking at a 1:1 screenshot of the corner he occupies —
+   * the Phase 11 mouth was tuned by measurement, came out 3px tall, and was
+   * invisible at 100% zoom on a real screen.
+   */
+  sleepMouthRx: 5.6,
+  sleepMouthRy: 2.9,
   /** Pointing angles, degrees. Negative swings the right arm outward. */
   pointRightAngle: -88,
   pointLeftAngle: 88,
@@ -1418,8 +1453,10 @@ export const ORBI_DEBUG = false
  *   ?orbi-audio-debug=1      sound-test buttons in the HUD
  *   ?orbi-sleep=deep         put ORBI straight to sleep, for visual tuning
  *   ?orbi-freeze=1           hold ORBI still so screenshots are deterministic
+ *   ?orbi-guide=1            guide destination buttons in the HUD
+ *   ?orbi-guide=work         ...and run that guided trip on load
  *
- * All six are gated on `NODE_ENV !== 'production'`, which Next inlines.
+ * All seven are gated on `NODE_ENV !== 'production'`, which Next inlines.
  */
 export const ORBI_DEV_PARAMS = {
   debug: 'orbi-debug',
@@ -1428,4 +1465,5 @@ export const ORBI_DEV_PARAMS = {
   audio: 'orbi-audio-debug',
   sleep: 'orbi-sleep',
   freeze: 'orbi-freeze',
+  guide: 'orbi-guide',
 } as const

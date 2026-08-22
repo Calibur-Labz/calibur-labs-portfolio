@@ -31,6 +31,23 @@ export type { OrbiEasterApi, OrbiEasterSnapshot } from './useOrbiEasterEggs'
 export { useOrbiAudio } from './useOrbiAudio'
 export type { OrbiAudioApi } from './useOrbiAudio'
 export { default as OrbiSoundToggle } from './OrbiSoundToggle'
+export { default as OrbiGuideControl } from './OrbiGuideControl'
+export { default as OrbiGuideMenu } from './OrbiGuideMenu'
+export { useOrbiGuideMode } from './useOrbiGuideMode'
+export type { OrbiGuideApi, OrbiGuideSnapshot } from './useOrbiGuideMode'
+export {
+  ORBI_GUIDE,
+  ORBI_GUIDE_ITEMS,
+  ORBI_GUIDE_MESSAGES,
+  ORBI_GUIDE_SIDES,
+  guidePanelSize,
+} from './orbiGuideConfig'
+export type {
+  OrbiGuideItem,
+  OrbiGuidePhase,
+  OrbiGuidePlacement,
+  OrbiGuideSide,
+} from './orbiGuideConfig'
 export {
   createOrbiAudioEngine,
   readAudioPreference,

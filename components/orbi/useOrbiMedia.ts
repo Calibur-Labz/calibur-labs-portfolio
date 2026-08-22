@@ -12,6 +12,7 @@ import {
   type OrbiEasterEgg,
   type OrbiPlacement,
 } from './orbiConfig'
+import { ORBI_GUIDE_ITEMS } from './orbiGuideConfig'
 
 /**
  * Media-query state without hydration warnings.
@@ -134,6 +135,18 @@ export function useOrbiAudioDebug(): boolean {
 export function useOrbiSleepRequest(): boolean {
   const value = useDevParam(ORBI_DEV_PARAMS.sleep)
   return isDev() && value === 'deep'
+}
+
+/**
+ * `?orbi-guide=1` — the guide destination buttons in the HUD.
+ * `?orbi-guide=work` — ...and run that guided trip once ORBI has settled, so a
+ * destination's arrival can be watched without five clicks each time. Dev only.
+ */
+export function useOrbiGuideRequest(): { tools: boolean; target: string | null } {
+  const value = useDevParam(ORBI_DEV_PARAMS.guide)
+  if (!isDev() || value === null) return { tools: false, target: null }
+  const known = ORBI_GUIDE_ITEMS.some((item) => item.id === value)
+  return { tools: true, target: known ? value : null }
 }
 
 /** Inlined by Next, so every dev switch above vanishes from a production build. */

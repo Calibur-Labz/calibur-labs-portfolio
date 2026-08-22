@@ -88,6 +88,20 @@ export function SoundOffIcon(props: IconProps) {
   )
 }
 
+/**
+ * ORBI's guide control. A compass, not a chat bubble: guide mode takes you
+ * somewhere, it does not talk to you. Feather weight, and the needle reads as
+ * a needle at 16px, which a compass rose does not.
+ */
+export function CompassIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15.4 8.6-2 4.8-4.8 2 2-4.8 4.8-2Z" />
+    </Base>
+  )
+}
+
 export function LinkedInIcon(props: IconProps) {
   return (
     <svg

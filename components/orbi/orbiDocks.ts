@@ -19,6 +19,7 @@ import {
   type OrbiCinematicSide,
   type OrbiDock,
 } from './orbiConfig'
+import type { OrbiGuideSide } from './orbiGuideConfig'
 
 export interface OrbiRect {
   left: number
@@ -483,4 +484,193 @@ export function visibleFraction(rect: OrbiRect, viewport: OrbiViewport): number 
       bottom: viewport.height,
     }) / own
   )
+}
+
+/* ── Guide panel ───────────────────────────────────────────────────────── */
+
+export interface OrbiGuideSpot {
+  side: OrbiGuideSide
+  rect: OrbiRect
+  /** Worst overlap with a registered region, as a fraction of the panel. */
+  overlap: number
+  /** Nothing registered is underneath. False means this was the least bad. */
+  clear: boolean
+  /** What is underneath, when `clear` is false. */
+  blocker: string | null
+}
+
+export interface OrbiGuideGeometry {
+  gap: number
+  margin: number
+  /** A panel covering a registered control by more than this is unusable. */
+  unsafeOverlap: number
+}
+
+/**
+ * Where the guide panel opens.
+ *
+ * Two rounds, and the order matters:
+ *
+ *  1. A placement that is inside the viewport **and** clear of everything
+ *     registered. All four sides are tried before settling, so "prefer a safe
+ *     alternate side" is exhausted first.
+ *  2. Failing that, the placement inside the viewport with the least weighted
+ *     overlap, flagged `clear: false`.
+ *
+ * Round two exists because the alternative is worse, not because covering a
+ * control is fine. On a narrow phone every side but one leaves the screen, and
+ * the hero's own call-to-action sits exactly where the menu wants to be — so
+ * the real choice is between a 200px panel over one button for as long as the
+ * menu is open, or the full-width sheet, which covers strictly more. Returning
+ * `null` here means *nothing fits on screen at all*, and only then is the
+ * sheet the right answer.
+ *
+ * `prefer` comes from ORBI's dock, so the panel opens into the open half of
+ * the screen rather than into the corner he is sitting in.
+ */
+export function chooseGuidePlacement(
+  orbi: OrbiRect,
+  size: { width: number; height: number },
+  regions: OrbiRegion[],
+  viewport: OrbiViewport,
+  prefer: readonly OrbiGuideSide[],
+  geometry: OrbiGuideGeometry,
+): OrbiGuideSpot | null {
+  const { gap, margin, unsafeOverlap } = geometry
+  const own = size.width * size.height || 1
+
+  /*
+   * A panel beside ORBI is centred on him where there is room, and slid up (or
+   * down) where there is not.
+   *
+   * Without this, a side placement is only ever viable for a *mid* dock: the
+   * panel is taller than ORBI, so centring it on a robot 30px off the bottom
+   * of the screen puts half of it below the fold and the candidate is thrown
+   * away. Which would leave the default dock with exactly one usable side and
+   * make "prefer a safe alternate side" an empty promise.
+   */
+  const usableTop = viewport.insetTop + margin
+  const usableBottom = viewport.height - viewport.insetBottom - margin
+  const centred = (orbi.top + orbi.bottom) / 2 - size.height / 2
+  const beside = Math.min(
+    Math.max(centred, usableTop),
+    Math.max(usableTop, usableBottom - size.height),
+  )
+
+  const place = (side: OrbiGuideSide): OrbiRect => {
+    let left: number
+    let top: number
+
+    switch (side) {
+      case 'above-right':
+        left = orbi.right - size.width
+        top = orbi.top - gap - size.height
+        break
+      case 'above-left':
+        left = orbi.left
+        top = orbi.top - gap - size.height
+        break
+      case 'left':
+        left = orbi.left - gap - size.width
+        top = beside
+        break
+      case 'right':
+      default:
+        left = orbi.right + gap
+        top = beside
+        break
+    }
+
+    return { left, top, right: left + size.width, bottom: top + size.height }
+  }
+
+  let clear: OrbiGuideSpot | null = null
+  let clearScore = Number.POSITIVE_INFINITY
+  let fallback: OrbiGuideSpot | null = null
+  let fallbackScore = Number.POSITIVE_INFINITY
+
+  prefer.forEach((side, index) => {
+    const rect = place(side)
+
+    // Must sit entirely inside the usable viewport. A menu with an option
+    // half off the screen is not a menu, so this one really is disqualifying.
+    if (
+      rect.left < viewport.insetLeft + margin ||
+      rect.right > viewport.width - viewport.insetRight - margin ||
+      rect.top < viewport.insetTop + margin ||
+      rect.bottom > viewport.height - viewport.insetBottom - margin
+    ) {
+      return
+    }
+
+    let overlap = 0
+    let blocker: string | null = null
+    let score = index * 0.1
+    for (const region of regions) {
+      const ratio = intersectionArea(rect, region.rect) / own
+      if (ratio > overlap) {
+        overlap = ratio
+        blocker = region.label
+      }
+      score += ratio * region.weight
+    }
+
+    if (overlap <= unsafeOverlap) {
+      if (score < clearScore) {
+        clearScore = score
+        clear = { side, rect, overlap, clear: true, blocker: null }
+      }
+      return
+    }
+
+    if (score < fallbackScore) {
+      fallbackScore = score
+      fallback = { side, rect, overlap, clear: false, blocker }
+    }
+  })
+
+  return clear ?? fallback
+}
+
+/**
+ * The fallback: a compact sheet on ORBI's side of the screen, sitting in the
+ * space above him. Deliberately not full-screen — ORBI has to stay visible, or
+ * the panel stops reading as something he is holding out.
+ *
+ * It is allowed to be shorter than the panel wants to be; the list scrolls
+ * inside it. Only when there is genuinely no room above him does it take the
+ * whole usable height.
+ */
+export function guideSheetRect(
+  orbi: OrbiRect,
+  size: { width: number; height: number },
+  viewport: OrbiViewport,
+  geometry: OrbiGuideGeometry & { maxWidth: number; minHeight: number },
+): OrbiRect {
+  const { gap, margin, maxWidth, minHeight } = geometry
+
+  const usableLeft = viewport.insetLeft + margin
+  const usableRight = viewport.width - viewport.insetRight - margin
+  const usableTop = viewport.insetTop + margin
+  const usableBottom = viewport.height - viewport.insetBottom - margin
+
+  const width = Math.min(maxWidth, Math.max(0, usableRight - usableLeft))
+  // Aligned to whichever edge ORBI is nearer, so the sheet reads as his.
+  const nearRight =
+    viewport.width - (orbi.left + orbi.right) / 2 < (orbi.left + orbi.right) / 2
+  const left = nearRight ? usableRight - width : usableLeft
+
+  const above = orbi.top - gap
+  const room = above - usableTop
+
+  if (room >= minHeight) {
+    const height = Math.min(size.height, room)
+    return { left, top: above - height, right: left + width, bottom: above }
+  }
+
+  // Nothing worth calling a sheet fits above him — take the usable height and
+  // let the list scroll. Rare enough that it only happens on a phone turned
+  // sideways.
+  const height = Math.min(size.height, usableBottom - usableTop)
+  return { left, top: usableTop, right: left + width, bottom: usableTop + height }
 }

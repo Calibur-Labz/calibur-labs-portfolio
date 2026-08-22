@@ -285,22 +285,40 @@ export default function OrbiFace({
         />
 
         {/*
-          Deep sleep only: a small upward curve — ᴗ — that breathes.
+          Deep sleep only: a small oval, slightly open, that breathes.
+
+          It used to be an upward curve — ᴗ — and that was simply wrong. Paired
+          with two shut eyes a curve does not read as a sleeping robot, it
+          reads as a *smiling* one: the same shape the happy face uses, only
+          smaller. A mouth left a little open says asleep on its own, and says
+          it instantly.
+
+          Filled rather than stroked, which is what makes it survive being this
+          small: an outline three pixels tall is a smudge, and a non-uniform
+          scale would thicken that outline vertically as it breathes. The eyes
+          are filled shapes too, so this stays inside the face's own vocabulary
+          — and it is dimmer than they are, because a mouth that outshines the
+          eyes stops being a mouth.
 
           The snore is a CSS animation on this one node, not a timeline and not
-          a state machine: three and a half seconds of open-a-little, pause,
-          close, forever, owned entirely by the stylesheet. It costs no timer,
+          a state machine: three and a half seconds of open-a-little, hold,
+          relax, forever, owned entirely by the stylesheet. It costs no timer,
           no render and no frame budget, and a background tab stops compositing
           it on its own. `prefers-reduced-motion` disables it through the global
-          reset in `globals.css`, which leaves the mouth simply *there* — which
-          is exactly what that mode should get.
+          reset in `globals.css`, which leaves the oval simply *there* — which
+          is why the drawn size is the middle of the breath rather than either
+          end of it: the still version still has to look like an open mouth.
         */}
-        <path
+        <ellipse
           className={asleep ? 'orbi-snore' : undefined}
-          d={`M ${mouth.x - 7} ${mouth.y - 1} Q ${mouth.x} ${mouth.y + 8} ${mouth.x + 7} ${mouth.y - 1}`}
-          strokeWidth={2.6}
+          cx={mouth.x}
+          cy={mouth.y + 1}
+          rx={ORBI_ART.sleepMouthRx}
+          ry={ORBI_ART.sleepMouthRy}
+          fill={ORBI_COLORS.accentSoft}
+          stroke="none"
           style={{
-            opacity: asleep ? 0.9 : 0,
+            opacity: asleep ? 0.82 : 0,
             transition: 'opacity 420ms ease',
             transformBox: 'fill-box',
             transformOrigin: 'center',

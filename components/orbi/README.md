@@ -9,6 +9,8 @@ The website companion.
 **Phase 5** — environmental awareness: docking, safe zones, themes.
 **Phase 6** — contact form companion.
 **Phase 7** — cinematic movement.
+**Phase 8** — hidden reactions. **Phase 9** — sound. **Phase 11** — sleeping.
+**Phase 12** — guide mode: the visitor can ask to be shown around.
 
 `ORBI_PRIORITY.cinematic` is no longer reserved; Phase 7 uses it.
 
@@ -45,6 +47,10 @@ matter more than the reactions. When in doubt, less movement.
 | `orbiAudio.test.mts` | Its tests — a fake Web Audio graph and a hand-turned clock. |
 | `useOrbiAudio.ts` | Preference, unlocking, visibility. Keeps *wanted* and *allowed* apart. |
 | `OrbiSoundToggle.tsx` | The 34px control. Two states, no settings panel. |
+| `useOrbiGuideMode.ts` | Guide mode's lifecycle: open, choose, travel, arrive, cancel. |
+| `OrbiGuideControl.tsx` | The compass beside him. One button, and the only way in. |
+| `OrbiGuideMenu.tsx` | The panel. Presentation only — five buttons and a question. |
+| `orbiGuideConfig.ts` | The destinations, the timings, the panel's geometry. |
 | `OrbiSleepParticles.tsx` | The sleeping Z's. Two spans, CSS-driven, mounted only while asleep. |
 | `orbiEasterDetect.ts` | The arithmetic behind them. Pure, allocation-free, unit-tested. |
 | `orbiEasterDetect.test.mts` | Those unit tests. `node --test` — see the header for how to run them. |
@@ -114,8 +120,15 @@ rAF, so reading its flags from ours reports the section ORBI just *left*.
 | `about` | thinking | look-left, held | — |
 | `services` | happy | point-left → rests facing the cards | "Check these out 👀" (2s) |
 | `work` | happy | excited hop, eyes brighten | — |
+| `testimonials` | happy | small nod, then keeps facing the quotes | — |
 | `contact` | happy | wave | "Let's build something!" (2.8s) |
 | footer | — | slides to the right-edge perch | — |
+
+`testimonials` was added by Phase 12. It is an ordinary section beat like the
+rest — it fires on scrolling past, not only when guide mode takes you there —
+and it is deliberately the quietest one on the page: this is where people
+decide whether to trust the company, so ORBI acknowledges it and then gets out
+of the way.
 
 ## Personality (Phase 3)
 
@@ -584,7 +597,7 @@ timer — the whole thing is one flight variant, one CSS class and two spans.
 | --- | --- |
 | **Pose** | ~3.8px of settle and a constant ~6° lean, from the `asleep` flight variant's own pose table. One layer, one writer, and no repositioning while he is under. |
 | **Breathing** | Expand → settle → hold, ~3.5s a cycle. Not a human breath: a power system idling. |
-| **Mouth** | A 13×7px `ᴗ` inside the visor that only exists in deep sleep, snoring on a 3.6s cycle between `scaleY(0.72)` at 0.7 opacity and `scaleY(1.35)` at 0.88. Deliberately out of phase with the body, so the two drift rather than march. |
+| **Mouth** | A small oval, a little open, that only exists in deep sleep — 9.7 × 5.0px drawn, breathing between 9.6 × 4.2px and 11.5 × 7.7px on a 3.6s cycle. Filled rather than stroked, and dimmer than the eyes. Deliberately out of phase with the body, so the two drift rather than march. |
 | **Z's** | Two slots, one glyph each, staggered 3.25s inside a 6.5s cycle: a Z is in the air about 80% of the time and **never two at once**. 16px and 22px, 34–38px of rise, peak opacity 0.92. |
 
 These numbers are larger than they look on paper, and deliberately so: an
@@ -593,6 +606,42 @@ glyph at 0.5 opacity and a 3px-tall mouth — both technically animating and
 both invisible at 100% zoom on a real screen. The rule that replaced it: judge
 it from a 1:1 screenshot of the corner ORBI actually occupies, never a
 magnified crop.
+
+### Why the sleeping mouth is an oval and not a curve
+
+It shipped as an upward curve — `ᴗ` — and that was the wrong shape for the
+job. Paired with two shut eyes a curve does not read as a sleeping robot, it
+reads as a *smiling* one: it is the same shape the happy face uses, only
+smaller. A mouth left slightly open says asleep on its own, and says it
+instantly.
+
+The oval is **filled** rather than stroked, which is what lets it survive being
+this small — an outline three pixels tall is a smudge, and the breath's
+non-uniform scale would thicken that outline vertically as it opened. The eyes
+are filled shapes too, so it stays inside the face's own vocabulary, and it
+sits a shade dimmer than they do: a mouth that outshines the eyes stops being
+a mouth.
+
+It is **drawn at the middle of the breath** rather than at either end, because
+`prefers-reduced-motion` stops the animation and leaves exactly the drawn shape
+on screen. The still version still has to look like an open mouth.
+
+And it never closes all the way — the breath bottoms out at 0.66 of the drawn
+height rather than at nothing. An oval that collapses to a line flickers at
+this size, and a robot whose mouth vanishes twice a cycle looks broken rather
+than asleep.
+
+| | rest | open |
+| --- | --- | --- |
+| Desktop (148px ORBI) | 9.6 × 4.2px | 11.5 × 7.7px |
+| Phone (88px ORBI) | 5.6 × 2.1px | 6.6 × 4.1px |
+| Reduced motion | 9.7 × 5.0px, held | — |
+
+The two cycles are left to drift past each other rather than being locked
+together: the mouth opens about a third of the way through its 3.6s, and has
+relaxed by the time a Z is drifting away. Synchronising them properly would
+cost a timer neither of them currently needs, and would read as a mechanism
+rather than as breathing.
 
 ### Why there is no particle engine
 
@@ -735,13 +784,217 @@ so no dock can push it off the edge of the viewport.
 | tab shown | context resumes; nothing missed is replayed |
 | ORBI unmounted | cue stopped, nodes released, context closed |
 
+## Guide mode
+
+Phase 12, and the only thing on this page ORBI does **because he was asked
+to**. Everything else he does is a reaction; this is a service.
+
+A compass beside him opens a small panel of five places on the site. Pick one
+and the page goes there — and the section that arrives reacts exactly as it
+always has.
+
+```
+        ┌──────────────────────────┐
+        │ What can I show you?     │
+        │   Our Services         › │
+        │   Our Work             › │
+        │   Client Stories       › │
+        │   About Calibur        › │
+        │   Let's Talk           › │
+        │ ──────────────────────── │
+        │   Close                  │
+        └────────────────────┐ ┌───┘
+                             ORBI
+```
+
+### The five, and where they actually go
+
+Labels are what a guide would say; ids are what the page is called. The two are
+allowed to differ, and nothing renames on the other's account.
+
+| the visitor reads | it goes to | on arrival |
+| --- | --- | --- |
+| Our Services | `#services` | the existing point-at-the-cards beat |
+| Our Work | `#work` (the projects grid) | the existing Phase 7 projects cinematic, cooldowns permitting |
+| Client Stories | `#testimonials` (headed "Kind Words") | a nod, happy eyes, and he keeps facing the quotes |
+| About Calibur | `#about` | the existing thoughtful look |
+| Let's Talk | `#contact` | the existing wave and greeting; **no field is focused** |
+
+Two notes on that table. `#testimonials` is new — the section had no id, so it
+was given one and nothing else about it changed. And **How We Work is not on
+the menu**: `#precision` keeps its own section behaviour and its own cinematic
+on ordinary scrolling, it is simply not somewhere ORBI offers to take you.
+
+Screen readers hear "Go to Client Stories" rather than "Client Stories" — the
+visible label names the place, the accessible name says what pressing it does,
+and both are built from the same string so they cannot drift apart.
+
+No text input, no conversation, nothing remembered between visits. It is five
+buttons and a scroll.
+
+### The control
+
+One new button, and deliberately a **sibling of the sound control** rather than
+a new kind of thing: the same 34px glass disc (40px on a phone) inside a 44px
+touch target, the same resting opacity, the same inward side, stacked into one
+small column with the guide on top. Two controls that look like one system read
+as ORBI's; two that merely coexist read as clutter.
+
+A compass, not a speech bubble — guide mode takes you somewhere, and nothing
+here is a chat.
+
+**Clicking ORBI is untouched.** Guide mode never consumes an activation on the
+robot, which is the whole reason the click line, the head tap and the five-click
+dizzy beat all still work: the counter in `useOrbiEasterEggs` only ever sees
+taps on ORBI himself, and neither control is on him.
+
+Once per visit, a few seconds after he settles, the control gives three slow
+pulses and then stops for good. No bubble, no automatic opening, and nothing
+stored — the flag lives in a ref and dies with the page.
+
+### The lifecycle
+
+```
+closed → opening → choosing → navigating → arriving → closed
+```
+
+| phase | what happens |
+| --- | --- |
+| `opening` | any cinematic or hidden reaction stands down, ORBI wakes if he was under, goes happy, nods once and looks at where the panel is about to be |
+| `choosing` | the panel is up. **The claim is handed back** — the menu being open is not a reason to own ORBI |
+| `navigating` | one short line, a beat, then `scrollIntoView` |
+| `arriving` | the claim is released, then the destination's own section beat is fired |
+
+Opening takes **330ms** end to end (a 140ms beat, a 190ms panel). That is the
+budget on purpose: this is a control responding, not a performance.
+
+### One travel owner
+
+Guide mode **never animates ORBI across the page.** It scrolls the document and
+then gets out of the way, so the thing that performs on arrival is the existing
+section behaviour — including, where the Phase 7 cooldowns allow it, that
+section's own cinematic. `work` gets the excited scan over the project cards;
+`testimonials` gets its nod; `contact` gets the wave and its greeting.
+
+Arrival calls the ordinary section handler with `force`, which skips exactly
+three guards and no others: the "same section as last time" memo, the re-fire
+cooldown, and the "don't talk over a live bubble" check. All three exist to
+stop ORBI reacting to scrolling nobody asked about, and none of them should be
+able to swallow the one reaction somebody pressed a button for.
+
+Only one bubble per trip. The acknowledgement — `Let's go 👀` · `This way.` ·
+`Right here.`, walked in order — is cleared in the same tick the destination's
+own line goes up.
+
+### Where the panel opens
+
+Anchored to ORBI's box, so it travels with him from dock to dock for free, and
+scored against **the same registered regions the docking system uses**.
+
+| dock | order tried |
+| --- | --- |
+| `bottom-right` | above-right · above-left · left · right |
+| `bottom-left` | above-left · above-right · right · left |
+| `mid-right` | left · above-right · above-left · right |
+| `mid-left` | right · above-left · above-right · left |
+
+Leaving the viewport is disqualifying: a menu with an option half off the
+screen is not a menu. Covering something registered by more than 6% of the
+panel's own area drops a candidate to a second round, and every side is tried
+for a clear spot before any of them is settled for.
+
+Round two matters because on a narrow phone the choice is not between covering
+a control and not covering one. Three sides leave the screen outright, the
+hero's own call-to-action sits exactly where the fourth wants to be, and the
+alternative — the full-width sheet — covers **strictly more**. So the least-bad
+placement wins, the HUD names what it is sitting on, and the panel closes on
+the next tap anywhere. A side placement also slides into the viewport rather
+than being centred on ORBI, which is what gives a bottom dock a genuine second
+option instead of one.
+
+Only when nothing fits on screen at all does the panel become a compact sheet
+on ORBI's side, with the list scrolling inside it. Never full-screen; he has to
+stay visible.
+
+The panel is **not** a registered region itself, which is what stops the
+oscillation the docking system would otherwise be prone to — menu opens, ORBI
+moves, panel moves, ORBI re-evaluates. It re-decides its side when the dock or
+the viewport changes, and never on scroll.
+
+Its height is derived from a table rather than measured, because placement has
+to be decided before the panel exists. `guidePanelSize` therefore has to match
+the markup to the pixel: derive it short and the menu is placed off the top of
+a small screen. There is a test.
+
+### Priority
+
+`ORBI_PRIORITY.guide` is **62** — above `interaction`, because the visitor did
+not merely touch ORBI, they asked him to take them somewhere, and a poke must
+not derail a trip already underway.
+
+Safety still wins, but not through that number. Like the cinematic, guide mode
+cancels *itself*; standing down is always better than being paused halfway. And
+the claim is held in two short bursts — the opening beat, and the trip — never
+while the menu simply sits open, which is what keeps a blink, a hover, a poke
+and the dizzy beat all working while someone reads five words.
+
+### Standing down
+
+The visitor is always in control. Everything below cancels; nothing pauses.
+
+| | |
+| --- | --- |
+| a wheel push past 40px, or any swipe | `user-scroll` |
+| a scroll key, or Escape | `user-scroll` / `escape` |
+| the navigation menu opening | `nav-open` |
+| a modal opening | `modal-open` |
+| the contact form being touched | `form-companion` |
+| the tab going to the background | `tab-hidden` |
+| a resize or an orientation change mid-trip | `resize` |
+
+The menu itself also closes on a selection, on `Close`, on Escape, and on a
+`pointerdown` anywhere else — but **not** merely because the pointer left it. A
+cursor drifting off a menu is not a decision.
+
+A cancelled trip takes its own acknowledgement with it and nothing else, and
+ORBI is left exactly as he was found.
+
+### Contact
+
+Guide mode releases *before* the Contact section's own greeting runs, so the
+companion — when the visitor eventually touches a field — takes over from an
+idle ORBI rather than fighting one. **No field is ever focused**, which is also
+what keeps a phone keyboard shut: when to start typing is the visitor's
+decision, not ORBI's.
+
+### Mobile, keyboard, screen readers, reduced motion
+
+| | |
+| --- | --- |
+| **Phone** | the floating panel still fits at 320×568 — 200px wide, 44px rows. The sheet is the fallback below that, e.g. a phone turned sideways |
+| **Keyboard** | Tab reaches the control, Enter or Space opens it, focus lands on the first option, ↑/↓ walk the list, Enter selects, Escape closes and hands focus back |
+| **Focus** | never trapped. The panel is a convenience you can tab straight past, and focus only returns to the control if it was inside the panel to begin with |
+| **Screen readers** | a labelled `role="dialog"` — "ORBI website guide" — containing ordinary buttons with the names you can see. ORBI's decorative movement stays unannounced, as it always has |
+| **Reduced motion** | the whole feature works. The panel fades instead of popping, and the page jumps rather than scrolls smoothly — `behavior` has to be passed explicitly, because an option beats the CSS property. The destination still reacts |
+
+### What it costs when closed
+
+Nothing. The panel is not rendered at all, no listener is registered, and no
+timer runs. The trip's listeners — scroll, wheel, touchmove, keydown, resize —
+are attached when the page starts moving and torn down the moment it stops,
+however it stops. There is no polling anywhere: arrival is a scroll-settle
+timer with a 2.6s ceiling, which is the same shape the environment already uses
+for scroll-stop.
+
 ## Development switches
 
-Dev only — all six gated on `NODE_ENV`, which Next inlines:
+Dev only — all seven gated on `NODE_ENV`, which Next inlines:
 
 | | |
 | --- | --- |
 | `?orbi-debug` | the HUD |
+| `?orbi-guide=1` | guide destinations as buttons in the HUD |
+| `?orbi-guide=testimonials` | ...and run that guided trip on load |
 | `?orbi-cinematic=precision` | run one on load, for visual tuning |
 | `?orbi-easter=dizzyClick` | run one hidden reaction on demand, likewise |
 | `?orbi-audio-debug=1` | sound-test buttons in the HUD, one per cue |
@@ -802,7 +1055,7 @@ One claim at a time (`orbiArbiter.ts`). A request lands only if it is at least
 the level in force:
 
 ```
-entrance 70 > interaction 60 > formResult 58 > formSubmitting 55
+entrance 70 > guide 62 > interaction 60 > formResult 58 > formSubmitting 55
   > cinematic 50 > safety 45 > easterEgg 40 > environment 35
   > formFocus 32 > section 30 > fastScroll 20 > ambient 15
   > gaze 10 > idle 0

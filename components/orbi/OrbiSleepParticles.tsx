@@ -18,11 +18,26 @@ import { ORBI_COLORS, ORBI_SLEEP } from './orbiConfig'
  * declared, which leaves the mouth simply present and the Z simply still.
  */
 const SLEEP_KEYFRAMES = `
+/*
+ * The snore: a small oval opening and relaxing, never closing all the way.
+ *
+ * Both axes move, but not equally — a mouth opens taller than it does wider,
+ * and scaling only the height reads as a shape being stretched rather than a
+ * mouth opening. It bottoms out at 0.66 of the drawn height rather than at
+ * nothing: an oval that collapses to a line flickers at this size, and a robot
+ * whose mouth vanishes twice a cycle looks broken rather than asleep.
+ *
+ * Timed to fall roughly with the Z's without being locked to them — it opens
+ * around a third of the way in, holds, and has relaxed by the time a Z is
+ * drifting away. Two independent cycles that drift past each other read as
+ * organic; two synchronised ones read as a mechanism, and syncing them would
+ * cost a timer neither of them currently needs.
+ */
 @keyframes orbi-snore {
-  0%, 100% { transform: scaleY(0.72); opacity: 0.7; }
-  38% { transform: scaleY(1.35); opacity: 0.88; }
-  56% { transform: scaleY(1.28); opacity: 0.85; }
-  82% { transform: scaleY(0.72); opacity: 0.7; }
+  0%, 100% { transform: scale(0.96, 0.66); opacity: 0.72; }
+  34% { transform: scale(1.12, 1.30); opacity: 0.94; }
+  52% { transform: scale(1.08, 1.18); opacity: 0.9; }
+  80% { transform: scale(0.96, 0.66); opacity: 0.72; }
 }
 .orbi-snore { animation: orbi-snore 3.6s ease-in-out infinite; }
 
