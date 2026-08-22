@@ -582,18 +582,33 @@ timer — the whole thing is one flight variant, one CSS class and two spans.
 
 | | |
 | --- | --- |
-| **Pose** | 1.6px of settle and a constant ~4° lean, from the `asleep` flight variant's own pose table. One layer, one writer, and no repositioning while he is under. |
+| **Pose** | ~3.8px of settle and a constant ~6° lean, from the `asleep` flight variant's own pose table. One layer, one writer, and no repositioning while he is under. |
 | **Breathing** | Expand → settle → hold, ~3.5s a cycle. Not a human breath: a power system idling. |
-| **Mouth** | A small `ᴗ` inside the visor that only exists in deep sleep, snoring on a 3.6s CSS cycle at 0.38→0.52 opacity. Deliberately out of phase with the body, so the two drift rather than march. |
-| **Z's** | Two slots, one glyph each, staggered 3.7s inside a 7.4s cycle: a Z is in the air about 55% of the time and **never two at once**. 20–24px of rise, 7–10px of drift, peak opacity 0.5. |
+| **Mouth** | A 13×7px `ᴗ` inside the visor that only exists in deep sleep, snoring on a 3.6s cycle between `scaleY(0.72)` at 0.7 opacity and `scaleY(1.35)` at 0.88. Deliberately out of phase with the body, so the two drift rather than march. |
+| **Z's** | Two slots, one glyph each, staggered 3.25s inside a 6.5s cycle: a Z is in the air about 80% of the time and **never two at once**. 16px and 22px, 34–38px of rise, peak opacity 0.92. |
+
+These numbers are larger than they look on paper, and deliberately so: an
+earlier pass tuned by measurement rather than by looking, and produced a 9px
+glyph at 0.5 opacity and a 3px-tall mouth — both technically animating and
+both invisible at 100% zoom on a real screen. The rule that replaced it: judge
+it from a 1:1 screenshot of the corner ORBI actually occupies, never a
+magnified crop.
 
 ### Why there is no particle engine
 
 The Z's are two `<span>`s with one CSS animation and a stagger. No pool, no
 spawner, no `requestAnimationFrame`, no React state ticking, no timers — and
 because it is CSS, a background tab stops compositing them without anyone
-having to remember to pause anything. They mount only during deep sleep, so an
-awake ORBI costs nothing at all.
+having to remember to pause anything. Only the glyphs mount during deep sleep,
+so an awake ORBI costs nothing but one static `<style>` tag.
+
+**Both keyframes travel with ORBI**, in that tag, rather than living in
+`globals.css`. Keyframes cannot be inline styles, and an animation of his that
+depends on the *application's* stylesheet is an invisible coupling: drop ORBI
+into a page without those rules — or serve a stale CSS chunk, which a
+long-running dev server will happily do — and he looks broken with nothing
+reporting it. That is not hypothetical; it is how this phase was first shipped
+and rejected.
 
 They live in the **dock** layer: they follow him from dock to dock and out to
 the footer perch, but sit above the tilt, the gestures and the flight, so they
@@ -620,12 +635,13 @@ touched while asleep *is* the poke, and one reaction to it is enough.
 | Pose | 0.76px settle, ~1.2° lean | held, no transition loop |
 | Breathing | on, smaller | **off** (`createFlight` is inert) |
 | Mouth | on | on, **not animated** |
-| Z's | **one** slot, 28% of the time | **one static glyph**, no float |
+| Z's | **one** slot with a shorter gap, ~57% of the time | **one static glyph**, no float |
 
-Under `prefers-reduced-motion` the global reset in `globals.css` disables both
-keyframe animations, which is why the component renders the glyph without its
-class and at a resting opacity: the result is a still, clearly-asleep robot
-rather than an invisible one.
+Under `prefers-reduced-motion` the global reset in `globals.css` disables every
+animation on the page — including these two, wherever they were declared —
+which is why the component renders a single glyph without its class and at a
+resting opacity: the result is a still, clearly-asleep robot rather than an
+invisible one. Measured: 0 style writes/s and 0 renders/s while he sleeps.
 
 ## Sound
 

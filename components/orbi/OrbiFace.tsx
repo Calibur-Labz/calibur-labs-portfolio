@@ -297,10 +297,10 @@ export default function OrbiFace({
         */}
         <path
           className={asleep ? 'orbi-snore' : undefined}
-          d={`M ${mouth.x - 4.5} ${mouth.y - 0.5} Q ${mouth.x} ${mouth.y + 4.5} ${mouth.x + 4.5} ${mouth.y - 0.5}`}
-          strokeWidth={2}
+          d={`M ${mouth.x - 7} ${mouth.y - 1} Q ${mouth.x} ${mouth.y + 8} ${mouth.x + 7} ${mouth.y - 1}`}
+          strokeWidth={2.6}
           style={{
-            opacity: asleep ? 0.45 : 0,
+            opacity: asleep ? 0.9 : 0,
             transition: 'opacity 420ms ease',
             transformBox: 'fill-box',
             transformOrigin: 'center',

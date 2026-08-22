@@ -4,6 +4,46 @@ import { useEffect, useState } from 'react'
 import { ORBI_COLORS, ORBI_SLEEP } from './orbiConfig'
 
 /**
+ * The two sleep animations, carried by ORBI himself.
+ *
+ * They used to live in `globals.css`, and that turned out to be a real
+ * fragility rather than a tidy one: ORBI is a drop-in component, so an
+ * animation of his that depends on the *application's* stylesheet is an
+ * invisible coupling — and a stale or missing stylesheet makes him look
+ * broken in a way nothing reports. Keyframes cannot be expressed in inline
+ * styles, so they travel with him instead, in one static tag.
+ *
+ * `prefers-reduced-motion` still disables them: the global reset in
+ * `globals.css` collapses every animation on the page, wherever it was
+ * declared, which leaves the mouth simply present and the Z simply still.
+ */
+const SLEEP_KEYFRAMES = `
+@keyframes orbi-snore {
+  0%, 100% { transform: scaleY(0.72); opacity: 0.7; }
+  38% { transform: scaleY(1.35); opacity: 0.88; }
+  56% { transform: scaleY(1.28); opacity: 0.85; }
+  82% { transform: scaleY(0.72); opacity: 0.7; }
+}
+.orbi-snore { animation: orbi-snore 3.6s ease-in-out infinite; }
+
+@keyframes orbi-sleep-z {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.7); }
+  12% { opacity: 0.92; }
+  40% { opacity: 0.78; }
+  60%, 100% {
+    opacity: 0;
+    transform: translate(var(--orbi-z-drift, 6px), var(--orbi-z-rise, -20px)) scale(1.05);
+  }
+}
+.orbi-sleep-z {
+  animation-name: orbi-sleep-z;
+  animation-timing-function: cubic-bezier(0.33, 0.7, 0.4, 1);
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+`
+
+/**
  * ORBI — the Z's.
  *
  * Two glyphs, drifting up and away from the nearest screen edge, and nothing
@@ -55,15 +95,24 @@ export default function OrbiSleepParticles({
     return () => clearTimeout(id)
   }, [active])
 
-  if (!active && !lingering) return null
-
   const rise = quiet ? ORBI_SLEEP.riseMobile : ORBI_SLEEP.riseDesktop
   const drift = (quiet ? ORBI_SLEEP.driftMobile : ORBI_SLEEP.driftDesktop) *
     (side === 'left' ? -1 : 1)
-  // One glyph on a phone; two is already the maximum anywhere.
-  const glyphs = quiet ? [ORBI_SLEEP.glyphSmall] : [ORBI_SLEEP.glyphSmall, ORBI_SLEEP.glyphLarge]
+  // One glyph on a phone, and one when motion is reduced — where it does not
+  // float, so a second would just be clutter. Two is the maximum anywhere, and
+  // the stagger means only ever one of them is in the air.
+  const glyphs =
+    quiet || reducedMotion
+      ? [ORBI_SLEEP.glyphSmall]
+      : [ORBI_SLEEP.glyphSmall, ORBI_SLEEP.glyphLarge]
+  const gap = quiet ? ORBI_SLEEP.particleGapMobileMs : ORBI_SLEEP.particleGapMs
+
+  // The keyframes stay mounted; only the glyphs come and go.
+  if (!active && !lingering) return <style>{SLEEP_KEYFRAMES}</style>
 
   return (
+    <>
+    <style>{SLEEP_KEYFRAMES}</style>
     <div
       aria-hidden="true"
       style={{
@@ -88,7 +137,7 @@ export default function OrbiSleepParticles({
             ['--orbi-z-rise' as string]: `${-(rise + index * 4)}px`,
             ['--orbi-z-drift' as string]: `${drift * (1 + index * 0.5)}px`,
             animationDelay: `${(ORBI_SLEEP.particleDelayMs + index * ORBI_SLEEP.particleStaggerMs) / 1000}s`,
-            animationDuration: `${(ORBI_SLEEP.particleDurationMs + ORBI_SLEEP.particleGapMs) / 1000}s`,
+            animationDuration: `${(ORBI_SLEEP.particleDurationMs + gap) / 1000}s`,
             // Far enough apart that two in the air read as two Z's rather than
             // as the word "Zz" hanging over his head.
             left: `${index * (quiet ? 7 : 13) * (side === 'left' ? -1 : 1)}px`,
@@ -108,5 +157,6 @@ export default function OrbiSleepParticles({
         </span>
       ))}
     </div>
+    </>
   )
 }

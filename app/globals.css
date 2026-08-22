@@ -89,69 +89,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/*
- * ORBI asleep.
- *
- * Both of these are stylesheet-owned on purpose: a snoring mouth and two
- * drifting Z's should not cost a timer, a render or a frame callback, and a
- * background tab stops compositing them without anyone pausing anything. The
- * global reduced-motion reset further down disables both, which leaves a
- * closed-eyed robot with a small mouth — still unmistakably asleep.
- */
-@keyframes orbi-snore {
-  0%,
-  100% {
-    transform: scaleY(1);
-    opacity: 0.38;
-  }
-  38% {
-    transform: scaleY(1.4);
-    opacity: 0.52;
-  }
-  56% {
-    transform: scaleY(1.36);
-    opacity: 0.5;
-  }
-  82% {
-    transform: scaleY(1);
-    opacity: 0.38;
-  }
-}
-
-.orbi-snore {
-  animation: orbi-snore 3.6s ease-in-out infinite;
-}
-
-/*
- * The float takes the first 55% of the cycle; the rest is deliberately empty,
- * which is what turns two looping elements into an occasional Z rather than a
- * stream. Two slots, staggered, so at most one is usually in the air.
- */
-@keyframes orbi-sleep-z {
-  0% {
-    opacity: 0;
-    transform: translate(0, 0) scale(0.82);
-  }
-  4% {
-    opacity: 0.5;
-  }
-  18% {
-    opacity: 0.34;
-  }
-  30%,
-  100% {
-    opacity: 0;
-    transform: translate(var(--orbi-z-drift, 6px), var(--orbi-z-rise, -20px)) scale(1);
-  }
-}
-
-.orbi-sleep-z {
-  animation-name: orbi-sleep-z;
-  animation-timing-function: cubic-bezier(0.33, 0.7, 0.4, 1);
-  animation-iteration-count: infinite;
-  will-change: transform, opacity;
-}
-
 /* Button shimmer sweep */
 .btn-shimmer {
   position: relative;
@@ -333,6 +270,79 @@ h1, h2, h3, h4, h5, h6 {
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 96px;
+}
+
+/* ── Scrollbar — the cyan trace, running down the right edge ──────────────
+ *
+ * Two implementations of the same bar, deliberately not applied together.
+ * Chrome/Safari get the ::-webkit-scrollbar pseudo-elements below; Firefox
+ * gets the standard `scrollbar-*` properties in the @supports block at the
+ * end. Since Chrome 121 a `scrollbar-color` on the same element *disables*
+ * the pseudo-element styling entirely, so the standard properties are gated
+ * behind a feature query rather than declared alongside as a "fallback".
+ */
+
+/* Reserve the gutter so a page that grows past one screen doesn't jolt the
+   centered layouts sideways when the bar appears. */
+html {
+  scrollbar-gutter: stable;
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+/* The track reads as a seam between the page and the window, not a channel:
+   near-black, with the same hairline the panels use holding its left edge. */
+::-webkit-scrollbar-track {
+  background: #070B11;
+  border-left: 1px solid var(--hairline);
+}
+
+/* The thumb is painted inside a transparent border, which is what turns an
+   11px scrollbar into a 7px pill with breathing room on both sides. */
+::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: rgba(0, 183, 255, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(94, 233, 255, 0.18);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 183, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(94, 233, 255, 0.45);
+}
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--accent-hover);
+  box-shadow: inset 0 0 0 1px rgba(94, 233, 255, 0.7);
+}
+
+/* Where a vertical and horizontal bar meet — otherwise the browser paints
+   its own light grey square there. */
+::-webkit-scrollbar-corner {
+  background: #070B11;
+}
+
+/* Nested scrollers — the admin console's overflowing tables — get a slimmer
+   bar with no seam; inside a panel the hairline reads as a stray border. */
+.admin-main ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.admin-main ::-webkit-scrollbar-track {
+  background: transparent;
+  border-left: none;
+}
+
+/* Firefox and anything else without the pseudo-elements. Same colours, the
+   coarser control the standard properties allow. */
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 183, 255, 0.38) #070B11;
+  }
 }
 
 /* Buttons get a tactile press + travel into their hover glow */

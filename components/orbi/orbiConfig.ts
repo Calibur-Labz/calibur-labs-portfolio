@@ -518,9 +518,9 @@ export const ORBI_FLIGHT = {
    * as the other variants, so a phone gets a third of the lean for free.
    */
   sleepPoses: [
-    { x: 0, y: -12, rotation: -4.2, duration: 0.45, ease: 'sine.inOut' },
-    { x: 0.8, y: -2, rotation: -3.5, duration: 0.5, ease: 'sine.inOut' },
-    { x: 0.2, y: -7, rotation: -4, duration: 0.3, ease: 'sine.inOut' },
+    { x: 0, y: -24, rotation: -6.5, duration: 0.45, ease: 'sine.inOut' },
+    { x: 1.5, y: -4, rotation: -5.2, duration: 0.5, ease: 'sine.inOut' },
+    { x: 0.5, y: -14, rotation: -6, duration: 0.3, ease: 'sine.inOut' },
   ],
 
   /**
@@ -1042,35 +1042,42 @@ export const ORBI_SLEEP = {
    * cycle and hold invisible for the rest, so this is the *visible* life of a
    * Z and `particleGapMs` is the silence after it.
    */
-  particleDurationMs: 2200,
+  particleDurationMs: 2600,
   /**
    * Empty beat after a Z has faded, before that slot is used again. Long on
    * purpose: with two slots this is what decides whether sleep reads as the
    * occasional Z or as a stream. At these numbers there is a Z in the air
    * about six seconds in ten, and never two.
    */
-  particleGapMs: 5200,
+  particleGapMs: 3900,
   /** How far apart in time the two slots run. Half the cycle, so they alternate. */
-  particleStaggerMs: 3700,
+  particleStaggerMs: 3250,
+  /**
+   * A phone gets one slot rather than two, so its gap is shorter — otherwise a
+   * Z would only be there four seconds in ten, and a glance would miss it.
+   */
+  particleGapMobileMs: 2200,
   /** How far a Z travels up, px. The second slot goes a little further. */
-  riseDesktop: 20,
-  riseMobile: 13,
+  riseDesktop: 34,
+  riseMobile: 22,
   /** ...and sideways, away from the nearest screen edge. */
-  driftDesktop: 7,
-  driftMobile: 4,
+  driftDesktop: 10,
+  driftMobile: 6,
   /** Font size of the two glyphs, px. */
-  glyphSmall: 9,
-  glyphLarge: 13,
+  glyphSmall: 16,
+  glyphLarge: 22,
   /** Peak opacity. Low: this is a hint, not a label. */
-  glyphOpacity: 0.5,
+  glyphOpacity: 0.85,
   /** Where the Z's start, as a fraction of ORBI's box. */
   originX: 0.72,
   originY: 0.16,
 
   /**
-   * The snore itself lives in `globals.css` — one keyframe animation on one
-   * node. This is the same number, kept here so the HUD and any future tuning
-   * read it from the place every other ORBI constant lives.
+   * The snore itself is a keyframe animation carried by `OrbiSleepParticles`
+   * (keyframes cannot be inline styles, so they travel with ORBI rather than
+   * living in the application's stylesheet). This is the same number, kept
+   * here so the HUD and any future tuning read it from the place every other
+   * ORBI constant lives.
    */
   snoreCycleMs: 3600,
 
