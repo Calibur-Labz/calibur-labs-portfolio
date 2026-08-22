@@ -68,6 +68,7 @@ export default function OrbiDebug({
   easter,
   audio,
   audioTools,
+  sleep,
   arbiter,
   gazeRef,
   eventRef,
@@ -85,11 +86,21 @@ export default function OrbiDebug({
   audio: OrbiAudioApi
   /** `?orbi-audio-debug=1` — the sound-test buttons below the readout. */
   audioTools: boolean
+  sleep: {
+    stage: OrbiDrowsiness
+    bodyAnimation: boolean
+    mouth: 'normal' | 'flat' | 'sleep'
+    snoreCycleMs: number
+    particles: number
+    /** Polled with the other live values, never read during render. */
+    wakeSourceRef: RefObject<string>
+  }
   arbiter: OrbiArbiter
   gazeRef: RefObject<OrbiGazeController | null>
   eventRef: RefObject<string>
 }) {
-  const [live, setLive] = useState({ lock: 'idle', gaze: 'neutral', event: '—' })
+  const { wakeSourceRef } = sleep
+  const [live, setLive] = useState({ lock: 'idle', gaze: 'neutral', event: '—', woke: '—' })
 
   useEffect(() => {
     let frame = 0
@@ -101,11 +112,13 @@ export default function OrbiDebug({
           : 'idle',
         gaze: gazeRef.current?.source() ?? 'neutral',
         event: eventRef.current ?? '—',
+        woke: wakeSourceRef.current ?? '—',
       }
       setLive((previous) =>
         previous.lock === next.lock &&
         previous.gaze === next.gaze &&
-        previous.event === next.event
+        previous.event === next.event &&
+        previous.woke === next.woke
           ? previous
           : next,
       )
@@ -113,7 +126,7 @@ export default function OrbiDebug({
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [arbiter, gazeRef, eventRef])
+  }, [arbiter, gazeRef, eventRef, wakeSourceRef])
 
   const dock = environment.dock
   const beats = easter.type ? ORBI_EASTER_SPECS[easter.type].beats.length : 0
@@ -206,6 +219,13 @@ export default function OrbiDebug({
     ['last sound', audio.lastSound ?? '—'],
     ['rejected', audio.lastReason ?? '—'],
     ['storage', audio.storageOk ? 'ok' : 'unavailable'],
+    ['—sleep—', ''],
+    ['stage', DROWSY_NAMES[sleep.stage] ?? String(sleep.stage)],
+    ['body loop', sleep.bodyAnimation ? 'breathing' : '—'],
+    ['mouth', sleep.mouth],
+    ['snore', sleep.snoreCycleMs ? `${sleep.snoreCycleMs / 1000}s` : '—'],
+    ['Z', sleep.particles ? `active ×${sleep.particles}` : '—'],
+    ['woke by', live.woke],
   ]
 
   const sounds = Object.keys(ORBI_SOUND_SPECS) as OrbiSound[]

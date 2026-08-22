@@ -45,6 +45,7 @@ matter more than the reactions. When in doubt, less movement.
 | `orbiAudio.test.mts` | Its tests — a fake Web Audio graph and a hand-turned clock. |
 | `useOrbiAudio.ts` | Preference, unlocking, visibility. Keeps *wanted* and *allowed* apart. |
 | `OrbiSoundToggle.tsx` | The 34px control. Two states, no settings panel. |
+| `OrbiSleepParticles.tsx` | The sleeping Z's. Two spans, CSS-driven, mounted only while asleep. |
 | `orbiEasterDetect.ts` | The arithmetic behind them. Pure, allocation-free, unit-tested. |
 | `orbiEasterDetect.test.mts` | Those unit tests. `node --test` — see the header for how to run them. |
 | `orbiConfig.ts` | Types, placement, timing, easing, palette, geometry, scroll tuning. |
@@ -548,9 +549,10 @@ icon lives there too). Anything selecting the robot must say so —
 
 Phase 3's `idle → sleepy → dozing` gains a fourth stage at 75s: **asleep**. Lids
 shut rather than nearly shut, the glow down to 45%, and flight drops to the
-`asleep` variant — a sixth of the amplitude, nearly three times slower, sunk a
-few px. It is one more branch on the interval that was already running: no new
-timer and no new listener.
+`asleep` variant. It is one more branch on the interval that was already
+running: no new timer and no new listener.
+
+Phase 11 gives that stage a body (see **Sleeping** below).
 
 Waking from *that* is its own sequence rather than the ordinary flinch, and it
 is the only reaction that may run while he is under.
@@ -571,6 +573,59 @@ is the only reaction that may run while he is under.
 Nothing in Phase 8 is disabled wholesale under reduced motion: the wobble
 becomes a pause of the same length, the leans are skipped, and every reaction
 still reads through the face — which is where ORBI's personality lives anyway.
+
+## Sleeping
+
+Phase 11. The fourth inactivity stage stopped being "the eyes are shut" and
+became a robot that is actually asleep. No new state, no new sound, no new
+timer — the whole thing is one flight variant, one CSS class and two spans.
+
+| | |
+| --- | --- |
+| **Pose** | 1.6px of settle and a constant ~4° lean, from the `asleep` flight variant's own pose table. One layer, one writer, and no repositioning while he is under. |
+| **Breathing** | Expand → settle → hold, ~3.5s a cycle. Not a human breath: a power system idling. |
+| **Mouth** | A small `ᴗ` inside the visor that only exists in deep sleep, snoring on a 3.6s CSS cycle at 0.38→0.52 opacity. Deliberately out of phase with the body, so the two drift rather than march. |
+| **Z's** | Two slots, one glyph each, staggered 3.7s inside a 7.4s cycle: a Z is in the air about 55% of the time and **never two at once**. 20–24px of rise, 7–10px of drift, peak opacity 0.5. |
+
+### Why there is no particle engine
+
+The Z's are two `<span>`s with one CSS animation and a stagger. No pool, no
+spawner, no `requestAnimationFrame`, no React state ticking, no timers — and
+because it is CSS, a background tab stops compositing them without anyone
+having to remember to pause anything. They mount only during deep sleep, so an
+awake ORBI costs nothing at all.
+
+They live in the **dock** layer: they follow him from dock to dock and out to
+the footer perch, but sit above the tilt, the gestures and the flight, so they
+hang in the air instead of bobbing along with his breathing. Which way they
+drift comes from the dock — always away from the nearer edge of the screen.
+
+`aria-hidden`, like the speech bubble: nothing is said in a Z that a robot with
+his eyes shut has not already said.
+
+### Waking
+
+The existing Phase 8 deep-wake sequence does the work — startle, blink, blink,
+find the visitor, happy — and Phase 11 only clears up after itself: the Z's
+fade in 220ms and the mouth and the sleeping pose go with the stage. Measured
+from the first pointer move: **awake in 7ms, Z's gone by 400ms, settled at
+~2.0s**. A tap on a phone: **awake in 109ms**, and the wake sequence is left
+alone rather than being cancelled by the ordinary click reaction — being
+touched while asleep *is* the poke, and one reaction to it is enough.
+
+### Mobile and reduced motion
+
+| | phone | reduced motion |
+| --- | --- | --- |
+| Pose | 0.76px settle, ~1.2° lean | held, no transition loop |
+| Breathing | on, smaller | **off** (`createFlight` is inert) |
+| Mouth | on | on, **not animated** |
+| Z's | **one** slot, 28% of the time | **one static glyph**, no float |
+
+Under `prefers-reduced-motion` the global reset in `globals.css` disables both
+keyframe animations, which is why the component renders the glyph without its
+class and at a resting opacity: the result is a still, clearly-asleep robot
+rather than an invisible one.
 
 ## Sound
 
@@ -666,7 +721,7 @@ so no dock can push it off the edge of the viewport.
 
 ## Development switches
 
-Dev only — all five gated on `NODE_ENV`, which Next inlines:
+Dev only — all six gated on `NODE_ENV`, which Next inlines:
 
 | | |
 | --- | --- |
@@ -674,6 +729,7 @@ Dev only — all five gated on `NODE_ENV`, which Next inlines:
 | `?orbi-cinematic=precision` | run one on load, for visual tuning |
 | `?orbi-easter=dizzyClick` | run one hidden reaction on demand, likewise |
 | `?orbi-audio-debug=1` | sound-test buttons in the HUD, one per cue |
+| `?orbi-sleep=deep` | straight to deep sleep, so the pose can be tuned |
 | `?orbi-freeze=1` | hold ORBI perfectly still |
 
 Freeze exists because continuous flight makes Playwright's element screenshots
@@ -695,6 +751,16 @@ rectangular outline around a round robot.
   Whether to show it is taken from `element.matches(':focus-visible')` — the
   browser's own keyboard-vs-mouse heuristic, so a click shows nothing and Tab
   shows the halo.
+- Under `forced-colors: active` a glow is exactly the sort of thing the mode is
+  entitled to discard, so `globals.css` hands the rectangular outline back for
+  `.orbi-robot:focus-visible` — the one place ORBI uses `!important`, because
+  the inline `outline: none` above would otherwise win.
+
+**Nothing ORBI says is announced.** The speech bubble is `aria-hidden`: every
+line he has is an echo of something the page already carries, and the contact
+form owns its own `role="status"` for validation and results. A screen reader
+hearing both would get the form's answer plus three ORBI interruptions saying
+nothing new. He stays a labelled button; his mood stays visual.
 
 ## Where the eyes point
 

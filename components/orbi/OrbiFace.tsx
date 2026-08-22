@@ -276,7 +276,35 @@ export default function OrbiFace({
         <path
           d={`M ${mouth.x - 5} ${mouth.y + 1} L ${mouth.x + 5} ${mouth.y + 1}`}
           strokeWidth={2}
-          style={{ opacity: isSleepy ? 0.28 : 0, transition: 'opacity 300ms ease' }}
+          style={{
+            // Once he is properly under, the flat line hands over to the
+            // sleeping mouth below.
+            opacity: isSleepy && !asleep ? 0.28 : 0,
+            transition: 'opacity 300ms ease',
+          }}
+        />
+
+        {/*
+          Deep sleep only: a small upward curve — ᴗ — that breathes.
+
+          The snore is a CSS animation on this one node, not a timeline and not
+          a state machine: three and a half seconds of open-a-little, pause,
+          close, forever, owned entirely by the stylesheet. It costs no timer,
+          no render and no frame budget, and a background tab stops compositing
+          it on its own. `prefers-reduced-motion` disables it through the global
+          reset in `globals.css`, which leaves the mouth simply *there* — which
+          is exactly what that mode should get.
+        */}
+        <path
+          className={asleep ? 'orbi-snore' : undefined}
+          d={`M ${mouth.x - 4.5} ${mouth.y - 0.5} Q ${mouth.x} ${mouth.y + 4.5} ${mouth.x + 4.5} ${mouth.y - 0.5}`}
+          strokeWidth={2}
+          style={{
+            opacity: asleep ? 0.45 : 0,
+            transition: 'opacity 420ms ease',
+            transformBox: 'fill-box',
+            transformOrigin: 'center',
+          }}
         />
       </g>
     </g>

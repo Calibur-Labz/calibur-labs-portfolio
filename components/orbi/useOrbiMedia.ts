@@ -126,6 +126,16 @@ export function useOrbiAudioDebug(): boolean {
   return isDev() && value !== null
 }
 
+/**
+ * `?orbi-sleep=deep` — send ORBI straight to the bottom of the inactivity
+ * state machine, so the sleeping pose can be looked at without sitting still
+ * for 75 seconds. Dev only.
+ */
+export function useOrbiSleepRequest(): boolean {
+  const value = useDevParam(ORBI_DEV_PARAMS.sleep)
+  return isDev() && value === 'deep'
+}
+
 /** Inlined by Next, so every dev switch above vanishes from a production build. */
 const isDev = () => process.env.NODE_ENV !== 'production'
 

@@ -19,6 +19,7 @@ import {
   useOrbiBreakpoint,
   useOrbiAudioDebug,
   useOrbiCinematicRequest,
+  useOrbiSleepRequest,
   useOrbiDebugEnabled,
   useOrbiEasterRequest,
   useOrbiFrozen,
@@ -39,6 +40,7 @@ import { useOrbiCinematic, type OrbiCinematicApi } from './useOrbiCinematic'
 import { useOrbiEasterEggs, type OrbiEasterApi } from './useOrbiEasterEggs'
 import { useOrbiAudio, type OrbiAudioApi } from './useOrbiAudio'
 import OrbiSoundToggle from './OrbiSoundToggle'
+import OrbiSleepParticles from './OrbiSleepParticles'
 import {
   ORBI_SECTION_BEHAVIORS,
   resolveSectionAnimation,
@@ -93,6 +95,7 @@ import {
   ORBI_PRIORITY,
   ORBI_SCROLL,
   ORBI_SELECTORS,
+  ORBI_SLEEP,
   ORBI_SUCCESS,
   ORBI_TIMING,
   ORBI_VIEWBOX,
@@ -160,6 +163,9 @@ function resolveHeroSpot(
  * Which section earns which cinematic. Sections declare the *target* with
  * `data-orbi-cinematic`; this is the only place that says when to go.
  */
+/** What pulled ORBI out of a sleep. Debug HUD only. */
+type OrbiWakeSource = 'activity' | 'click' | 'head' | 'hover' | 'return'
+
 /**
  * Which hidden reactions have a voice. Phase 8 decides when they fire; this
  * only says what — if anything — is heard when they do.
@@ -248,6 +254,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const devCinematic = useOrbiCinematicRequest()
   const devEaster = useOrbiEasterRequest()
   const devAudio = useOrbiAudioDebug()
+  const devSleep = useOrbiSleepRequest()
   const placement = ORBI_PLACEMENT[breakpoint]
   /** Mobile keeps the eyes and drops the body movement. */
   const quietBody = breakpoint === 'mobile'
@@ -296,6 +303,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const navOpenRef = useRef(false)
   /** Which side of ORBI's box the sound control is on. */
   const toggleSideRef = useRef<'left' | 'right'>('left')
+  /** What last woke ORBI up. Debug HUD only. */
+  const wakeSourceRef = useRef<OrbiWakeSource | '—'>('—')
   const frozenRef = useRef(false)
   /** Where the entrance parks ORBI before he flies to the dock. */
   const heroSpotRef = useRef<{ x: number; y: number } | null>(null)
@@ -565,6 +574,12 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     (type: OrbiEasterEgg) => {
       if (!settledRef.current) return false
       if (frozenRef.current) return false
+      // Nobody is watching. A reaction performed to a background tab is work
+      // for no one — and worse, it spends its own cooldown, so the visitor is
+      // *less* likely to see one when they come back.
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        return false
+      }
       if (companionRef.current) return false
       if (formBusyRef.current) return false
       if (cinematicRef.current?.active) return false
@@ -1159,8 +1174,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   /* ── Waking ──────────────────────────────────────────────────────────── */
 
   const wake = useCallback(
-    (startle: boolean) => {
+    (startle: boolean, source: OrbiWakeSource = 'activity') => {
       if (drowsinessRef.current === 0) return
+      wakeSourceRef.current = source
       const asleep = drowsinessRef.current === 3
       const deep = drowsinessRef.current >= 2
       drowsinessRef.current = 0
@@ -1241,7 +1257,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     // and yields *properly*, so its last beat cannot land on this one's face.
     const running = easterRef.current?.active ? easterRef.current.type : null
     if (running) {
-      if (ORBI_EASTER_SPECS[running].userTriggered) return
+      // Waking up *is* the reaction to being touched while asleep, so it is
+      // left alone for the same reason his answer to being poked is: a wave
+      // and a line stacked on top would talk over the moment (§17).
+      if (ORBI_EASTER_SPECS[running].userTriggered || running === 'deepWake') return
       easterRef.current?.cancel('click')
     }
 
@@ -1259,7 +1278,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       return
     }
     lastClickRef.current = now
-    wake(false)
+    wake(false, part === 'head' ? 'head' : 'click')
     note('click')
 
     // The first poke of a visit earns the small delight; after that a poke is
@@ -1307,7 +1326,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     hoveringRef.current = true
     interactionRef.current?.setHovering(true)
     easterRef.current?.setHovering(true)
-    wake(false)
+    wake(false, 'hover')
     note('hover')
     softExpression('happy')
     if (!quietBodyRef.current) {
@@ -1432,7 +1451,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const handleActive = useCallback(() => {
     // Wake first: waking from a proper sleep is its own sequence, and it has
     // to be able to see how deep ORBI was before the counters are cleared.
-    wake(true)
+    wake(true, 'activity')
     easterRef.current?.setDepth(0)
     // A curious glance holds the eyes; the moment the user is back, give them
     // to the cursor.
@@ -2975,6 +2994,18 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     return () => clearTimeout(id)
   }, [devEaster, settled])
 
+  /* ── Development sleep trigger ───────────────────────────────────────── */
+  // `?orbi-sleep=deep` goes straight to the bottom of the state machine, by
+  // the same door the inactivity sensor uses — waiting out 75 seconds to look
+  // at a 3.5-second breathing cycle is no way to tune one. Stripped in
+  // production, where `devSleep` is a constant false.
+
+  useEffect(() => {
+    if (!devSleep || !settled) return
+    const id = setTimeout(() => handleDrowsy(3), 1200)
+    return () => clearTimeout(id)
+  }, [devSleep, settled, handleDrowsy])
+
   /* ── Idle blinking ───────────────────────────────────────────────────── */
 
   useEffect(() => {
@@ -3089,6 +3120,19 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           reducedMotion={reducedMotion}
         />
         <div ref={dockRef} style={{ ...layer, willChange: 'transform' }}>
+          {/*
+            The Z's hang in the dock layer: they follow ORBI from dock to dock
+            and out to the footer perch, but they are above the tilt, the
+            gestures and the flight — so they stay put in the air while he
+            breathes underneath them.
+          */}
+          <OrbiSleepParticles
+            active={drowsiness === 3}
+            side={toggleSide}
+            size={placement.size}
+            quiet={quietBody}
+            reducedMotion={reducedMotion}
+          />
           <div ref={tiltRef} style={layer}>
             <div ref={gestureRef} style={layer}>
               <div ref={floaterRef} style={{ ...layer, willChange: 'transform' }}>
@@ -3127,6 +3171,19 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           easter={easter}
           audio={audio}
           audioTools={devAudio}
+          sleep={{
+            stage: drowsiness,
+            bodyAnimation: flightVariant === 'asleep' && !reducedMotion,
+            mouth:
+              drowsiness === 3
+                ? 'sleep'
+                : drowsiness > 0 || state.expression === 'sleepy'
+                  ? 'flat'
+                  : 'normal',
+            snoreCycleMs: drowsiness === 3 && !reducedMotion ? ORBI_SLEEP.snoreCycleMs : 0,
+            particles: drowsiness === 3 ? (quietBody ? 1 : ORBI_SLEEP.maxParticles) : 0,
+            wakeSourceRef,
+          }}
           arbiter={arbiter}
           gazeRef={gazeRef}
           eventRef={lastEventRef}

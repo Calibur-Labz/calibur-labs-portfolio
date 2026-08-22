@@ -508,6 +508,22 @@ export const ORBI_FLIGHT = {
   sleepSink: 5,
 
   /**
+   * Sleeping: not the hover table slowed down, but its own rhythm.
+   *
+   * A robot does not breathe, so this is what a power system idling looks
+   * like — a slow expansion, a settle, and a held pause before it does it
+   * again. Roughly 3.5s a cycle, about 1.6px of travel at full size, and a
+   * constant few degrees of lean that reads as "gone under" rather than
+   * "tipped over". Every value goes through the same lift/drift/roll scaling
+   * as the other variants, so a phone gets a third of the lean for free.
+   */
+  sleepPoses: [
+    { x: 0, y: -12, rotation: -4.2, duration: 0.45, ease: 'sine.inOut' },
+    { x: 0.8, y: -2, rotation: -3.5, duration: 0.5, ease: 'sine.inOut' },
+    { x: 0.2, y: -7, rotation: -4, duration: 0.3, ease: 'sine.inOut' },
+  ],
+
+  /**
    * Mobile. Lift already scales with ORBI's size; drift and roll are cut
    * further so he never wanders toward a neighbouring control and his hit area
    * stays where the user expects it.
@@ -1000,6 +1016,71 @@ export const ORBI_AUDIO_TOGGLE = {
   touchOpacity: 0.68,
 } as const
 
+/* ── Sleep ─────────────────────────────────────────────────────────────── */
+
+/**
+ * What ORBI looks like once he has properly gone under.
+ *
+ * Phase 3 gave him the *states* — quiet, drowsy, dozing, asleep — and Phase 8
+ * added the last one. This is only the presentation of the last one: a body
+ * that settles and breathes, a mouth that appears when the eyes close, and one
+ * or two Z's drifting away from the screen edge. No new state, no new sound,
+ * and nothing that runs when nobody is looking.
+ *
+ * The numbers are deliberately small. Everything here is meant to be noticed
+ * only if you sit still and watch.
+ */
+export const ORBI_SLEEP = {
+  /** Beat between the eyes closing and the first Z, so the order reads. */
+  particleDelayMs: 1500,
+
+  /* ── The Z's ── */
+  /** Never more than this on screen at once. */
+  maxParticles: 2,
+  /**
+   * One float, start to fade-out. The keyframes finish the rise by 55% of the
+   * cycle and hold invisible for the rest, so this is the *visible* life of a
+   * Z and `particleGapMs` is the silence after it.
+   */
+  particleDurationMs: 2200,
+  /**
+   * Empty beat after a Z has faded, before that slot is used again. Long on
+   * purpose: with two slots this is what decides whether sleep reads as the
+   * occasional Z or as a stream. At these numbers there is a Z in the air
+   * about six seconds in ten, and never two.
+   */
+  particleGapMs: 5200,
+  /** How far apart in time the two slots run. Half the cycle, so they alternate. */
+  particleStaggerMs: 3700,
+  /** How far a Z travels up, px. The second slot goes a little further. */
+  riseDesktop: 20,
+  riseMobile: 13,
+  /** ...and sideways, away from the nearest screen edge. */
+  driftDesktop: 7,
+  driftMobile: 4,
+  /** Font size of the two glyphs, px. */
+  glyphSmall: 9,
+  glyphLarge: 13,
+  /** Peak opacity. Low: this is a hint, not a label. */
+  glyphOpacity: 0.5,
+  /** Where the Z's start, as a fraction of ORBI's box. */
+  originX: 0.72,
+  originY: 0.16,
+
+  /**
+   * The snore itself lives in `globals.css` — one keyframe animation on one
+   * node. This is the same number, kept here so the HUD and any future tuning
+   * read it from the place every other ORBI constant lives.
+   */
+  snoreCycleMs: 3600,
+
+  /* ── Waking ── */
+  /** How fast visible Z's clear once the visitor is back. */
+  fadeOutMs: 220,
+  /** ...and how long the layer stays mounted to let that fade finish. */
+  unmountAfterMs: 300,
+} as const
+
 /* ── Cooldowns ─────────────────────────────────────────────────────────── */
 
 /**
@@ -1328,14 +1409,16 @@ export const ORBI_DEBUG = false
  *   ?orbi-cinematic=precision  run a cinematic on load, for visual tuning
  *   ?orbi-easter=dizzyClick    run a hidden reaction on demand, likewise
  *   ?orbi-audio-debug=1      sound-test buttons in the HUD
+ *   ?orbi-sleep=deep         put ORBI straight to sleep, for visual tuning
  *   ?orbi-freeze=1           hold ORBI still so screenshots are deterministic
  *
- * All five are gated on `NODE_ENV !== 'production'`, which Next inlines.
+ * All six are gated on `NODE_ENV !== 'production'`, which Next inlines.
  */
 export const ORBI_DEV_PARAMS = {
   debug: 'orbi-debug',
   cinematic: 'orbi-cinematic',
   easter: 'orbi-easter',
   audio: 'orbi-audio-debug',
+  sleep: 'orbi-sleep',
   freeze: 'orbi-freeze',
 } as const

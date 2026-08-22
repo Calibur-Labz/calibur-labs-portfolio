@@ -14,9 +14,11 @@ import {
 /**
  * ORBI's speech bubble.
  *
- * Always mounted, never unmounted — it just animates between hidden and shown.
- * That keeps the `aria-live` region stable for screen readers and means a
- * fade-out is never cut short by React removing the node.
+ * Always mounted, never unmounted — it just animates between hidden and shown,
+ * so a fade-out is never cut short by React removing the node.
+ *
+ * It is hidden from assistive technology on purpose: see the comment on the
+ * panel itself. The form, not ORBI, announces what actually happened.
  *
  * The last message stays in the DOM while the bubble fades out, so text never
  * disappears a frame before the panel does.
@@ -151,8 +153,18 @@ export default function OrbiSpeech({
   return (
     <div
       ref={bubbleRef}
-      role="status"
-      aria-live="polite"
+      /*
+       * Deliberately not a live region.
+       *
+       * Everything ORBI says is an echo: the contact form announces its own
+       * validation and its own result through `role="status"`, sections are
+       * reachable in the document, and nothing exists only in this bubble. A
+       * screen reader that also read ORBI would hear "Message sent!", "We'll
+       * check your message", "Thank you!" *on top of* the form's own
+       * announcement — three interruptions carrying nothing new. ORBI stays a
+       * labelled button anyone can find and press; his mood stays visual.
+       */
+      aria-hidden="true"
       style={{
         position: 'absolute',
         ...anchorFor(side, align),

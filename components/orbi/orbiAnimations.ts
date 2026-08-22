@@ -204,6 +204,14 @@ export function createFlight(
           ? cfg.sleepDurationScale
           : 1
 
+  /**
+   * Sleeping is its own rhythm rather than the hover slowed down: expand,
+   * settle, hold. The lean lives in the poses too, so the layer that already
+   * owns x/y/rotation keeps owning all three and nothing new writes to it.
+   */
+  const table: readonly OrbiFlightPose[] =
+    variant === 'asleep' ? cfg.sleepPoses : cfg.poses
+
   let tween: gsap.core.Tween | null = null
   let killed = false
   let paused = false
@@ -238,7 +246,9 @@ export function createFlight(
       return
     }
 
-    if (untilAdjustment <= 0 && (canAdjust ? canAdjust() : true)) {
+    // Asleep, ORBI holds his pose. Repositioning is a decision, and he is not
+    // making any.
+    if (variant !== 'asleep' && untilAdjustment <= 0 && (canAdjust ? canAdjust() : true)) {
       untilAdjustment = gsap.utils.random(
         cfg.adjustmentGapMin,
         cfg.adjustmentGapMax,
@@ -251,7 +261,7 @@ export function createFlight(
 
     // Not the moment for it — try again after the next segment.
     untilAdjustment -= 1
-    play(cfg.poses[index++ % cfg.poses.length])
+    play(table[index++ % table.length])
   }
 
   step()

@@ -85,9 +85,14 @@ export default function OrbiRobot({
       viewBox={`0 0 ${ORBI_VIEWBOX.width} ${ORBI_VIEWBOX.height}`}
       width="100%"
       height="100%"
+      // The halo below is the focus indicator, and a glow is exactly the kind
+      // of thing forced-colors mode is entitled to throw away. This class is
+      // what `globals.css` hangs a real outline off in that mode.
+      className="orbi-robot"
       // Once ORBI is clickable it is a control, not decoration, so it keeps an
-      // accessible name. Its *meaning* still travels through the speech
-      // bubble, which is a live region.
+      // accessible name. Nothing he *says* is announced — the bubble is hidden
+      // from assistive technology, because the page and the form already carry
+      // everything it echoes.
       focusable="false"
       role={onActivate ? 'button' : undefined}
       tabIndex={onActivate ? 0 : undefined}

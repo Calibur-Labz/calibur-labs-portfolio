@@ -70,6 +70,88 @@ h1, h2, h3, h4, h5, h6 {
   outline-offset: 2px;
 }
 
+/*
+ * ORBI replaces the rectangular focus outline with a halo that follows his
+ * own shape — a gradient, which forced-colors mode is free to discard. When
+ * it does, hand the outline back: keyboard focus must never depend on a glow.
+ */
+@media (forced-colors: active) {
+  /*
+   * `!important` on purpose: the robot sets `outline: none` inline so that the
+   * halo can replace the rectangular ring, and an inline style beats a
+   * stylesheet. In forced colors the halo is the thing that may not survive,
+   * so this has to win.
+   */
+  .orbi-robot:focus-visible {
+    outline: 3px solid CanvasText !important;
+    outline-offset: -4px;
+    border-radius: 24px;
+  }
+}
+
+/*
+ * ORBI asleep.
+ *
+ * Both of these are stylesheet-owned on purpose: a snoring mouth and two
+ * drifting Z's should not cost a timer, a render or a frame callback, and a
+ * background tab stops compositing them without anyone pausing anything. The
+ * global reduced-motion reset further down disables both, which leaves a
+ * closed-eyed robot with a small mouth — still unmistakably asleep.
+ */
+@keyframes orbi-snore {
+  0%,
+  100% {
+    transform: scaleY(1);
+    opacity: 0.38;
+  }
+  38% {
+    transform: scaleY(1.4);
+    opacity: 0.52;
+  }
+  56% {
+    transform: scaleY(1.36);
+    opacity: 0.5;
+  }
+  82% {
+    transform: scaleY(1);
+    opacity: 0.38;
+  }
+}
+
+.orbi-snore {
+  animation: orbi-snore 3.6s ease-in-out infinite;
+}
+
+/*
+ * The float takes the first 55% of the cycle; the rest is deliberately empty,
+ * which is what turns two looping elements into an occasional Z rather than a
+ * stream. Two slots, staggered, so at most one is usually in the air.
+ */
+@keyframes orbi-sleep-z {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.82);
+  }
+  4% {
+    opacity: 0.5;
+  }
+  18% {
+    opacity: 0.34;
+  }
+  30%,
+  100% {
+    opacity: 0;
+    transform: translate(var(--orbi-z-drift, 6px), var(--orbi-z-rise, -20px)) scale(1);
+  }
+}
+
+.orbi-sleep-z {
+  animation-name: orbi-sleep-z;
+  animation-timing-function: cubic-bezier(0.33, 0.7, 0.4, 1);
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
 /* Button shimmer sweep */
 .btn-shimmer {
   position: relative;
