@@ -27,8 +27,10 @@ import {
   ORBI_COOLDOWNS,
   ORBI_EASTER_EGGS,
   ORBI_EASTER_SPECS,
+  ORBI_MICRO,
   ORBI_PRIORITY,
   ORBI_SOUND_SPECS,
+  ORBI_TIMING,
   ORBI_Z_INDEX,
   type OrbiEasterEgg,
 } from './orbiConfig.js'
@@ -184,6 +186,76 @@ test('rare means rare: every unprompted gap sits inside its own bounds', () => {
   }
   assert.ok(ORBI_EASTER_EGGS.globalCooldown >= 10000)
   assert.ok(ORBI_EASTER_EGGS.maxBubbles <= 2)
+})
+
+/* ── Micro personality ─────────────────────────────────────────────────── */
+
+test('the stretch finishes inside the beat that runs it', () => {
+  // It rides the last beat of the deep-wake sequence. A stretch that outlives
+  // its own run gets cut off by the teardown mid-movement.
+  const beats = ORBI_EASTER_SPECS.deepWake.beats
+  const last = beats[beats.length - 1]
+  assert.ok(
+    ORBI_MICRO.stretch.durationMs <= last,
+    `the stretch is ${ORBI_MICRO.stretch.durationMs}ms and its beat is ${last}ms`,
+  )
+})
+
+test('the shake and the lift finish inside their own beats too', () => {
+  // The shake is the first beat of a rare idle; the lift is claimed for
+  // `brightHoldMs`, which is what takes the face back afterwards.
+  assert.ok(ORBI_MICRO.shake.durationMs <= ORBI_EASTER_SPECS.rareIdle.beats[0])
+  assert.ok(ORBI_MICRO.lift.durationMs <= ORBI_TIMING.brightHoldMs)
+})
+
+test('every micro beat is subtle — and smaller again on a phone', () => {
+  // Half a second to a little over a second. Anything quicker is a twitch,
+  // anything longer stops being incidental and starts being a performance.
+  for (const [name, beat] of Object.entries({
+    stretch: ORBI_MICRO.stretch.durationMs,
+    lift: ORBI_MICRO.lift.durationMs,
+    shake: ORBI_MICRO.shake.durationMs,
+  })) {
+    assert.ok(beat >= 400 && beat <= 1200, `${name} runs for ${beat}ms`)
+  }
+
+  // The reset is a fraction of the stabilisation wobble it sits next to.
+  assert.ok(ORBI_MICRO.shake.degrees < ORBI_EASTER_EGGS.wobbleDegrees / 2)
+  assert.ok(ORBI_MICRO.shake.degreesQuiet <= 1, 'a phone gets one degree at most')
+  assert.ok(ORBI_MICRO.shake.degreesQuiet < ORBI_MICRO.shake.degrees)
+  assert.ok(ORBI_MICRO.stretch.armAngleQuiet < ORBI_MICRO.stretch.armAngle)
+  assert.ok(ORBI_MICRO.stretch.liftQuiet < ORBI_MICRO.stretch.lift)
+  assert.ok(ORBI_MICRO.lift.liftQuiet < ORBI_MICRO.lift.lift)
+
+  // The stretch is the larger of the two body beats, and neither is a hop.
+  assert.ok(ORBI_MICRO.lift.lift < ORBI_MICRO.stretch.lift)
+  assert.ok(ORBI_MICRO.stretch.lift <= 5, 'three to five pixels, no more')
+  assert.ok(!ORBI_MICRO.lift.armAngle, 'the hello has no arms in it')
+})
+
+test('the look-around stays inside the gaze range and is eyes only', () => {
+  assert.ok(ORBI_MICRO.lookAroundX > 0 && ORBI_MICRO.lookAroundX <= 1)
+  assert.ok(Math.abs(ORBI_MICRO.lookAroundY) <= 0.1, 'left and right, not up')
+})
+
+test('neither hello nor stretch is something a visitor can see repeatedly', () => {
+  assert.ok(ORBI_MICRO.stretchEveryNthWake >= 2, 'not every waking')
+  // Long enough that switching tabs to copy an address and back is not "away".
+  assert.ok(ORBI_MICRO.happyReturnMs >= 30000)
+  assert.ok(ORBI_MICRO.happyReturnCooldown > ORBI_MICRO.happyReturnMs)
+})
+
+test('the rare idle has one flavour per variant the guide can show', () => {
+  // Four now: wink, a glance up, the look-around, the reset. The guide walks
+  // `variant % 4`, so a fifth flavour without a fifth branch would be silent.
+  const VARIANTS = 4
+  assert.ok(
+    ORBI_EASTER_EGGS.rareIdleGaps.length >= VARIANTS,
+    'a visit should be able to reach every flavour before the table repeats',
+  )
+  // Three beats is what the look-around needs: left, centre, right, and the
+  // teardown for the last centre.
+  assert.ok(ORBI_EASTER_SPECS.rareIdle.beats.length >= 3)
 })
 
 /* ── Sound ─────────────────────────────────────────────────────────────── */

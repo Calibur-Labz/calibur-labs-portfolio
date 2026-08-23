@@ -57,6 +57,12 @@ export type OrbiAnimation =
   | 'inspect'
   /** The stabilisation after a shake — tilt, correct, correct smaller, centre. */
   | 'wobble'
+  /** Arms out, a small rise, and back. The stretch after waking properly. */
+  | 'stretch'
+  /** The rise on its own — the small hello when the visitor comes back. */
+  | 'lift'
+  /** ORBI resetting himself: a couple of degrees each way, then centre. */
+  | 'shake'
 
 const RESTING = ['idle', 'float', 'peek'] as const
 const LOOKING = ['look-left', 'look-right', 'look-up', 'look-down'] as const
@@ -71,6 +77,9 @@ const ONE_SHOT = [
   'nod',
   'inspect',
   'wobble',
+  'stretch',
+  'lift',
+  'shake',
 ] as const
 
 export type OrbiLookAnimation = (typeof LOOKING)[number]
@@ -944,6 +953,68 @@ export const ORBI_EASTER_EGGS = {
   /** Mobile keeps the beat and loses most of the movement. */
   wobbleQuietScale: 0.45,
   wobbleMs: 900,
+} as const
+
+/* ── Micro personality ─────────────────────────────────────────────────── */
+
+/**
+ * Phase 13 — the small, wordless beats.
+ *
+ * Four tiny reactions, all of them silent, none of them owning a system of
+ * their own: the stretch rides the deep-wake sequence, the shake and the
+ * look-around are flavours of the rare idle beat that already exists, and the
+ * hello uses the tab-visibility signal `useOrbiInteraction` already reports.
+ *
+ * The numbers are deliberately smaller than anything else ORBI does. A stretch
+ * that reads at a glance is too big; the point is that a visitor who happens
+ * to be looking sees it and a visitor who is not never notices.
+ */
+export const ORBI_MICRO = {
+  /**
+   * The stretch out of a proper sleep. Both arms swing outward, the body
+   * lifts a few pixels, and everything comes back. Mobile keeps the shape and
+   * loses most of the travel.
+   */
+  stretch: {
+    /** Degrees each arm swings outward from its own shoulder. */
+    armAngle: 34,
+    armAngleQuiet: 14,
+    /** How far the body rises, px at `ORBI_FLIGHT.referenceSize`. */
+    lift: 4,
+    liftQuiet: 2,
+    /**
+     * Sized to fit inside the last beat of the deep-wake sequence, which is
+     * where it runs — a stretch cut off by its own teardown is worse than no
+     * stretch at all.
+     */
+    durationMs: 880,
+  },
+  /** The rise on its own, for coming back to the tab. No arms. */
+  lift: {
+    armAngle: 0,
+    armAngleQuiet: 0,
+    lift: 3,
+    liftQuiet: 1.5,
+    durationMs: 520,
+  },
+  /**
+   * The reset. Two degrees is about a third of the stabilisation wobble, and
+   * a phone gets one — anything more reads as a glitch rather than a habit.
+   */
+  shake: { degrees: 2, degreesQuiet: 1, durationMs: 500 },
+  /** How far the pupils travel on a look-around, normalized. */
+  lookAroundX: 0.85,
+  lookAroundY: 0.02,
+  /**
+   * One deep wake in this many earns a stretch. Walked off the reaction's own
+   * variant counter, so it is deterministic rather than a coin toss — and the
+   * first one a visitor triggers is the one that stretches.
+   */
+  stretchEveryNthWake: 2,
+  /** Away from the tab at least this long before coming back is an event. */
+  happyReturnMs: 45000,
+  /** ...and not again inside this window, however often they switch tabs. */
+  happyReturnCooldown: 90000,
 } as const
 
 /**

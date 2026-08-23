@@ -71,6 +71,8 @@ import {
   createPointTimeline,
   createRecoilTimeline,
   createSettleTimeline,
+  createStretchTimeline,
+  createTinyShakeTimeline,
   createWaveTimeline,
   createWobbleTimeline,
   lookTiltAngle,
@@ -98,6 +100,7 @@ import {
   ORBI_INTERACTION,
   ORBI_MEDIA,
   ORBI_MESSAGES,
+  ORBI_MICRO,
   ORBI_ENVIRONMENT,
   ORBI_FORM,
   ORBI_FORM_MESSAGES,
@@ -602,6 +605,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       if (environmentRef.current?.modal) return false
       if (environmentRef.current?.crowded) return false
       if (navOpenRef.current) return false
+      // Guide mode is the one thing ORBI does because he was *asked* to, and
+      // the open panel is the visitor deciding where to go. He stands still
+      // and waits — the claim only covers the beats, not the wait (§14).
+      if (guideRef.current?.open) return false
 
       // The visitor poking ORBI is the trigger for these two, so they are held
       // to different rules: they may cut across his own click reaction, and
@@ -1603,15 +1610,85 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
   /* ── Coming back to the tab ──────────────────────────────────────────── */
 
+  const lastHappyReturnRef = useRef(-Infinity)
+
+  /**
+   * Phase 13 — the small hello.
+   *
+   * Gone a good while and back again earns one wordless beat: the eyes lift,
+   * the body rises a few pixels, and the face is pleased for a moment. It runs
+   * off the away duration `useOrbiInteraction` already reports from the tab's
+   * own `visibilitychange`, so nothing new is watched, timed or remembered.
+   *
+   * Everything that outranks it refuses it through the arbiter rather than a
+   * list of its own — most importantly the deep-wake sequence, which is the
+   * *other* answer to the visitor coming back and already says hello properly.
+   * Returns whether it took the moment, so the caller knows to leave it alone.
+   */
+  const happyReturn = useCallback(
+    (awayMs: number) => {
+      if (awayMs < ORBI_MICRO.happyReturnMs) return false
+      if (companionRef.current) return false
+      if (frozenRef.current) return false
+      if (guideRef.current?.open) return false
+      if (cinematicRef.current?.active) return false
+      if (stateRef.current.message) return false
+      if (!isRestingAnimation(stateRef.current.animation)) return false
+
+      const now = performance.now()
+      if (now - lastHappyReturnRef.current < ORBI_MICRO.happyReturnCooldown) {
+        return false
+      }
+      // The deep-wake sequence holds `easter`, which outranks this — so a
+      // proper waking simply refuses the claim and keeps the moment.
+      if (
+        !arbiter.claim(
+          ORBI_PRIORITY.ambient,
+          'happy-return',
+          ORBI_TIMING.brightHoldMs + 400,
+        )
+      ) {
+        return false
+      }
+
+      lastHappyReturnRef.current = now
+      note('happy-return')
+      softExpressionRef.current = null
+      restAnimationRef.current = null
+      setGazeLead('gesture')
+      setBright(true)
+      setState((s) => ({
+        ...s,
+        expression: 'happy',
+        // Reduced motion keeps the brighter eyes and the pleased face, and
+        // drops the lift — the expression was always the louder half.
+        animation: motionRef.current.reducedMotion ? s.animation : 'lift',
+      }))
+
+      later(() => {
+        setBright(false)
+        setState((s) =>
+          s.expression === 'happy' ? { ...s, expression: 'normal' } : s,
+        )
+        arbiter.release('happy-return')
+      }, ORBI_TIMING.brightHoldMs)
+
+      return true
+    },
+    [arbiter, later, note],
+  )
+
   const handleReturn = useCallback(
     (awayMs: number) => {
-      // Never the entrance again — just a blink, as if ORBI looked back up.
-      if (awayMs >= ORBI_INTERACTION.awayWakeMs) {
-        note('return')
-        blink()
-      }
+      if (awayMs < ORBI_INTERACTION.awayWakeMs) return
+      note('return')
+      // Gone long enough to be missed gets the small hello instead; anything
+      // shorter is never the entrance again — just a blink, as if ORBI looked
+      // back up.
+      if (happyReturn(awayMs)) return
+      blink()
     },
-    [blink, note],
+    [blink, happyReturn, note],
   )
 
   /* ── Senses ──────────────────────────────────────────────────────────── */
@@ -2859,6 +2936,18 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         look(to.x, to.y)
         eggFace('happy')
         say(easter.bubble)
+        // Phase 13 — the stretch, on the settling beat and nowhere else: it
+        // has to finish inside the run, and this is the only beat long enough
+        // to hold it. Not every waking, either — the reaction's own variant
+        // counter decides, so the first one a visitor triggers stretches and
+        // then every other one after that. Silent, and never under reduced
+        // motion, where there is nothing left of it.
+        if (
+          !reducedMotion &&
+          easter.variant % ORBI_MICRO.stretchEveryNthWake === 0
+        ) {
+          eggAnimation('stretch')
+        }
         return
       }
 
@@ -2909,7 +2998,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
       /* ── One small unprompted beat ── */
       if (type === 'rareIdle') {
-        const variant = easter.variant % 3
+        const variant = easter.variant % 4
         if (variant === 0) {
           if (step === 0) eggFace('wink')
           else if (step === 1) eggFace('normal')
@@ -2924,8 +3013,19 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           }
           return
         }
-        if (step === 0) look(-0.8, 0.05)
-        else if (step === 1) look(0.8, 0.05)
+        if (variant === 2) {
+          // Phase 13's look-around: left, back to centre, right — and the
+          // teardown drops the `interaction` slot, which is the last centre.
+          // Eyes only, on every breakpoint; the body has no part in it.
+          const { lookAroundX: x, lookAroundY: y } = ORBI_MICRO
+          if (step === 0) look(-x, y)
+          else if (step === 1) look(0, 0)
+          else look(x, y)
+          return
+        }
+        // Phase 13's reset. Movement is the whole beat, so it stands down
+        // under reduced motion rather than playing an empty one.
+        if (step === 0 && !reducedMotion) eggAnimation('shake')
         return
       }
     }
@@ -3119,6 +3219,57 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         tl.kill()
         gazeRef.current?.clear('interaction')
         applyBodyTilt()
+      }
+    }
+
+    /* ── Phase 13: the micro beats ── */
+
+    if (animation === 'stretch' || animation === 'lift') {
+      // Same factory, two presets: the stretch takes the arms out with it,
+      // the hello is the rise on its own.
+      const preset = animation === 'stretch' ? ORBI_MICRO.stretch : ORBI_MICRO.lift
+      const angle = quietBody ? preset.armAngleQuiet : preset.armAngle
+      // Outward is negative on the right shoulder and positive on the left,
+      // the same convention `point-*` uses. Captured here rather than read in
+      // the cleanup, so teardown resets the arms it actually moved.
+      const arms = angle
+        ? [
+            { el: armRef.current, svgOrigin: ORBI_ART.armPivot, angle: -angle },
+            { el: leftArmRef.current, svgOrigin: ORBI_ART.armPivotLeft, angle },
+          ]
+        : []
+      const tl = createStretchTimeline(
+        gestureEl,
+        {
+          arms,
+          lift: quietBody ? preset.liftQuiet : preset.lift,
+          durationMs: preset.durationMs,
+        },
+        motion,
+        oneShotDone(animation),
+      )
+      return () => {
+        tl.kill()
+        resetLayer(gestureEl)
+        for (const arm of arms) resetLayer(arm.el, arm.svgOrigin)
+      }
+    }
+
+    if (animation === 'shake') {
+      const tl = createTinyShakeTimeline(
+        gestureEl,
+        {
+          degrees: quietBody
+            ? ORBI_MICRO.shake.degreesQuiet
+            : ORBI_MICRO.shake.degrees,
+          durationMs: ORBI_MICRO.shake.durationMs,
+        },
+        motion,
+        oneShotDone('shake'),
+      )
+      return () => {
+        tl.kill()
+        resetLayer(gestureEl)
       }
     }
 

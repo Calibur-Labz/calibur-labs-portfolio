@@ -863,6 +863,146 @@ export function createWobbleTimeline(
   return tl
 }
 
+/* ── Micro personality ─────────────────────────────────────────────────── */
+
+export interface OrbiStretchOptions {
+  /**
+   * Arms to swing outward, with the angle each one takes. Empty for the bare
+   * body lift — the "you're back" hello has no arms in it.
+   */
+  arms: Array<{ el: SVGGElement | null; svgOrigin: string; angle: number }>
+  /** How far the body rises, px at `ORBI_FLIGHT.referenceSize`. */
+  lift: number
+  /** The whole beat, ms. */
+  durationMs: number
+}
+
+/**
+ * The stretch — and, with no arms, the small lift on its own.
+ *
+ * Out on the front half, back on the rest, so it settles rather than snaps.
+ * The arms and the body share one timeline and one clock: two tweens started
+ * separately would drift apart at exactly the moment the gesture is meant to
+ * read as one movement.
+ *
+ * Under reduced motion it is a short pause and nothing else — there is no
+ * quieter version of a stretch, and the expression carries the beat instead.
+ */
+export function createStretchTimeline(
+  gesture: HTMLElement,
+  { arms, lift, durationMs }: OrbiStretchOptions,
+  options: OrbiMotionOptions,
+  onComplete?: () => void,
+): gsap.core.Timeline {
+  const tl = gsap.timeline({ onComplete })
+  const beat = durationMs / 1000
+
+  if (options.reducedMotion) {
+    tl.to({}, { duration: Math.min(beat, 0.4) })
+    return tl
+  }
+
+  const rise = (options.size / ORBI_FLIGHT.referenceSize) * lift
+  const out = beat * 0.42
+  const back = beat - out
+
+  tl.to(
+    gesture,
+    {
+      y: -rise,
+      duration: out,
+      ease: ORBI_EASE.soft,
+      transformOrigin: '50% 85%',
+    },
+    0,
+  ).to(
+    gesture,
+    {
+      y: 0,
+      duration: back,
+      ease: ORBI_EASE.inOut,
+      transformOrigin: '50% 85%',
+    },
+    out,
+  )
+
+  for (const arm of arms) {
+    if (!arm.el || !arm.angle) continue
+    tl.to(
+      arm.el,
+      {
+        rotation: arm.angle,
+        svgOrigin: arm.svgOrigin,
+        duration: out,
+        ease: ORBI_EASE.soft,
+      },
+      0,
+    ).to(
+      arm.el,
+      {
+        rotation: 0,
+        svgOrigin: arm.svgOrigin,
+        duration: back,
+        ease: ORBI_EASE.inOut,
+      },
+      out,
+    )
+  }
+
+  return tl
+}
+
+export interface OrbiShakeOptions {
+  /** Peak roll, degrees. Tiny on purpose; smaller again on a phone. */
+  degrees: number
+  /** The whole beat, ms. */
+  durationMs: number
+}
+
+/**
+ * The reset — one degree or two each way and centre, over half a second.
+ *
+ * Deliberately not `createWobbleTimeline`: that one is the *recovery* from
+ * being knocked about and is shaped like a stabiliser catching up. This is
+ * ORBI shaking himself off, unprompted, and it is half the amplitude and half
+ * the length. Sharing a factory would mean tuning one and breaking the other.
+ *
+ * Nothing happens under reduced motion: a shake is movement with no expression
+ * behind it, so removing the movement leaves nothing to keep.
+ */
+export function createTinyShakeTimeline(
+  gesture: HTMLElement,
+  { degrees, durationMs }: OrbiShakeOptions,
+  options: OrbiMotionOptions,
+  onComplete?: () => void,
+): gsap.core.Timeline {
+  const tl = gsap.timeline({ onComplete })
+
+  if (options.reducedMotion) {
+    tl.to({}, { duration: 0.2 })
+    return tl
+  }
+
+  const beat = durationMs / 1000
+  const steps: Array<[number, number]> = [
+    [-degrees, 0.28],
+    [degrees, 0.28],
+    [-degrees * 0.5, 0.22],
+    [0, 0.22],
+  ]
+
+  steps.forEach(([rotation, share]) => {
+    tl.to(gesture, {
+      rotation,
+      duration: beat * share,
+      ease: ORBI_EASE.inOut,
+      transformOrigin: '50% 85%',
+    })
+  })
+
+  return tl
+}
+
 /* ── Settling ──────────────────────────────────────────────────────────── */
 
 export interface OrbiSettleTargets {
