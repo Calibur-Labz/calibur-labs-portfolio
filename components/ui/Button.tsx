@@ -40,7 +40,7 @@ export default function Button({
     textDecoration: 'none',
   }
 
-  const cls = `btn-shimmer ${isPrimary ? 'btn-primary' : 'btn-ghost'} ${className}`.trim()
+  const cls = `btn-shimmer ${isPrimary ? 'btn-primary' : 'btn-primary'} ${className}`.trim()
 
   if (href) {
     return (

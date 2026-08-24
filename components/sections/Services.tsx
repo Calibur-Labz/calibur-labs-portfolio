@@ -86,7 +86,7 @@ export default function Services() {
             <motion.div
               key={service.id}
               variants={fadeUp}
-              whileHover={{ y: -6, transition: { duration: 0.2 } }}
+              //whileHover={{ y: -6, transition: { duration: 0.2 } }}
               style={{
                 position: 'relative',
                 background: 'rgba(255,255,255,0.02)',

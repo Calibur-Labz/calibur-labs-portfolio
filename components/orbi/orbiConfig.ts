@@ -1206,8 +1206,15 @@ export const ORBI_COOLDOWNS = {
   hoverGreeting: 30000,
   /** Between click reactions — also stops a double-click double-bubbling. */
   clickMessage: 1500,
-  /** The self-initiated curious glance. */
-  curious: 25000,
+  /**
+   * The self-initiated curious glance.
+   *
+   * The single biggest lever on how busy ORBI feels when nobody is doing
+   * anything: at 25s an idle page got two glances a minute on top of the
+   * drowsiness beats, and never held still for longer than about twenty
+   * seconds at a stretch.
+   */
+  curious: 50000,
   /** The startled reaction to a fast flick. */
   fastScroll: 2600,
   /** The same section message replaying. */
@@ -1248,9 +1255,26 @@ export const ORBI_INTERACTION = {
   /** Eye-follow smoothing. Long enough to read as a glance, not a servo. */
   gazeEase: 'power3.out',
   gazeDuration: 0.5,
-  /** Quiet spell before the curious glance may fire, ms (randomized). */
-  curiousMinDelay: 8000,
-  curiousMaxDelay: 12000,
+  /**
+   * How long after the wheel last turned a scroll still counts as the
+   * visitor's own. The startled recoil is the only thing that asks.
+   *
+   * Momentum scrolling keeps emitting `wheel` all the way through the glide,
+   * so this only has to cover the gap between two ticks of a real flick — not
+   * the length of the scroll.
+   */
+  handScrollWindowMs: 300,
+  /**
+   * Quiet spell before the curious glance may fire, ms (randomized).
+   *
+   * Deliberately longer than it looks like it should be. At 8–12s ORBI got
+   * curious while somebody was still reading the paragraph in front of him,
+   * which is not a quiet spell — it is a visitor concentrating. The upper
+   * bound stays clear of `drowsyDelay` so the glance always finishes before
+   * the eyelids start to droop.
+   */
+  curiousMinDelay: 13000,
+  curiousMaxDelay: 18000,
   curiousHold: 2200,
   /** Quiet spell before ORBI gets drowsy, then closes its eyes. */
   drowsyDelay: 24000,
@@ -1502,7 +1526,7 @@ export const ORBI_CLICK_MESSAGES = [
   'You found me!',
   'Keep exploring 👀',
   'Nice to meet you!',
-  "I'm ORBI ✨",
+  "I'm ORBI",
 ] as const
 
 /* ── Debug ─────────────────────────────────────────────────────────────── */

@@ -74,6 +74,16 @@ export interface OrbiInteractionOptions {
 export interface OrbiInteractionApi {
   /** Ping from outside — the scroll hook uses this so scrolling counts as activity. */
   noteActivity: () => void
+  /**
+   * Did the visitor's own hand move the page just now?
+   *
+   * True only just after a real `wheel` event. A programmatic scroll — a nav
+   * anchor under `scroll-behavior: smooth`, a `scrollIntoView`, guide mode
+   * taking a trip — moves the viewport just as fast but produces none, which
+   * is the whole distinction: velocity alone cannot tell "the visitor flicked
+   * the page" from "the page is animating itself somewhere".
+   */
+  scrolledByHand: () => boolean
   /** Pointer entered / left the painted robot. Wired to the SVG, so it is exact. */
   setHovering: (hovering: boolean) => void
   /** Re-measure ORBI. Call when it changes size or docks. */
@@ -114,6 +124,8 @@ export function useOrbiInteraction({
   /** ORBI's centre in viewport coordinates. Cached; never read in an event. */
   const centreRef = useRef<{ x: number; y: number } | null>(null)
   const lastActivityRef = useRef(0)
+  /** When the wheel last turned. See `scrolledByHand`. */
+  const lastWheelRef = useRef(-Infinity)
   const hoveringRef = useRef(false)
   const proximityRef = useRef<OrbiProximity>('far')
   const stageRef = useRef<0 | 1 | 2 | 3 | 4>(0)
@@ -251,8 +263,14 @@ export function useOrbiInteraction({
     /* Anything at all counts as the user still being there. */
     on(window, 'pointerdown', markActive)
     on(window, 'keydown', markActive)
-    on(window, 'wheel', markActive)
     on(window, 'touchstart', markActive)
+    // The wheel is the one input that *is* scrolling, so it stamps its own
+    // time as well as counting as activity. No extra listener: this is the
+    // same one that was already here.
+    on(window, 'wheel', () => {
+      lastWheelRef.current = Date.now()
+      markActive()
+    })
 
     /* Geometry: measured here, never in a pointer handler. */
     on(window, 'resize', measure)
@@ -432,7 +450,12 @@ export function useOrbiInteraction({
     handlersRef.current.onGazeEnd()
   }, [enabled, pointerEnabled])
 
-  return { noteActivity, setHovering, refreshGeometry: measure }
+  const scrolledByHand = useCallback(
+    () => Date.now() - lastWheelRef.current < ORBI_INTERACTION.handScrollWindowMs,
+    [],
+  )
+
+  return { noteActivity, scrolledByHand, setHovering, refreshGeometry: measure }
 }
 
 /** How far the cursor travels for the pupils to reach their clamp, px. */

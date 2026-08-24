@@ -106,7 +106,7 @@ export default function MaintenanceScreen({ phone }: { phone: string }) {
         {/* Emergency contact button */}
         <a
           href={telHref(phone)}
-          className="btn-shimmer btn-ghost maint-emergency"
+          className="btn-shimmer btn-primary maint-emergency"
           style={{
             display: 'inline-flex',
             alignItems: 'center',

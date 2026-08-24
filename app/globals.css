@@ -115,8 +115,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Shared button motion — used by both variants */
-.btn-primary,
-.btn-ghost {
+.btn-primary {
   transition:
     color 0.25s ease,
     background 0.25s ease,
@@ -180,19 +179,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 @keyframes spinBtnBorder {
   to { --btn-border-angle: 360deg; }
-}
-
-/* Secondary — blue outline, blue label; hover inverts to plain blue fill */
-.btn-ghost {
-  background: transparent;
-  color: #00B7FF;
-  border: 1px solid #00B7FF;
-}
-.btn-ghost:hover {
-  background: #00B7FF;
-  color: #ffffff;
-  border-color: #00B7FF;
-  box-shadow: 0 0 24px rgba(0, 183, 255, 0.35);
 }
 
 /* Glow only on interaction — the trace ignites */
@@ -346,8 +332,7 @@ html {
 }
 
 /* Buttons get a tactile press + travel into their hover glow */
-.btn-primary,
-.btn-ghost {
+.btn-primary{
   transition:
     color 0.25s ease,
     background 0.25s ease,
@@ -355,24 +340,14 @@ html {
     box-shadow 0.3s ease,
     transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-/* .btn-primary:hover,
-.btn-ghost:hover {
-  transform: translateY(-2px);
-} */
-.btn-primary:active,
-.btn-ghost:active {
+.btn-primary:active {
   transform: translateY(0) scale(0.97);
 }
 
 /* The arrow icon glides forward as its button is hovered */
-.btn-primary svg,
-.btn-ghost svg {
+.btn-primary svg {
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
-/* .btn-primary:hover svg,
-.btn-ghost:hover svg {
-  transform: translateX(4px);
-} */
 
 /* Ambient float — opt-in via .float for hero accents */
 @keyframes floatY {

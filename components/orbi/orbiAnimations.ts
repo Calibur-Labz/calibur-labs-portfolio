@@ -63,7 +63,7 @@ export interface OrbiIntroHooks {
   onBlink: () => void
   /** Raise the hand and go `happy`. */
   onWave: () => void
-  /** Show "Hi 👋". */
+  /** Show "Hi!". */
   onGreet: () => void
 }
 

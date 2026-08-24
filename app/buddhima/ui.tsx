@@ -97,7 +97,7 @@ export function GhostButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="btn-ghost"
+      className="btn-primary"
       style={{ ...ghostBtnStyle, opacity: disabled ? 0.6 : 1, ...style }}
     >
       {children}

@@ -131,7 +131,7 @@ export default function About() {
                 fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                 textDecoration: 'none',
               }}
-              className="btn-shimmer btn-ghost"
+              className="btn-shimmer btn-primary"
             >
               Work With Us →
             </a>

@@ -96,7 +96,7 @@ export default function Navbar() {
           </div>
           <Link
             href="#contact"
-            className="btn-shimmer btn-ghost"
+            className="btn-shimmer btn-primary"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -186,7 +186,7 @@ export default function Navbar() {
               <Link
                 href="#contact"
                 onClick={() => setMenuOpen(false)}
-                className="btn-shimmer btn-ghost"
+                className="btn-shimmer btn-primary"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',

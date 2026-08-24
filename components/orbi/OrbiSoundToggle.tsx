@@ -84,6 +84,18 @@ export default function OrbiSoundToggle({
         background: 'transparent',
         pointerEvents: 'auto',
         cursor: 'pointer',
+        /*
+         * The focus ring has to be the shape of the thing it is pointing at.
+         *
+         * The button is a 44px square so a thumb has something to hit, but the
+         * only part anyone can see is the disc painted inside it — so the
+         * global `:focus-visible` outline was drawing a hard square around a
+         * round control. Rounding the box and pulling the offset in lands the
+         * ring exactly on the disc's edge instead. Same treatment `.orbi-robot`
+         * already gets in `globals.css`, for the same reason.
+         */
+        borderRadius: '50%',
+        outlineOffset: '-5px',
         opacity,
         transition: 'opacity 220ms ease',
         WebkitTapHighlightColor: 'transparent',

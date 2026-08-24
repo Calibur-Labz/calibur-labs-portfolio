@@ -194,7 +194,7 @@ export default function MessagesSection({
                           href={`mailto:${m.email}?subject=${encodeURIComponent(
                             'Re: your message to Calibur Labs',
                           )}`}
-                          className="btn-ghost"
+                          className="btn-primary"
                           style={{
                             padding: '10px 20px',
                             borderRadius: '12px',

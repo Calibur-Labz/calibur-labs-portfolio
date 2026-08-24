@@ -3093,7 +3093,22 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       onSection: handleSection,
       onFooter: handleFooter,
       onDirection: handleDirection,
-      onFastScroll: handleFastScroll,
+      /**
+       * The startled recoil is only ever a reaction to the *visitor* moving
+       * the page.
+       *
+       * `scroll-behavior: smooth` is set site-wide, so every nav anchor, every
+       * in-page CTA and every guide-mode trip animates the viewport far past
+       * the velocity threshold. ORBI was flinching on all of them and then
+       * playing the destination's own section reaction on top of the flinch —
+       * two body beats inside a second, on the most ordinary interaction the
+       * site has. A scroll nobody's hand caused is not startling, however fast
+       * it is; the wheel is what makes it the visitor's.
+       */
+      onFastScroll: () => {
+        if (!interactionRef.current?.scrolledByHand()) return
+        handleFastScroll()
+      },
     }),
     [handleSection, handleFooter, handleDirection, handleFastScroll],
   )
