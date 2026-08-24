@@ -45,6 +45,7 @@ export default function OrbiGuideMenu({
   theme = 'dark',
   reducedMotion,
   onSelect,
+  onAsk,
   onClose,
   controlRef,
 }: {
@@ -62,6 +63,8 @@ export default function OrbiGuideMenu({
   theme?: OrbiRegionTheme
   reducedMotion: boolean
   onSelect: (item: OrbiGuideItem) => void
+  /** Hand over to Ask ORBI. Omitted entirely if the panel is unavailable. */
+  onAsk?: () => void
   onClose: () => void
   /** Focus goes back here when the panel closes. */
   controlRef: RefObject<HTMLButtonElement | null>
@@ -283,6 +286,26 @@ export default function OrbiGuideMenu({
           flex: '0 0 auto',
         }}
       >
+        {/*
+          Ask ORBI lives here rather than among the destinations, and rather
+          than on a third circular control beside him.
+
+          Below the divider because it is a different kind of thing: the five
+          rows above take you somewhere on the page, this one starts a
+          conversation. Putting it in the list would have made it look like a
+          sixth section; putting it on its own button beside the guide and the
+          sound controls would have made ORBI's chrome outgrow ORBI (§1).
+        */}
+        {onAsk && (
+          <MenuButton
+            height={m.item}
+            font={m.font}
+            label={ORBI_GUIDE_MESSAGES.askLabel}
+            onClick={onAsk}
+          >
+            {ORBI_GUIDE_MESSAGES.ask}
+          </MenuButton>
+        )}
         <MenuButton height={m.item} font={m.font * 0.92} muted onClick={onClose}>
           {ORBI_GUIDE_MESSAGES.close}
         </MenuButton>

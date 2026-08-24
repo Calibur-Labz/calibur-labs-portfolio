@@ -1430,6 +1430,50 @@ export const ORBI_SELECTORS = {
   head: '[data-orbi-part="head"]',
 } as const
 
+/* ── Content discovery ─────────────────────────────────────────────────── */
+
+/**
+ * Phase 17 — ORBI noticing the page along with the visitor.
+ *
+ * A second, quieter look at what a section is actually showing, once that
+ * section's own reaction has finished with him. Eyes lead; the body follows by
+ * a couple of degrees on a desktop and not at all anywhere else.
+ *
+ * The list is deliberately two entries long. `about`, `services`, `precision`
+ * and `testimonials` already end facing what they are about — their behaviours
+ * carry `restAnimation: 'look-*'`, which is this same idea expressed as a
+ * resting pose — so sweeping them as well would be the same character beat
+ * performed twice in a row. These two had no such pose: `work` hops and faces
+ * front, `contact` waves and faces front.
+ */
+export const ORBI_DISCOVERY = {
+  /** Section id → what ORBI looks at once its own reaction has let go. */
+  targets: {
+    work: ORBI_SELECTORS.project,
+    contact: ORBI_SELECTORS.form,
+  } as Record<string, string | undefined>,
+  /** Beat after the section's claim lapses, so the two never overlap. */
+  afterSectionMs: 1100,
+  /** How long the eyes rest on each thing before moving on. */
+  stopMs: 700,
+  /**
+   * Two is a glance. The Phase 7 cinematic already walks the whole row when it
+   * runs, and doing that again from the dock would be a scan, not a glance.
+   */
+  maxStops: 2,
+  /** Beat held on the last stop before the eyes go back where they were. */
+  holdMs: 700,
+  /** Not again for this long, per section. */
+  cooldown: 45000,
+  /**
+   * Degrees of body orientation that follow the eyes. Summed into the one tilt
+   * writer with the hover and menu leans, so this never owns the layer — and
+   * it is dropped whole on a phone and under reduced motion, where the eyes
+   * carry the beat on their own.
+   */
+  tilt: 2.2,
+} as const
+
 /* ── Contact companion ─────────────────────────────────────────────────── */
 
 export type OrbiFormStatus = 'idle' | 'submitting' | 'success' | 'error'

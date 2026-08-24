@@ -68,6 +68,7 @@ export default function OrbiDebug({
   cinematic,
   easter,
   guide,
+  ask,
   guideTools,
   audio,
   audioTools,
@@ -88,6 +89,8 @@ export default function OrbiDebug({
   easter: OrbiEasterApi
   guide: OrbiGuideApi
   /** `?orbi-guide=1` — the destination buttons below the readout. */
+  /** Ask ORBI, for the HUD only. Never the prompt, the key or the server config. */
+  ask?: { open: boolean; pending: boolean; count: number; lastAction: string | null; lastError: string | null }
   guideTools: boolean
   audio: OrbiAudioApi
   /** `?orbi-audio-debug=1` — the sound-test buttons below the readout. */
@@ -228,6 +231,12 @@ export default function OrbiDebug({
     // it back before the destination reacts, so `—` here mid-arrival is right.
     ['nav owner', guide.owning ? 'guide' : guide.phase === 'closed' ? '—' : 'released'],
     ['guide cancel', guide.cancelReason ?? '—'],
+    ['—ask—', ''],
+    ['panel', ask?.open ? 'open' : '—'],
+    ['request', ask?.pending ? 'in flight' : '—'],
+    ['messages', String(ask?.count ?? 0)],
+    ['action', ask?.lastAction ?? '—'],
+    ['ask error', ask?.lastError ?? '—'],
     ['—audio—', ''],
     ['preferred', audio.preferred ? 'on' : 'off'],
     ['unlocked', audio.unlocked ? 'yes' : 'no'],

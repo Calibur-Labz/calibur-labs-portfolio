@@ -113,6 +113,9 @@ export const ORBI_GUIDE_MESSAGES = {
    * section message is the one that matters, and guide mode clears this before
    * it arrives.
    */
+  /** The one row that starts a conversation rather than a trip. */
+  ask: 'Ask ORBI',
+  askLabel: 'Ask ORBI a question',
   acknowledgements: ['Let’s go 👀', 'This way.', 'Right here.'] as const,
 } as const
 

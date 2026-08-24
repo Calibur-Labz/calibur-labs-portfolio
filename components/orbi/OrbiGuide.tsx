@@ -44,6 +44,9 @@ import OrbiSoundToggle from './OrbiSoundToggle'
 import OrbiSleepParticles from './OrbiSleepParticles'
 import OrbiGuideControl from './OrbiGuideControl'
 import OrbiGuideMenu from './OrbiGuideMenu'
+import OrbiAskPanel from './OrbiAskPanel'
+import { useOrbiAsk } from './useOrbiAsk'
+import { ORBI_ACTION_TARGETS, type OrbiAskAction } from './orbiAsk'
 import { useOrbiGuideMode, type OrbiGuideApi } from './useOrbiGuideMode'
 import {
   ORBI_GUIDE,
@@ -94,6 +97,7 @@ import {
   ORBI_AUDIO,
   ORBI_AUDIO_TOGGLE,
   ORBI_COOLDOWNS,
+  ORBI_DISCOVERY,
   ORBI_EASTER_EGGS,
   ORBI_EASTER_SPECS,
   ORBI_INITIAL_STATE,
@@ -318,6 +322,12 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   /** Newest thing ORBI reacted to. Debug HUD only. */
   const lastEventRef = useRef('—')
   const navOpenRef = useRef(false)
+  /**
+   * The Ask ORBI panel is up. Declared here with the other mirrors because
+   * every eligibility check in the file reads it, and they are all written
+   * long before the panel's own state exists.
+   */
+  const askOpenRef = useRef(false)
   /** Which side of ORBI's box the sound control is on. */
   const toggleSideRef = useRef<'left' | 'right'>('left')
   /** What last woke ORBI up. Debug HUD only. */
@@ -508,6 +518,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     if (environmentRef.current?.modal) return false
     if (environmentRef.current?.crowded) return false
     if (navOpenRef.current) return false
+    if (askOpenRef.current) return false
     if (frozenRef.current) return false
     if (drowsinessRef.current !== 0) return false
 
@@ -608,6 +619,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       if (environmentRef.current?.modal) return false
       if (environmentRef.current?.crowded) return false
       if (navOpenRef.current) return false
+      // Someone typing a question is the most deliberate thing a visitor ever
+      // does with ORBI. Nothing he does for his own amusement outranks it.
+      if (askOpenRef.current) return false
       // Guide mode is the one thing ORBI does because he was *asked* to, and
       // the open panel is the visitor deciding where to go. He stands still
       // and waits — the claim only covers the beats, not the wait (§14).
@@ -1237,7 +1251,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   // cursor or an open menu are summed into a single tween, so two behaviours
   // can never own this rotation at the same time.
 
-  const auxTiltRef = useRef({ hover: 0, nav: 0 })
+  const auxTiltRef = useRef({ hover: 0, nav: 0, discover: 0 })
   /** Set once `useOrbiInteraction` has run; callbacks above reach it through here. */
   const interactionRef = useRef<OrbiInteractionApi | null>(null)
 
@@ -1251,7 +1265,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     )
     const aux = quietBodyRef.current
       ? 0
-      : auxTiltRef.current.hover + auxTiltRef.current.nav
+      : auxTiltRef.current.hover +
+        auxTiltRef.current.nav +
+        auxTiltRef.current.discover
     applyTilt(tilt, base + aux, motionRef.current)
   }, [])
 
@@ -1509,6 +1525,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     easterRef.current?.setDepth(1)
     // Too fidgety on a phone, where there is no cursor to explain it.
     if (quietBodyRef.current) return
+    // ...and idle curiosity is the wrong mood over someone composing a
+    // question, for the same reason it is over someone filling in a form.
+    if (askOpenRef.current) return
     // Someone is filling in a form. Idle curiosity is exactly the wrong mood.
     if (companionRef.current) return
     const now = performance.now()
@@ -1552,8 +1571,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       // also put deep sleep (and waking from it) out of reach.
       const animation = stateRef.current.animation
       if (!isRestingAnimation(animation) && !isLookAnimation(animation)) return
-      // Never nod off while the visitor is mid-form.
+      // Never nod off while the visitor is mid-form, or mid-question.
       if (companionRef.current) return
+      if (askOpenRef.current) return
       if (
         !arbiter.claim(
           ORBI_PRIORITY.ambient,
@@ -1954,6 +1974,95 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   useEffect(() => {
     guideRef.current = guide
   })
+
+  /* ── Ask ORBI ────────────────────────────────────────────────────────── */
+  // Phase 18. The panel owns the conversation; this owns everything that is
+  // ORBI's — waking him, keeping his personality out of the way while someone
+  // is typing, and handing an accepted answer to guide mode, which already
+  // knows how to take a visitor somewhere.
+
+  const [askOpen, setAskOpen] = useState(false)
+  const ask = useOrbiAsk()
+  useEffect(() => {
+    askOpenRef.current = askOpen
+  })
+
+  const openAsk = useCallback(() => {
+    // Two panels of ORBI's open at once would be two robots (§27).
+    guideRef.current?.close('ask-open')
+    cinematicRef.current?.cancel('ask-open')
+    easterRef.current?.cancel('ask-open')
+    // Never a panel over a robot who still looks asleep (§29): the ordinary
+    // wake runs first, Z's and snoring stop with it.
+    wake(false, 'click')
+    note('ask:open')
+    setAskOpen(true)
+  }, [note, wake])
+
+  const closeAsk = useCallback(() => {
+    setAskOpen(false)
+    note('ask:close')
+  }, [note])
+
+  /**
+   * The visitor accepted a suggestion.
+   *
+   * Validated a third time here — the enum is checked on the model's output,
+   * again when the answer lands in the browser, and once more before anything
+   * moves. Only then is the id looked up, and only guide mode does the moving:
+   * no scrolling, no URLs, no selectors, nothing the model chose.
+   */
+  /**
+   * ORBI's face while a question is in flight.
+   *
+   * `thinking` on the way out, back to `normal` when the answer lands — the
+   * same two expressions everything else uses. No AI-specific animation, no
+   * new controller: one effect writing an expression the face already had.
+   */
+  useEffect(() => {
+    if (!askOpen) return
+    // A tick behind, so the face never cascades a render off the back of the
+    // effect that observed the request — the same shape the form companion
+    // uses for exactly the same reason.
+    later(() => {
+      if (ask.pending) {
+        softExpressionRef.current = null
+        setState((current) =>
+          isRestingAnimation(current.animation)
+            ? { ...current, expression: 'thinking' }
+            : current,
+        )
+        return
+      }
+      setState((current) =>
+        current.expression === 'thinking'
+          ? { ...current, expression: 'normal' }
+          : current,
+      )
+    }, 0)
+  }, [askOpen, ask.pending, later])
+
+  const runAskAction = useCallback(
+    (action: OrbiAskAction) => {
+      if (action === 'NO_ACTION') return
+      const target = ORBI_ACTION_TARGETS[action]
+      const item = ORBI_GUIDE_ITEMS.find((entry) => entry.target === target)
+      if (!item) return
+      setAskOpen(false)
+      note(`ask:${action}`)
+      // Phase 12 takes it from here — scroll, arrival, and the destination's
+      // own reaction, exactly as if the menu had been used.
+      //
+      // Opened and chosen in the same tick on purpose. `choose` only accepts a
+      // guide that is opening or choosing, and the visitor has just closed the
+      // menu to type — so this walks in through the same front door rather
+      // than adding a second way to navigate. The panel never appears: it is
+      // published on a run-token timer, and `choose` bumps that token first.
+      guideRef.current?.openMenu()
+      guideRef.current?.choose(item)
+    },
+    [note],
+  )
 
   const { open: guideOpen, remeasure: guideRemeasure } = guide
 
@@ -2577,6 +2686,142 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     [arbiter, later, note],
   )
 
+  /**
+   * Where the on-screen matches for a selector are, as normalized directions
+   * from ORBI's own box. The one piece of "look at that" arithmetic in the
+   * file — the cinematic's card scan and Phase 17's quieter glance both read
+   * from here rather than each measuring the page their own way.
+   */
+  const gazeStops = useCallback((selector: string, max: number) => {
+    const root = rootRef.current
+    if (!root) return []
+    const box = root.getBoundingClientRect()
+    const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+
+    const targets = Array.from(document.querySelectorAll(selector)).filter(
+      (el) => {
+        const r = el.getBoundingClientRect()
+        return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight
+      },
+    )
+
+    return targets.slice(0, max).map((el) => {
+      const r = el.getBoundingClientRect()
+      const dx = r.left + r.width / 2 - from.x
+      const dy = r.top + r.height / 2 - from.y
+      const length = Math.hypot(dx, dy) || 1
+      return { x: dx / length, y: dy / length }
+    })
+  }, [rootRef])
+
+  /* ── Content discovery ───────────────────────────────────────────────── */
+  // Phase 17. Once a section has finished reacting, ORBI takes one quieter
+  // look at what it is actually showing. No gesture, no bubble, no sound and
+  // no travel — the eyes do it, and on a desktop the body follows by a couple
+  // of degrees through the tilt writer that was already summing the hover and
+  // menu leans.
+
+  /** Last time each section earned a second look. */
+  const discoveredRef = useRef(new Map<string, number>())
+  /** Invalidates a sweep's remaining stops when a newer one starts. */
+  const discoverTokenRef = useRef(0)
+
+  /**
+   * Whether a second look may happen at all.
+   *
+   * The least important thing ORBI does, so the list is long: it stands down
+   * for the entrance, a cinematic — including the Projects one, which is
+   * already walking those exact cards — guide mode, the form companion, a
+   * submission, a modal, the menu, a hidden reaction, sleep, anything the
+   * visitor asked for, and a tab nobody is looking at.
+   */
+  const canDiscover = useCallback(() => {
+    if (!settledRef.current) return false
+    if (frozenRef.current) return false
+    if (companionRef.current) return false
+    if (formBusyRef.current) return false
+    if (guideRef.current?.open) return false
+    if (guideRef.current && guideRef.current.phase !== 'closed') return false
+    if (askOpenRef.current) return false
+    if (cinematicRef.current?.active) return false
+    if (easterRef.current?.active) return false
+    if (environmentRef.current?.modal) return false
+    if (navOpenRef.current) return false
+    if (drowsinessRef.current !== 0) return false
+    if (stateRef.current.message) return false
+    // A held look orientation is a resting pose, not a gesture — but it also
+    // owns the eyes through the `gesture` slot, and this writes to
+    // `interaction`, which sits below it. Sections that end in one are exactly
+    // the ones left out of `targets`.
+    if (!isRestingAnimation(stateRef.current.animation)) return false
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      return false
+    }
+    return arbiter.level() <= ORBI_PRIORITY.ambient
+  }, [arbiter])
+
+  const discover = useCallback(
+    (id: string) => {
+      const selector = ORBI_DISCOVERY.targets[id]
+      if (!selector) return
+      if (!canDiscover()) return
+
+      const now = performance.now()
+      const seen = discoveredRef.current.get(id)
+      if (seen !== undefined && now - seen < ORBI_DISCOVERY.cooldown) return
+
+      const stops = gazeStops(selector, ORBI_DISCOVERY.maxStops)
+      if (!stops.length) return
+
+      const total = stops.length * ORBI_DISCOVERY.stopMs + ORBI_DISCOVERY.holdMs
+      const owner = `discover:${id}`
+      if (!arbiter.claim(ORBI_PRIORITY.ambient, owner, total + 400)) return
+
+      discoveredRef.current.set(id, now)
+      note(owner)
+      const token = ++discoverTokenRef.current
+
+      stops.forEach((stop, index) => {
+        later(() => {
+          if (token !== discoverTokenRef.current) return
+          gazeRef.current?.set('interaction', stop.x, stop.y)
+          // The body leans after the eyes have already gone, never with them.
+          auxTiltRef.current.discover = Math.sign(stop.x) * ORBI_DISCOVERY.tilt
+          applyBodyTilt()
+        }, index * ORBI_DISCOVERY.stopMs)
+      })
+
+      later(() => {
+        if (token !== discoverTokenRef.current) return
+        gazeRef.current?.clear('interaction')
+        auxTiltRef.current.discover = 0
+        applyBodyTilt()
+        arbiter.release(owner)
+      }, total)
+    },
+    [applyBodyTilt, arbiter, canDiscover, gazeStops, later, note],
+  )
+
+  /**
+   * The second look, scheduled off the section ORBI is already tracking.
+   *
+   * An effect rather than a line inside `handleSection` for two reasons: the
+   * beat belongs *after* that section's own claim has lapsed, and the section
+   * handler is declared long before any of the machinery this needs. Nothing
+   * new is watched — `activeSection` is state the guide already keeps.
+   */
+  useEffect(() => {
+    if (!activeSection) return
+    if (!ORBI_DISCOVERY.targets[activeSection]) return
+    const behavior = registry.get(activeSection)
+    if (!behavior) return
+    later(
+      () => discover(activeSection),
+      sectionClaimMs(behavior, ORBI_TIMING.messageHoldMs) +
+        ORBI_DISCOVERY.afterSectionMs,
+    )
+  }, [activeSection, registry, later, discover])
+
   /* ── Revealed detail ─────────────────────────────────────────────────── */
 
   const handleExpanded = useCallback(
@@ -2656,28 +2901,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
    * scan starts, never per frame.
    */
   const projectGazeStops = useCallback(() => {
-    const root = rootRef.current
-    if (!root) return [{ x: 0, y: 0 }]
-    const box = root.getBoundingClientRect()
-    const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 }
-
-    const cards = Array.from(
-      document.querySelectorAll(ORBI_SELECTORS.project),
-    ).filter((card) => {
-      const r = card.getBoundingClientRect()
-      return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight
-    })
-
-    if (!cards.length) return [{ x: 0, y: 0 }]
-
-    return cards.slice(0, 4).map((card) => {
-      const r = card.getBoundingClientRect()
-      const dx = r.left + r.width / 2 - from.x
-      const dy = r.top + r.height / 2 - from.y
-      const length = Math.hypot(dx, dy) || 1
-      return { x: dx / length, y: dy / length }
-    })
-  }, [rootRef])
+    const stops = gazeStops(ORBI_SELECTORS.project, 4)
+    return stops.length ? stops : [{ x: 0, y: 0 }]
+  }, [gazeStops])
 
   /* ── Cinematic beats ─────────────────────────────────────────────────── */
   // The controller owns the travel; this owns the face and the gesture. Each
@@ -3199,6 +3425,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     if (formBusyRef.current) return false
     if (guideRef.current?.open) return false
     if (guideRef.current && guideRef.current.phase !== 'closed') return false
+    if (askOpenRef.current) return false
     if (cinematicRef.current?.active) return false
     if (easterRef.current?.active) return false
     if (environmentRef.current?.modal) return false
@@ -3589,6 +3816,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     // to the flight layer, so a reposition would slide ORBI out from under his
     // own guide (§5, §27).
     if (guideRef.current?.open) return false
+    if (askOpenRef.current) return false
     if (hoveringRef.current) return false
     // ...and it has no place mid-flourish either.
     if (easterRef.current?.active) return false
@@ -3819,6 +4047,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
             theme={environment.theme}
             reducedMotion={reducedMotion}
             onSelect={guide.choose}
+            onAsk={openAsk}
             onClose={() => guide.close('dismissed')}
             controlRef={guideButtonRef}
           />
@@ -3891,6 +4120,27 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         </div>
         </div>
       </div>
+      {/*
+        Ask ORBI. A sibling of ORBI's root rather than a child of it: the root
+        is a small fixed box sized to the robot, and a panel that has to hold a
+        conversation does not belong inside it. It anchors itself against the
+        same placement metrics, so it still reads as sitting with him.
+      */}
+      <OrbiAskPanel
+        open={askOpen}
+        entries={ask.entries}
+        pending={ask.pending}
+        breakpoint={breakpoint}
+        placement={placement}
+        reducedMotion={reducedMotion}
+        onSend={ask.send}
+        onAction={(entry) => {
+          if (!entry.action) return
+          ask.clearAction(entry.id)
+          runAskAction(entry.action)
+        }}
+        onClose={closeAsk}
+      />
       {debugEnabled && (
         <OrbiDebug
           state={state}
@@ -3904,6 +4154,13 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           cinematic={cinematic}
           easter={easter}
           guide={guide}
+          ask={{
+            open: askOpen,
+            pending: ask.pending,
+            count: ask.entries.length,
+            lastAction: ask.lastAction,
+            lastError: ask.lastError,
+          }}
           guideTools={devGuideTools}
           audio={audio}
           audioTools={devAudio}
