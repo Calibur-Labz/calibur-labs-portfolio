@@ -16,6 +16,14 @@ export interface OrbiScrollHandlers {
   onDirection: (direction: OrbiScrollDirection) => void
   /** The viewport is moving unusually fast. Throttling is the caller's job. */
   onFastScroll: (velocity: number) => void
+  /**
+   * How far down the document the visitor is, 0 at the top and 1 at the
+   * bottom. Read straight off the master trigger that was already measuring
+   * direction and velocity, so page progress costs no listener of its own.
+   *
+   * Fires on the scroll tick, so it must not touch React state.
+   */
+  onProgress: (progress: number) => void
 }
 
 export interface OrbiScrollOptions {
@@ -112,12 +120,16 @@ export function useOrbiScroll({
       handlersRef.current.onDirection(direction)
     }
 
+    let master: ScrollTrigger | null = null
+
     const ctx = gsap.context(() => {
-      // Master: direction, stop detection, velocity.
-      ScrollTrigger.create({
+      // Master: direction, stop detection, velocity — and, since it already
+      // spans the whole document, progress.
+      master = ScrollTrigger.create({
         start: 0,
         end: 'max',
         onUpdate: (self) => {
+          handlersRef.current.onProgress(self.progress)
           emitDirection(self.direction === 1 ? 'down' : 'up')
 
           if (stopTimer) clearTimeout(stopTimer)
@@ -174,6 +186,9 @@ export function useOrbiScroll({
       // who scrolled during the entrance) would otherwise get no reaction at
       // all until they left the section and came back.
       resolveSection()
+      // Same reasoning for progress: `onUpdate` has not run yet, so a restored
+      // scroll position would show an empty ring until the visitor moved.
+      if (master) handlersRef.current.onProgress(master.progress)
     })
 
     return () => {

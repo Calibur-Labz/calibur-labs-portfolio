@@ -98,6 +98,7 @@ import {
   ORBI_EASTER_SPECS,
   ORBI_INITIAL_STATE,
   ORBI_INTERACTION,
+  ORBI_INTRO,
   ORBI_MEDIA,
   ORBI_MESSAGES,
   ORBI_MICRO,
@@ -106,6 +107,8 @@ import {
   ORBI_FORM_MESSAGES,
   ORBI_PLACEMENT,
   ORBI_PRIORITY,
+  ORBI_PROGRESS,
+  ORBI_PROGRESS_MESSAGES,
   ORBI_SCROLL,
   ORBI_SELECTORS,
   ORBI_SLEEP,
@@ -806,6 +809,83 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     [arbiter],
   )
 
+  /* ── First meeting ───────────────────────────────────────────────────── */
+  // Phase 16, and deliberately not a system: two hooks on the entrance that
+  // was already running, plus one deferred line. There is no controller, no
+  // claim of its own and nothing to cancel — the follow-up simply checks, at
+  // the moment it would speak, whether ORBI is still exactly where the
+  // entrance left him. Anything at all having happened since means it is no
+  // longer the right thing to say, and it is dropped rather than queued.
+
+  /** False once the second line has run, or once it can no longer be said. */
+  const introLiveRef = useRef(true)
+
+  /**
+   * A glance at the page ORBI has just arrived on, then back to the visitor.
+   *
+   * Desktop only: on a phone he docks in the corner with the hero directly
+   * above him, so the movement says nothing and the preferred mobile sequence
+   * is the plain one. Uses the `interaction` gaze slot like every other
+   * deliberate look — no new source, and the entrance's own wave takes the
+   * eyes back a beat later whether or not this ran.
+   */
+  const glanceAtPage = useCallback(() => {
+    if (quietBodyRef.current) return
+    const gaze = gazeRef.current
+    const root = rootRef.current
+    const hero = document.querySelector('[data-orbi-cinematic="hero"]')
+    if (!gaze || !root || !hero) return
+
+    const from = root.getBoundingClientRect()
+    const to = hero.getBoundingClientRect()
+    const dx = to.left + to.width / 2 - (from.left + from.width / 2)
+    const dy = to.top + to.height / 2 - (from.top + from.height / 2)
+    const length = Math.hypot(dx, dy) || 1
+
+    gaze.set('interaction', (dx / length) * 0.8, (dy / length) * 0.5)
+    later(() => gaze.clear('interaction'), ORBI_INTRO.heroGlanceMs)
+  }, [later])
+
+  /**
+   * The second half of the hello, swapped into the panel the first half is
+   * still sitting in.
+   *
+   * Every way the visitor can have taken over is caught by the same question:
+   * is ORBI still saying what the entrance told him to say, and is he still
+   * free? A section reaction, a poke, guide mode, the form, a cinematic, a
+   * modal, the menu, a backgrounded tab — each of them has either replaced the
+   * line or taken the claim by the time this runs.
+   */
+  const introFollowUp = useCallback(() => {
+    if (!introLiveRef.current) return
+    introLiveRef.current = false
+
+    // The entrance's line is still the one on screen — nothing has spoken over
+    // it, and it has not yet expired.
+    if (stateRef.current.message !== ORBI_MESSAGES.greeting) return
+    if (companionRef.current) return
+    if (formBusyRef.current) return
+    if (guideRef.current?.open) return
+    if (guideRef.current && guideRef.current.phase !== 'closed') return
+    if (cinematicRef.current?.active) return
+    if (easterRef.current?.active) return
+    if (environmentRef.current?.modal) return
+    if (navOpenRef.current) return
+    if (frozenRef.current) return
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      return
+    }
+    if (arbiter.level() > ORBI_PRIORITY.ambient) return
+
+    holdRef.current = ORBI_INTRO.secondLineHoldMs
+    setState((current) => ({
+      ...current,
+      expression: 'happy',
+      message: ORBI_MESSAGES.introFollowUp,
+      messageId: current.messageId + 1,
+    }))
+  }, [arbiter])
+
   /* ── Page-load sequence ──────────────────────────────────────────────── */
   // rise → eyes on → blink → wave → "Hi 👋". Claims the top priority for its
   // whole run, so no scroll reaction can cut in.
@@ -847,11 +927,23 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     const tl = createIntroTimeline(
       root,
       {
-        onEyesOn: () => setAwake(true),
+        onEyesOn: () => {
+          setAwake(true)
+          // Phase 16: the first thing ORBI does with his eyes open is look at
+          // the page, not at the visitor.
+          glanceAtPage()
+        },
         onBlink: blink,
         onWave: () =>
           setState((s) => ({ ...s, expression: 'happy', animation: 'wave' })),
-        onGreet: () => applySay(ORBI_MESSAGES.greeting),
+        onGreet: () => {
+          // Held a little past the swap, so the panel can never close in the
+          // gap between the two lines.
+          applySay(ORBI_MESSAGES.greeting, {
+            holdMs: ORBI_INTRO.firstLineMs + 400,
+          })
+          later(introFollowUp, ORBI_INTRO.firstLineMs)
+        },
       },
       live,
     )
@@ -859,7 +951,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     return () => {
       tl.kill()
     }
-  }, [arbiter, blink, applySay])
+  }, [arbiter, blink, applySay, glanceAtPage, introFollowUp, later])
 
   /**
    * Fly home from the hero once the greeting has run — the last beat of the
@@ -3078,10 +3170,163 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     applyDockTransform,
   ])
 
+  /* ── Page progress ───────────────────────────────────────────────────── */
+  // Phase 15. How far down the page the visitor has got — read off the scroll
+  // system's existing master trigger — and the two small moments that come off
+  // it. Nothing here is drawn: progress is a number ORBI reacts to twice, not
+  // something the visitor is shown. Both beats are arbitrated, and either is
+  // skipped outright if it cannot run cleanly rather than queued for later.
+
+  /** How far down the page the visitor has got, 0 to 1. */
+  const progressRef = useRef(0)
+  const completedRef = useRef(false)
+  const halfwayRef = useRef(false)
+  /** The footer counts as the end of the page whatever the scrollbar says. */
+  const reachedEndRef = useRef(false)
+
+  /**
+   * Whether a progress beat may run *right now*.
+   *
+   * The same list of refusals the small hello uses, for the same reason: this
+   * is the least important thing on the page, so it stands down for the form,
+   * a modal, the menu, a cinematic, a hidden reaction, guide mode — open or
+   * mid-trip — and for a visitor who is not even looking at the tab.
+   */
+  const canMarkProgress = useCallback(() => {
+    if (!settledRef.current) return false
+    if (frozenRef.current) return false
+    if (companionRef.current) return false
+    if (formBusyRef.current) return false
+    if (guideRef.current?.open) return false
+    if (guideRef.current && guideRef.current.phase !== 'closed') return false
+    if (cinematicRef.current?.active) return false
+    if (easterRef.current?.active) return false
+    if (environmentRef.current?.modal) return false
+    if (navOpenRef.current) return false
+    if (drowsinessRef.current !== 0) return false
+    if (stateRef.current.message) return false
+    if (!isRestingAnimation(stateRef.current.animation)) return false
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      return false
+    }
+    return arbiter.level() <= ORBI_PRIORITY.ambient
+  }, [arbiter])
+
+  /**
+   * One small beat about how far through the page the visitor is.
+   *
+   * `lift` is Phase 13's — the same three-pixel rise the "you're back" hello
+   * uses — so nothing new moves. Under reduced motion the body stays put and
+   * the face and the line carry it, which is the rule everywhere else in ORBI.
+   */
+  const markProgress = useCallback(
+    (message: string, lift: boolean) => {
+      if (!canMarkProgress()) return false
+      if (
+        !arbiter.claim(
+          ORBI_PRIORITY.ambient,
+          'progress',
+          ORBI_TIMING.messageHoldMs + 600,
+        )
+      ) {
+        return false
+      }
+
+      note('progress')
+      softExpressionRef.current = null
+      restAnimationRef.current = null
+      setGazeLead('gesture')
+      const still = motionRef.current.reducedMotion
+      if (lift && !still) setBright(true)
+
+      holdRef.current = ORBI_TIMING.messageHoldMs
+      setState((current) => ({
+        ...current,
+        expression: 'happy',
+        animation: lift && !still ? 'lift' : current.animation,
+        message,
+        messageId: current.messageId + 1,
+      }))
+
+      later(() => {
+        setBright(false)
+        setState((current) =>
+          current.expression === 'happy' ? { ...current, expression: 'normal' } : current,
+        )
+        arbiter.release('progress')
+      }, ORBI_TIMING.messageHoldMs)
+
+      return true
+    },
+    [arbiter, canMarkProgress, later, note],
+  )
+
+  /**
+   * Seen the whole page. Tried again on later progress ticks and once more
+   * when the footer trigger fires, so a visitor who reached the bottom during
+   * a guided trip still gets it when ORBI is free — but never queued, and
+   * never more than once a page view.
+   */
+  const markComplete = useCallback(() => {
+    if (completedRef.current) return
+    if (!reachedEndRef.current && progressRef.current < ORBI_PROGRESS.completeAt) {
+      return
+    }
+    if (markProgress(ORBI_PROGRESS_MESSAGES.complete, true)) {
+      completedRef.current = true
+    }
+  }, [markProgress])
+
+  /**
+   * The footer is the end of the page however long the document is, so taking
+   * the perch is the second — and last — place completion is attempted. An
+   * effect on the station ORBI already tracks: no trigger, no listener, and it
+   * runs after the beat that moved him there rather than during it.
+   */
+  useEffect(() => {
+    if (station !== 'edge') return
+    reachedEndRef.current = true
+    // Not on arrival: the section that owns the bottom of the page is still
+    // reacting then, and it outranks this. Goes through the shared `later` so
+    // unmount cancels it like every other deferred beat; no timer of its own.
+    later(markComplete, ORBI_PROGRESS.footerBeatMs)
+  }, [station, markComplete, later])
+
+  /**
+   * The midpoint aside. Held to a stricter rule than the completion beat: it
+   * only ever fires on the visitor's *own* scrolling — Phase 14's wheel stamp
+   * is what tells the two apart — and it gets exactly one attempt, because an
+   * aside that waits around for a good moment stops being an aside.
+   */
+  const handleProgress = useCallback(
+    (progress: number) => {
+      progressRef.current = progress
+
+      if (
+        !halfwayRef.current &&
+        progress >= ORBI_PROGRESS.halfwayAt &&
+        progress < ORBI_PROGRESS.completeAt
+      ) {
+        halfwayRef.current = true
+        // Guide mode and hash links cross the midpoint on the way somewhere
+        // else; that is travelling, not exploring.
+        if (interactionRef.current?.scrolledByHand()) {
+          markProgress(ORBI_PROGRESS_MESSAGES.halfway, false)
+        }
+      }
+
+      markComplete()
+    },
+    [markComplete, markProgress],
+  )
+
   /* ── The one scroll system ───────────────────────────────────────────── */
 
   const handleDirection = useCallback((direction: OrbiScrollDirection) => {
     setScrollDirection(direction)
+    // Someone who has started reading is no longer being introduced to
+    // anybody. Phase 16's second line is dropped, and never re-armed.
+    if (direction) introLiveRef.current = false
     // Scrolling is the user being present. The scroll hook owns the scrolling;
     // this is the one line that tells the interaction hook it happened, so
     // ORBI cannot doze off while someone is reading their way down the page.
@@ -3109,8 +3354,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         if (!interactionRef.current?.scrolledByHand()) return
         handleFastScroll()
       },
+      onProgress: handleProgress,
     }),
-    [handleSection, handleFooter, handleDirection, handleFastScroll],
+    [handleSection, handleFooter, handleDirection, handleFastScroll, handleProgress],
   )
 
   useOrbiScroll({
@@ -3592,8 +3838,14 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           align={environment.bubble.align}
           theme={environment.theme}
           // The opening line pops like any other; the follow-ups exchange
-          // their words inside the same panel.
-          transition={successStep > 0 ? 'soft' : 'pop'}
+          // their words inside the same panel. The first meeting's second line
+          // is the same idea — read off the message itself, so it needs no
+          // state of its own.
+          transition={
+            successStep > 0 || state.message === ORBI_MESSAGES.introFollowUp
+              ? 'soft'
+              : 'pop'
+          }
           minWidth={
             successRun > 0
               ? Math.round(placement.speechMaxWidth * ORBI_SUCCESS.minBubbleRatio)

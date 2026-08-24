@@ -401,9 +401,45 @@ export const ORBI_COLORS = {
 /* ── Copy ──────────────────────────────────────────────────────────────── */
 
 export const ORBI_MESSAGES = {
-  greeting: 'Hi 👋',
+  /**
+   * The entrance's own line, and the first half of the hello.
+   *
+   * Phase 16 deliberately did *not* add a second greeting after this one:
+   * ORBI already waves and speaks at the end of the entrance, so a separate
+   * "first meeting" beat a few seconds later would have been the same
+   * introduction performed twice. He introduces himself once, properly, in the
+   * moment he was already introducing himself.
+   */
+  greeting: 'Hi! I\u2019m ORBI \ud83d\udc4b',
+  /**
+   * ...and the second half, swapped into the same panel a beat later rather
+   * than popped as a new one. The point of the line is that it lowers the
+   * stakes: ORBI is available, and nobody has to do anything about him.
+   */
+  introFollowUp: 'I\u2019m here if you need me.',
   /** When the cursor rests on ORBI for a beat. */
-  hoverGreeting: 'Hey 👀',
+  hoverGreeting: 'Hey \ud83d\udc40',
+} as const
+
+/**
+ * Phase 16 — the first meeting.
+ *
+ * Not a sequence of its own: three numbers hung off the entrance that was
+ * already playing. ORBI glances at the page he has just arrived on, looks back
+ * at the visitor, waves, and says two short things. Everything after the
+ * glance is the existing entrance doing what it already did.
+ */
+export const ORBI_INTRO = {
+  /**
+   * How long the eyes rest on the hero before coming back to the visitor.
+   * Has to finish before the wave, which the entrance starts ~1.1s after the
+   * eyes come on, or the gesture would drag the pupils back mid-glance.
+   */
+  heroGlanceMs: 700,
+  /** How long the first line holds before the words are exchanged. */
+  firstLineMs: 2200,
+  /** ...and how long the second one stays up before the panel closes. */
+  secondLineHoldMs: 2600,
 } as const
 
 /* ── Geometry ──────────────────────────────────────────────────────────── */
@@ -1120,6 +1156,44 @@ export const ORBI_AUDIO_TOGGLE = {
   restOpacity: 0.3,
   /** ...and on touch, where there is no hover to reveal it. */
   touchOpacity: 0.68,
+} as const
+
+/* ── Page progress ─────────────────────────────────────────────────────── */
+
+/**
+ * Phase 15 — how far through the page the visitor has got.
+ *
+ * Not a thing the visitor is shown: a number ORBI reacts to, twice, and then
+ * never again in that page view. The value itself comes off the scroll
+ * system's existing master trigger, so page progress costs nothing to know.
+ */
+export const ORBI_PROGRESS = {
+  /**
+   * How long after taking the footer perch the completion beat is attempted.
+   *
+   * Measured, not guessed. Arriving at the bottom of this page, Contact's own
+   * reaction holds ORBI for the first ~2.9 seconds and the footer Easter egg
+   * is due at 6.5, which leaves a clear window between them. Landing inside it
+   * is the whole reason this is a delay rather than an immediate call — and if
+   * something has him anyway, the beat is dropped rather than queued.
+   */
+  footerBeatMs: 3400,
+  /** Far enough down to count as having seen the page. */
+  completeAt: 0.95,
+  /** ...and the midpoint, for the one optional aside. */
+  halfwayAt: 0.5,
+} as const
+
+/** The only two lines page progress may ever say. */
+export const ORBI_PROGRESS_MESSAGES = {
+  /**
+   * Not "You made it!" — the footer Easter egg already says that, and two
+   * congratulations seven seconds apart is one too many. This one is about
+   * having seen the whole page, which is a different thing from having
+   * arrived at the bottom of it.
+   */
+  complete: 'That\u2019s everything \u2728',
+  halfway: 'Halfway there \ud83d\udc40',
 } as const
 
 /* ── Sleep ─────────────────────────────────────────────────────────────── */
