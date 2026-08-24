@@ -260,6 +260,9 @@ html {
 
 /* ── Scrollbar — the cyan trace, running down the right edge ──────────────
  *
+ * No track: the channel is transparent so only the thumb reads against the
+ * page, a small pill travelling the full height of the window.
+ *
  * Two implementations of the same bar, deliberately not applied together.
  * Chrome/Safari get the ::-webkit-scrollbar pseudo-elements below; Firefox
  * gets the standard `scrollbar-*` properties in the @supports block at the
@@ -275,19 +278,19 @@ html {
 }
 
 ::-webkit-scrollbar {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
 }
 
-/* The track reads as a seam between the page and the window, not a channel:
-   near-black, with the same hairline the panels use holding its left edge. */
+/* Transparent — whatever the page is painting shows straight through, so the
+   bar has no visible channel and no seam. */
 ::-webkit-scrollbar-track {
-  background: #070B11;
-  border-left: 1px solid var(--hairline);
+  background: transparent;
+  border-left: none;
 }
 
-/* The thumb is painted inside a transparent border, which is what turns an
-   11px scrollbar into a 7px pill with breathing room on both sides. */
+/* The thumb is painted inside a transparent border, which is what turns a
+   10px scrollbar into a 6px pill with breathing room on both sides. */
 ::-webkit-scrollbar-thumb {
   border-radius: 99px;
   border: 2px solid transparent;
@@ -308,7 +311,7 @@ html {
 /* Where a vertical and horizontal bar meet — otherwise the browser paints
    its own light grey square there. */
 ::-webkit-scrollbar-corner {
-  background: #070B11;
+  background: transparent;
 }
 
 /* Nested scrollers — the admin console's overflowing tables — get a slimmer
@@ -327,7 +330,7 @@ html {
 @supports not selector(::-webkit-scrollbar) {
   html {
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 183, 255, 0.38) #070B11;
+    scrollbar-color: rgba(0, 183, 255, 0.38) transparent;
   }
 }
 
