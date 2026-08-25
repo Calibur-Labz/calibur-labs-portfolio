@@ -78,7 +78,7 @@ export default function Projects() {
                 exit={{ opacity: 0, scale: 0.88 }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
                 whileHover="hover"
-                variants={{ hover: { y: -8 } }}
+                //variants={{ hover: { y: -8 } }}
                 data-orbi-project={project.title}
                 style={{
                   position: 'relative',

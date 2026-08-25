@@ -1,4 +1,6 @@
-import { projects, services, techStack, testimonials } from '@/lib/data'
+// Relative rather than `@/`, matching the rest of `lib/orbi/`, so the module
+// compiles and runs under plain Node in the test suite.
+import { projects, services, techStack, testimonials } from '../data'
 
 /**
  * What ORBI is allowed to know.
