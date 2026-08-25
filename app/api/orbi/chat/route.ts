@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import {
   isAskTurn,
   normaliseAction,
+  normaliseEmotion,
   normaliseOutcome,
   ORBI_ASK,
   ORBI_ASK_MESSAGES,
@@ -102,6 +103,7 @@ export async function POST(request: Request) {
       message: reply.message,
       action: normaliseAction(reply.action),
       outcome: normaliseOutcome(reply.outcome),
+      emotion: normaliseEmotion(reply.emotion),
     })
   } catch (error) {
     // Logged for the operator with the provider that failed, never returned

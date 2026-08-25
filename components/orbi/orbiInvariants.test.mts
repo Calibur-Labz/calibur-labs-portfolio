@@ -23,10 +23,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createOrbiArbiter } from './orbiArbiter.js'
 import {
+  holdsEyes,
+  ORBI_ASK_FEELING,
+  ORBI_ASK_PRESENCE,
   ORBI_AUDIO,
   ORBI_COOLDOWNS,
   ORBI_EASTER_EGGS,
   ORBI_EASTER_SPECS,
+  ORBI_EMOTION,
   ORBI_MICRO,
   ORBI_PRIORITY,
   ORBI_SOUND_SPECS,
@@ -43,6 +47,7 @@ import {
 } from './orbiGuideConfig.js'
 import { chooseGuidePlacement, guideSheetRect } from './orbiDocks.js'
 import { ORBI_SECTION_BEHAVIORS } from './orbiSections.js'
+import { normaliseEmotion, ORBI_ASK_EMOTIONS } from './orbiAsk.js'
 
 /* ── One owner at a time ───────────────────────────────────────────────── */
 
@@ -556,4 +561,183 @@ test('the panel fits above ORBI on the smallest phone we support', () => {
   )
   assert.ok(spot, '320x568 should still get a floating panel, not the sheet')
   assert.equal(spot.side, 'above-right')
+})
+
+
+/* ── Phase 25: what an emotion word is allowed to move ─────────────────── */
+
+test('every feeling a provider can ask for is one ORBI already had', () => {
+  const poses = new Set(Object.values(ORBI_EMOTION as Record<string, unknown>))
+  for (const [word, felt] of ORBI_ASK_FEELING) {
+    assert.ok(poses.has(felt.emotion), `"${word}" invented a pose of its own`)
+  }
+})
+
+test('the pose map covers the enum, minus the resting state', () => {
+  assert.deepEqual(
+    [...ORBI_ASK_FEELING.keys()].sort(),
+    ['concerned', 'curious', 'excited', 'happy', 'surprised', 'unsure'],
+  )
+  // `normal` is absent on purpose: it must mean "do nothing", not "play the
+  // normal feeling", and it is what every unknown word becomes.
+  assert.equal(ORBI_ASK_FEELING.get('normal'), undefined)
+})
+
+test('a hostile emotion key cannot reach a pose', () => {
+  // A Map has no prototype to walk, which is why one is used here rather than
+  // an object literal — this is the second line of defence behind the enum.
+  for (const key of [
+    '__proto__', 'constructor', 'prototype', 'toString', 'valueOf',
+    'hasOwnProperty', '../../happy', 'javascript:alert(1)', '<script>',
+    'dizzy', 'sleepy', 'thinking', 'shy', 'wink', 'sleep', 'HAPPY', ' happy ',
+  ]) {
+    assert.equal(ORBI_ASK_FEELING.get(key), undefined, `"${key}" resolved to a pose`)
+  }
+})
+
+test('a response reaction is brief, and inside the range the brief sets', () => {
+  for (const [word, felt] of ORBI_ASK_FEELING) {
+    assert.ok(
+      felt.emotion.holdMs >= 800 && felt.emotion.holdMs <= 1400,
+      `"${word}" holds for ${felt.emotion.holdMs}ms`,
+    )
+  }
+})
+
+test('no response reaction leans further than a project card does', () => {
+  // The dwell lean is the loudest ambient body movement ORBI has. Nothing an
+  // answer triggers may out-shout it, or a conversation becomes a performance.
+  const loudest = Math.max(
+    ...[...ORBI_ASK_FEELING.values()].map((f) => Math.abs(f.emotion.tilt)),
+  )
+  assert.ok(loudest <= ORBI_EMOTION.curiousLean + 0.5, `leans up to ${loudest}°`)
+})
+
+test('the glance at the ask panel is rare enough to not be a keystroke echo', () => {
+  assert.ok(
+    ORBI_EMOTION.askGlanceCooldownMs >= 4000,
+    `glances every ${ORBI_EMOTION.askGlanceCooldownMs}ms`,
+  )
+})
+
+
+/* ── Phase 26: conversation presence is timings, not machinery ─────────── */
+
+test('the ask-open acknowledgement is inside the window the brief sets', () => {
+  assert.ok(
+    ORBI_ASK_PRESENCE.openAckMs >= 500 && ORBI_ASK_PRESENCE.openAckMs <= 900,
+    `open ack is ${ORBI_ASK_PRESENCE.openAckMs}ms`,
+  )
+})
+
+test('the send acknowledgement is short enough to read as one motion', () => {
+  // It sits between pressing Send and the thinking face. Long enough to see,
+  // short enough that nobody could mistake it for the request being slow.
+  assert.ok(
+    ORBI_ASK_PRESENCE.sendAckMs > 0 && ORBI_ASK_PRESENCE.sendAckMs <= 400,
+    `send ack is ${ORBI_ASK_PRESENCE.sendAckMs}ms`,
+  )
+})
+
+test('the reading glance is inside the window the brief sets', () => {
+  assert.ok(
+    ORBI_ASK_PRESENCE.readingMs >= 700 && ORBI_ASK_PRESENCE.readingMs <= 1200,
+    `reading glance is ${ORBI_ASK_PRESENCE.readingMs}ms`,
+  )
+})
+
+test('listening adjusts sparsely, at the rate the brief asks for', () => {
+  assert.ok(
+    ORBI_ASK_PRESENCE.listenIntervalMs >= 5000 &&
+      ORBI_ASK_PRESENCE.listenIntervalMs <= 8000,
+    `listening adjusts every ${ORBI_ASK_PRESENCE.listenIntervalMs}ms`,
+  )
+})
+
+test('a listening adjustment is small enough to be a shift, not a look', () => {
+  assert.ok(ORBI_ASK_PRESENCE.listenDrift <= 0.25, `drift is ${ORBI_ASK_PRESENCE.listenDrift}`)
+})
+
+test('an adjustment is held long enough to be seen, and ends well inside its interval', () => {
+  assert.ok(ORBI_ASK_PRESENCE.adjustHoldMs >= 400, `held ${ORBI_ASK_PRESENCE.adjustHoldMs}ms`)
+  assert.ok(
+    ORBI_ASK_PRESENCE.adjustHoldMs < ORBI_ASK_PRESENCE.listenIntervalMs,
+    'an adjustment must finish before the next one is due',
+  )
+})
+
+test('a typing pause is longer than ordinary typing rhythm', () => {
+  // Under a second and this fires between words, which is a twitch rather
+  // than ORBI noticing somebody stopped to think.
+  assert.ok(
+    ORBI_ASK_PRESENCE.pauseAfterMs >= 1200,
+    `pause fires after ${ORBI_ASK_PRESENCE.pauseAfterMs}ms`,
+  )
+  assert.ok(ORBI_ASK_PRESENCE.pauseHoldMs <= 1400, `pause holds ${ORBI_ASK_PRESENCE.pauseHoldMs}ms`)
+})
+
+test('a whole answer-to-normal sequence stays under a few seconds', () => {
+  // reaction → gap → reading → normal. If this ever grew past a few seconds,
+  // ORBI would still be performing while the visitor typed the next question.
+  const longest = Math.max(...[...ORBI_ASK_FEELING.values()].map((f) => f.emotion.holdMs))
+  const total = longest + ORBI_ASK_PRESENCE.readingDelayMs + ORBI_ASK_PRESENCE.readingMs
+  assert.ok(total <= 3000, `answer to normal takes ${total}ms`)
+})
+
+
+/* ── Faces: every feeling must reach one of its own ───────────────────── */
+
+test('the seven answer emotions map to seven distinct faces', () => {
+  // The rule this phase exists for. `excited` used to render as `happy` and
+  // `unsure` as `thinking`, so four feelings shared two faces and no amount of
+  // tilt could tell them apart.
+  const faces = [...ORBI_ASK_FEELING.values()].map((f) => f.expression)
+  assert.equal(
+    new Set(faces).size,
+    faces.length,
+    `two answer emotions share a face: ${faces.join(', ')}`,
+  )
+})
+
+test('every answer emotion has a face that is not the resting one', () => {
+  for (const [word, felt] of ORBI_ASK_FEELING) {
+    assert.notEqual(felt.expression, 'normal', `"${word}" renders as the normal face`)
+  }
+})
+
+test('the faces the brief requires to differ actually do', () => {
+  const face = (word: string) => ORBI_ASK_FEELING.get(word)?.expression
+  for (const [a, b] of [
+    ['happy', 'excited'],
+    ['curious', 'concerned'],
+    ['unsure', 'concerned'],
+    ['surprised', 'happy'],
+  ] as Array<[string, string]>) {
+    assert.notEqual(face(a), face(b), `${a} and ${b} render the same face`)
+  }
+  // Thinking is not answer-selectable, so it is checked against the enum.
+  assert.notEqual(face('unsure'), 'thinking', 'unsure still borrows the thinking face')
+})
+
+test('a face whose point is its eye shape keeps the blink scheduler out', () => {
+  for (const owned of ['excited', 'shy', 'unsure', 'dizzy', 'wink', 'surprised', 'sleepy']) {
+    assert.ok(holdsEyes(owned as never), `${owned} would be blinked over`)
+  }
+  // And the two that are held long enough that not blinking would look wrong.
+  for (const free of ['concerned', 'normal', 'curious', 'thinking']) {
+    assert.ok(!holdsEyes(free as never), `${free} suppresses blinking`)
+  }
+})
+
+test('adding faces did not widen what a provider may ask for', () => {
+  // The security property from Phase 25, restated now that the expression
+  // vocabulary is bigger: the two sets are related by a map, not by identity.
+  for (const local of ['thinking', 'shy', 'sleepy', 'dizzy', 'wink', 'blink']) {
+    assert.ok(
+      !(ORBI_ASK_EMOTIONS as readonly string[]).includes(local),
+      `"${local}" became answer-selectable`,
+    )
+    assert.equal(normaliseEmotion(local), 'normal')
+    assert.equal(ORBI_ASK_FEELING.get(local), undefined, `"${local}" is reachable through the map`)
+  }
 })

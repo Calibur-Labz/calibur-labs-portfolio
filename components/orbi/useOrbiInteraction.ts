@@ -483,6 +483,33 @@ function labelFor(element: Element): string | null {
   return text || null
 }
 
+/**
+ * Direction from ORBI's centre to any element, on the scale every other glance
+ * in the app already uses.
+ *
+ * Exported because the Ask panel needs the same arithmetic a project card, a
+ * CTA and the form companion all use — the alternative was a second hard-coded
+ * pair of gaze numbers that would be wrong the moment the panel moved between
+ * desktop and mobile. Pure geometry: it reads two rects and returns two
+ * numbers, and it is the caller's job to decide when that is worth doing.
+ */
+export function gazeToward(
+  element: Element | null | undefined,
+  from: DOMRect | null | undefined,
+): { x: number; y: number } | null {
+  if (!element || !from) return null
+  const rect = element.getBoundingClientRect()
+  // An element with no box — display:none, or not laid out yet — has no
+  // direction, and guessing one would point the eyes at the origin.
+  if (rect.width === 0 && rect.height === 0) return null
+  const dx = rect.left + rect.width / 2 - (from.left + from.width / 2)
+  const dy = rect.top + rect.height / 2 - (from.top + from.height / 2)
+  return {
+    x: clampUnit(dx / GAZE_REFERENCE),
+    y: clampUnit(dy / GAZE_REFERENCE),
+  }
+}
+
 /** Direction and side of any element, relative to where ORBI is sitting. */
 function describeTarget(
   element: Element,

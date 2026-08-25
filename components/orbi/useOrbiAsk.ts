@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   normaliseAction,
+  normaliseEmotion,
   normaliseOutcome,
   ORBI_ASK,
   ORBI_ASK_MESSAGES,
   type OrbiAskAction,
+  type OrbiAskEmotion,
   type OrbiAskOutcome,
   type OrbiAskTurn,
 } from './orbiAsk'
@@ -36,6 +38,12 @@ export interface OrbiAskEntry {
    * one — and is never shown to the visitor.
    */
   outcome?: OrbiAskOutcome
+  /**
+   * How the provider read the visitor. Phase 25. Only ever consulted after
+   * the technical state and the outcome have had their say, and never shown
+   * to the visitor — it is a face, not a label.
+   */
+  emotion?: OrbiAskEmotion
 }
 
 export interface OrbiAskApi {
@@ -129,7 +137,7 @@ export function useOrbiAsk(): OrbiAskApi {
           // The route answers with the same shape whatever the status, so a
           // 429 or a 502 still carries a sentence worth showing.
           const data = (await response.json().catch(() => null)) as
-            | { message?: unknown; action?: unknown; outcome?: unknown }
+            | { message?: unknown; action?: unknown; outcome?: unknown; emotion?: unknown }
             | null
 
           const text =
@@ -151,6 +159,10 @@ export function useOrbiAsk(): OrbiAskApi {
             action: action === 'NO_ACTION' ? undefined : action,
             // Validated on this side of the wire too, exactly like the action.
             outcome: ok ? normaliseOutcome(data?.outcome) : undefined,
+            // A failed request has no emotion of its own: what ORBI feels
+            // about a failure is decided by the failure, not by whatever the
+            // body of a 500 happened to contain.
+            emotion: ok ? normaliseEmotion(data?.emotion) : undefined,
           })
 
           if (ok) {

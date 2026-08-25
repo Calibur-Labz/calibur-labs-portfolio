@@ -329,8 +329,8 @@ const TIERS: {
     name: 'ORBI Core',
     tier: 'Core',
     summary: 'He arrives, notices people, and reacts to the page.',
-    setupUsd: 390,
-    monthlyUsd: 19,
+    setupUsd: 490,
+    monthlyUsd: 29,
   },
   {
     id: 'guide',

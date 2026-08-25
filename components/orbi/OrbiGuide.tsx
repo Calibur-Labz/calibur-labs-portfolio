@@ -28,6 +28,7 @@ import {
 } from './useOrbiMedia'
 import { useOrbiScroll, type OrbiScrollDirection } from './useOrbiScroll'
 import {
+  gazeToward,
   useOrbiInteraction,
   type OrbiCtaSignal,
   type OrbiDrowsiness,
@@ -89,6 +90,8 @@ import {
 } from './orbiAnimations'
 import {
   holdsEyes,
+  ORBI_ASK_FEELING,
+  ORBI_ASK_PRESENCE,
   isLookAnimation,
   isRestingAnimation,
   ORBI_ART,
@@ -1272,6 +1275,147 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     applyTilt(tilt, base + aux, motionRef.current)
   }, [])
 
+  /**
+   * The two tokens that invalidate a feeling in flight, and the three refs the
+   * conversation needs beside them.
+   *
+   * `noticeTokenRef` guards the gaze-and-face half, `emotionTokenRef` the body
+   * lean. Declared this high because everything that bumps them — the dwell
+   * lean, `feel`, the Ask lifecycle, the panel closing — sits below.
+   */
+  const noticeTokenRef = useRef(0)
+  const emotionTokenRef = useRef(0)
+  /** Invalidates a pending pause beat when the visitor types again. */
+  const askPauseTokenRef = useRef(0)
+  /** One pause beat per composition. */
+  const askPausedRef = useRef(false)
+  /** The measured direction of the input, refreshed on an interval, not per key. */
+  const askAimRef = useRef<{ x: number; y: number } | null>(null)
+  /** When the last listening adjustment happened. */
+  const askGlanceRef = useRef(0)
+  /**
+   * Guards the two conversation steps that are deferred rather than immediate
+   * — the send acknowledgement handing over to thinking, and the reading
+   * glance after a reaction. Bumped by `endAskPresence`, so closing the panel
+   * or sending another question makes both find themselves stale.
+   */
+  const askPresenceTokenRef = useRef(0)
+  /**
+   * The face the conversation last applied.
+   *
+   * Cancelling a reaction by bumping its token also cancels the revert that
+   * would have taken the face off — so closing the panel mid-thought used to
+   * leave ORBI wearing `thinking`, or a reaction's `happy`, indefinitely.
+   * This is the same idea as `softExpressionRef`: a layer only ever takes back
+   * an expression it can still see is its own.
+   */
+  const askFaceRef = useRef<OrbiExpression | null>(null)
+
+  /**
+   * Where a part of the Ask panel is, from where ORBI is sitting.
+   *
+   * The same arithmetic a project card, a CTA and the form companion use, so
+   * the eyes stay correct when the panel moves between desktop and mobile —
+   * and so there is no second set of hard-coded gaze numbers to go stale.
+   * Returns `null` rather than guessing when the element is not on screen.
+   */
+  const askGazeTo = useCallback((selector: string) => {
+    const root = rootRef.current
+    if (!root) return null
+    return gazeToward(document.querySelector(selector), root.getBoundingClientRect())
+  }, [])
+
+  /**
+   * Point the eyes somewhere for a moment, and nothing else.
+   *
+   * `notice` is the same idea with an expression attached; this is the half of
+   * it the conversation needs, because the brief is explicit that the reading
+   * and listening states use the normal face. It claims like everything else,
+   * so guide mode, a cinematic, the companion and a modal all still win, and
+   * it is guarded by the same token `notice` uses — one cancellation strategy
+   * for the whole file, not two.
+   *
+   * `holdMs: 0` means hold indefinitely: the caller owns the release. That is
+   * what keeps the eyes on the input while someone is typing, so moving the
+   * mouse cannot pull them away (the gaze controller ranks `interaction`
+   * above `cursor`).
+   */
+  const glanceAt = useCallback(
+    (gaze: { x: number; y: number } | null, holdMs: number, owner: string) => {
+      if (!gaze) return false
+      if (arbiter.level() > ORBI_PRIORITY.ambient) return false
+      if (companionRef.current) return false
+      if (drowsinessRef.current !== 0) return false
+      if (cinematicRef.current?.active) return false
+      if (easterRef.current?.active) return false
+      if (guideRef.current?.open) return false
+      if (environmentRef.current?.modal) return false
+      if (!arbiter.claim(ORBI_PRIORITY.ambient, owner, (holdMs || 30000) + 300)) {
+        return false
+      }
+
+      const token = ++noticeTokenRef.current
+      gazeRef.current?.set('interaction', gaze.x, gaze.y)
+      setGazeLead('interaction')
+      if (!holdMs) return true
+
+      later(() => {
+        if (token !== noticeTokenRef.current) return
+        gazeRef.current?.clear('interaction')
+        setGazeLead('gesture')
+        arbiter.release(owner)
+      }, holdMs)
+      return true
+    },
+    [arbiter, later],
+  )
+
+  /**
+   * Everything the conversation left running, called off.
+   *
+   * One place, so closing the panel, sending a new question and handing over
+   * to guide mode all cancel the same set — a stale reading glance arriving
+   * after the visitor has moved on is the whole class of bug this prevents.
+   * Bumping the tokens is the cancellation; the claims are `ambient` and lapse
+   * on their own, which the arbiter lets an equal level take over anyway.
+   */
+  const endAskPresence = useCallback(
+    (clearGaze: boolean) => {
+      noticeTokenRef.current++
+      emotionTokenRef.current++
+      askPauseTokenRef.current++
+      askPresenceTokenRef.current++
+      askPausedRef.current = false
+      askGlanceRef.current = 0
+      askAimRef.current = null
+      if (auxTiltRef.current.discover !== 0) {
+        auxTiltRef.current.discover = 0
+        applyBodyTilt()
+      }
+      // Never yank the eyes away from something more important than a chat.
+      if (!clearGaze) return
+      if (arbiter.level() > ORBI_PRIORITY.ambient) return
+      // The listening claim is held open for as long as someone is typing, so
+      // it is the one thing here that does not lapse by itself. Released by
+      // name: `release` is a no-op if somebody else has since taken over.
+      arbiter.release('ask:listening')
+      gazeRef.current?.clear('interaction')
+      setGazeLead('gesture')
+
+      // And put the face back, if it is still the one the conversation left
+      // there. The revert that would normally have done this was just
+      // invalidated by the token bump above, which is the whole reason this
+      // has to happen here rather than being left to a timer.
+      const ours = askFaceRef.current
+      askFaceRef.current = null
+      if (!ours || ours === 'normal') return
+      setState((current) =>
+        current.expression === ours ? { ...current, expression: 'normal' } : current,
+      )
+    },
+    [applyBodyTilt, arbiter],
+  )
+
   /* ── Personality ─────────────────────────────────────────────────────── */
   // Every reaction below goes through the arbiter and a named cooldown. None of
   // them are allowed to talk over a section beat, and none of them can fire
@@ -1458,7 +1602,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         note('emotion:shy')
         gazeRef.current?.set('interaction', shy.gaze.x, shy.gaze.y)
         setGazeLead('interaction')
-        setState((current) => ({ ...current, expression: 'happy' }))
+        // Was `happy`, which is what "bashful" had to be mimed with before a
+        // bashful face existed: the lid comes half over, the eyes drop away,
+        // and the blush does the rest.
+        setState((current) => ({ ...current, expression: 'shy' }))
 
         // The tilt goes the *other* way to the glance — looking away while
         // leaning away is what reads as bashful rather than as another look
@@ -1478,7 +1625,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
             applyBodyTilt()
           }
           setState((current) =>
-            current.expression === 'happy' ? { ...current, expression: 'normal' } : current,
+            current.expression === 'shy' ? { ...current, expression: 'normal' } : current,
           )
           arbiter.release('emotion:shy')
         }, shy.holdMs)
@@ -2036,10 +2183,21 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   // is typing, and handing an accepted answer to guide mode, which already
   // knows how to take a visitor somewhere.
 
+  /**
+   * The two tokens that invalidate a feeling in flight.
+   *
+   * `noticeTokenRef` guards the gaze-and-face half, `emotionTokenRef` the body
+   * lean. Declared this high because three separate things bump them — the
+   * dwell lean, `feel`, and the Ask lifecycle cancelling a reaction when a new
+   * question starts — and this is above all of them.
+   */
+
   const [askOpen, setAskOpen] = useState(false)
   const ask = useOrbiAsk()
+  const askPendingRef = useRef(false)
   useEffect(() => {
     askOpenRef.current = askOpen
+    askPendingRef.current = ask.pending
   })
 
   const openAsk = useCallback(() => {
@@ -2052,12 +2210,48 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     wake(false, 'click')
     note('ask:open')
     setAskOpen(true)
-  }, [note, wake])
+    // Phase 26 §1. ORBI turns to look at the panel that just appeared: eyes
+    // toward it, a couple of degrees of lean, then back to attentive normal.
+    // No bubble, no wave, no sound, and nothing that repeats the first-meeting
+    // greeting — the panel is measured a tick later, once it has been laid out.
+    later(() => {
+      const aim = askGazeTo('[data-orbi-ask-panel]')
+      if (!aim) return
+      if (!glanceAt(aim, ORBI_ASK_PRESENCE.openAckMs, 'ask:open')) return
+      // A small curious expression, not just a look. Recorded on `askFaceRef`
+      // so closing the panel inside the acknowledgement takes it off again.
+      askFaceRef.current = 'curious'
+      setState((current) =>
+        isRestingAnimation(current.animation)
+          ? { ...current, expression: 'curious' }
+          : current,
+      )
+      later(() => {
+        setState((current) =>
+          current.expression === 'curious' ? { ...current, expression: 'normal' } : current,
+        )
+      }, ORBI_ASK_PRESENCE.openAckMs)
+      if (quietBodyRef.current || motionRef.current.reducedMotion) return
+      const token = ++emotionTokenRef.current
+      auxTiltRef.current.discover = ORBI_EMOTION.curiousLean
+      applyBodyTilt()
+      later(() => {
+        if (token !== emotionTokenRef.current) return
+        auxTiltRef.current.discover = 0
+        applyBodyTilt()
+      }, ORBI_ASK_PRESENCE.openAckMs)
+    }, 60)
+  }, [applyBodyTilt, askGazeTo, glanceAt, later, note, wake])
 
   const closeAsk = useCallback(() => {
     setAskOpen(false)
     note('ask:close')
-  }, [note])
+    // Phase 26 §15. Listening gaze, pause beat, reading glance and any
+    // reaction still holding — all cancelled together. `endAskPresence`
+    // refuses to touch the eyes if something better already owns them, so a
+    // handoff to guide mode or the contact companion is never interrupted.
+    endAskPresence(true)
+  }, [endAskPresence, note])
 
   /**
    * The visitor accepted a suggestion.
@@ -2086,22 +2280,55 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     later(() => {
       if (ask.pending) {
         softExpressionRef.current = null
-        // Phase 23: the eyes go where people look when they are thinking
-        // rather than reading — up, and slightly aside. Held for the length of
-        // the request, so there is no timer and no loop; the answer arriving
-        // is what ends it.
-        const { gaze, tilt } = ORBI_EMOTION.thinking
-        gazeRef.current?.set('interaction', gaze.x, gaze.y)
-        setGazeLead('interaction')
-        if (!quietBodyRef.current && !motionRef.current.reducedMotion) {
-          auxTiltRef.current.discover = tilt
-          applyBodyTilt()
+        // Phase 25 §16. A reaction to the *previous* answer may still be
+        // holding, with a revert scheduled for up to a second from now. Left
+        // alone, that revert would land in the middle of this request and
+        // wipe the thinking eyes. Bumping both tokens makes it find itself
+        // stale and do nothing; the claim it holds is `ambient`, which the
+        // arbiter lets an equal level hand over, so nothing has to be
+        // released and no old feeling is ever queued behind a new question.
+        //
+        // Phase 26 folds the listening state into the same cancellation, so a
+        // pause beat armed a moment ago cannot land on top of the request.
+        endAskPresence(false)
+
+        // Phase 26 §5. A quarter of a second on the message that was just
+        // sent, before the eyes go up to think about it. The request left in
+        // the same tick the visitor pressed Send — this is the face catching
+        // up with the fetch, never the fetch waiting for the face.
+        const token = ++askPresenceTokenRef.current
+        const sent = askGazeTo('[data-orbi-ask-panel]')
+        if (sent) {
+          gazeRef.current?.set('interaction', sent.x, sent.y)
+          setGazeLead('interaction')
         }
-        setState((current) =>
-          isRestingAnimation(current.animation)
-            ? { ...current, expression: 'thinking' }
-            : current,
-        )
+
+        const think = () => {
+          // Stale if the panel closed, the answer beat us here, or another
+          // question came through in the meantime.
+          if (token !== askPresenceTokenRef.current) return
+          if (!askOpenRef.current || !askPendingRef.current) return
+          // Phase 23: the eyes go where people look when they are thinking
+          // rather than reading — up, and slightly aside. Held for the length
+          // of the request, so there is no timer and no loop; the answer
+          // arriving is what ends it.
+          const { gaze, tilt } = ORBI_EMOTION.thinking
+          gazeRef.current?.set('interaction', gaze.x, gaze.y)
+          setGazeLead('interaction')
+          if (!quietBodyRef.current && !motionRef.current.reducedMotion) {
+            auxTiltRef.current.discover = tilt
+            applyBodyTilt()
+          }
+          setState((current) =>
+            isRestingAnimation(current.animation)
+              ? { ...current, expression: 'thinking' }
+              : current,
+          )
+          askFaceRef.current = 'thinking'
+        }
+
+        if (sent) later(think, ORBI_ASK_PRESENCE.sendAckMs)
+        else think()
         return
       }
       // The answer landed: eyes back to the visitor, body straight.
@@ -2117,7 +2344,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           : current,
       )
     }, 0)
-  }, [askOpen, ask.pending, later, applyBodyTilt])
+  }, [askOpen, ask.pending, later, applyBodyTilt, askGazeTo, endAskPresence])
 
   const runAskAction = useCallback(
     (action: OrbiAskAction) => {
@@ -2127,6 +2354,11 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       if (!item) return
       setAskOpen(false)
       note(`ask:${action}`)
+      // Phase 26 §16. Cancel every listening and reading timer before guide
+      // mode takes over, so nothing armed during the conversation can land on
+      // top of the navigation. `false` because the eyes are not ours to clear
+      // here — `choose` is about to point them at the destination.
+      endAskPresence(false)
       // Phase 12 takes it from here — scroll, arrival, and the destination's
       // own reaction, exactly as if the menu had been used.
       //
@@ -2138,7 +2370,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       guideRef.current?.openMenu()
       guideRef.current?.choose(item)
     },
-    [note],
+    [endAskPresence, note],
   )
 
   const { open: guideOpen, remeasure: guideRemeasure } = guide
@@ -2280,14 +2512,6 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
   const lastDockRef = useRef<string | null>(null)
   const modalOpenRef = useRef(false)
-  const noticeTokenRef = useRef(0)
-
-  /**
-   * Invalidates a body lean when a newer feeling replaces it. Declared here,
-   * with the other token, because both the dwell lean and `feel` write it and
-   * the first of those is defined further up the file.
-   */
-  const emotionTokenRef = useRef(0)
 
   /**
    * Take note of something and look at it for a beat — the reaction that
@@ -2777,7 +3001,10 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       if (!arbiter.claim(ORBI_PRIORITY.ambient, 'project', 1400)) return
 
       note(`project:${signal.key}`)
-      setState((current) => ({ ...current, expression: 'happy' }))
+      // The dwell is ORBI leaning in at one card, which is exactly what the
+      // curious face is for. The *sweep* above stays `happy` — that one is
+      // pleasure at the work, not interest in a particular piece of it.
+      setState((current) => ({ ...current, expression: 'curious' }))
 
       // Phase 23. The *sweep* across a row stays eyes-only — a gesture per
       // card would be exhausting, which is why `handleProject` has none. This
@@ -2916,28 +3143,148 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       // 400 means the input itself could not be used — the closest thing ORBI
       // has to "I didn't understand you". Everything else is a failure.
       const confused = /http 4/.test(ask.lastError ?? '')
+      askFaceRef.current = confused ? 'unsure' : 'concerned'
       later(
         () =>
           confused
-            ? feel(ORBI_EMOTION.confused, 'thinking', 'emotion:confused')
+            ? feel(ORBI_EMOTION.confused, 'unsure', 'emotion:confused')
             : feel(ORBI_EMOTION.concerned, 'concerned', 'emotion:concerned'),
         0,
       )
       return
     }
 
-    // An answer ORBI stood behind, or one he had to hand back. The thinking
-    // face is holding at this point either way; both of these replace it and
-    // then let the usual revert take ORBI back to normal.
-    const unsure = last.outcome === 'unsure'
+    // An answer ORBI stood behind, or one he had to hand back.
+    //
+    // Phase 25 adds a third possibility — the provider naming how the answer
+    // should land — and slots it *below* the two that were already here. The
+    // order is the whole point: a technical failure is a fact, an unsure
+    // outcome is the provider's own admission, and only once both have
+    // declined does the semantic emotion get a say. A model cannot make ORBI
+    // look pleased about an error, because it is never asked.
+    // `unsure` from the outcome and `concerned` from the emotion are not in
+    // conflict — they are the same admission about different things. A visitor
+    // reporting a broken page gets both: ORBI cannot fix it (unsure) and is
+    // sorry about it (concerned), and *sorry* is the truer face. So the
+    // outcome blocks the confident feelings and lets this one through.
+    //
+    // It is the only exception, and it is safe because it can only ever make
+    // ORBI look less certain, never more.
+    // Phase 26 §7. Whichever reaction runs, ORBI does not turn away the
+    // instant it releases — he looks at what he just said for a beat first.
+    // Gaze only, normal face: the brief is explicit that reading is not a new
+    // expression, and this is the whole of it.
+    //
+    // Only ever reached on a successful answer. A failure returned above,
+    // because glancing proudly at an error message would be absurd (§14).
+    const readAfter = (holdMs: number) => {
+      const token = ++askPresenceTokenRef.current
+      later(() => {
+        if (token !== askPresenceTokenRef.current) return
+        if (!askOpenRef.current || askPendingRef.current) return
+        // The newest answer if the panel marked one, the panel itself if not.
+        const aim =
+          askGazeTo('[data-orbi-ask-answer]') ?? askGazeTo('[data-orbi-ask-panel]')
+        if (glanceAt(aim, ORBI_ASK_PRESENCE.readingMs, 'ask:reading')) note('ask:reading')
+      }, holdMs + ORBI_ASK_PRESENCE.readingDelayMs)
+    }
+
+    if (last.outcome === 'unsure' && last.emotion !== 'concerned') {
+      askFaceRef.current = 'unsure'
+      later(() => feel(ORBI_EMOTION.unsure, 'unsure', 'emotion:unsure'), 0)
+      readAfter(ORBI_EMOTION.unsure.holdMs)
+      return
+    }
+
+    // Already normalised twice before it got here; `ORBI_ASK_FEELING` is a
+    // Map, so an unknown word is a miss rather than a lookup into anything.
+    // A miss — including the literal `normal` — means the brief happy beat
+    // Phase 24 gives every good answer, and nothing more.
+    const felt = last.emotion ? ORBI_ASK_FEELING.get(last.emotion) : undefined
+    askFaceRef.current = felt ? felt.expression : 'happy'
     later(
       () =>
-        unsure
-          ? feel(ORBI_EMOTION.unsure, 'thinking', 'emotion:unsure')
+        felt
+          ? feel(felt.emotion, felt.expression, `emotion:ask:${last.emotion}`)
           : feel(ORBI_EMOTION.answered, 'happy', 'emotion:answered'),
       0,
     )
-  }, [askOpen, ask.entries, ask.lastError, feel, later])
+    readAfter(felt ? felt.emotion.holdMs : ORBI_EMOTION.answered.holdMs)
+  }, [askOpen, ask.entries, ask.lastError, feel, later, askGazeTo, glanceAt, note])
+
+  /**
+   * ORBI notices the visitor writing.
+   *
+   * Phase 25 §7. The panel reports every focus and every keystroke; this
+   * refuses nearly all of them. One glance per six seconds is the whole
+   * behaviour — eyes toward the panel and a couple of degrees of lean, which
+   * is `feel` doing what it already does for a project card.
+   *
+   * Everything that makes it safe is borrowed rather than built: `feel` stands
+   * down for guide mode, a cinematic, the form companion, a modal, sleep and
+   * any higher claim, and the cooldown is a timestamp compared on the way in,
+   * not a timer left running. Nothing here listens to anything.
+   */
+  /**
+   * Listening.
+   *
+   * The panel reports every focus and every keystroke, and almost all of them
+   * do nothing here. What they do is keep the eyes *held* on the input — set
+   * once, then re-measured at most once every six seconds — which is what
+   * stops an aggressive mouse move pulling ORBI's attention out of the
+   * conversation, since `interaction` outranks `cursor` in the gaze
+   * controller.
+   *
+   * The only visible movement is one small adjustment per six seconds, and
+   * one curious beat if the visitor stops mid-sentence. Neither is a loop:
+   * the adjustment is a timestamp comparison, and the pause is a single
+   * deferred call re-armed by the next keystroke.
+   */
+  const handleComposing = useCallback((hasText: boolean) => {
+    if (!askOpenRef.current) return
+    // Mid-question ORBI is already thinking, and thinking owns the eyes.
+    if (askPendingRef.current) return
+
+    const now = performance.now()
+    const due = now - askGlanceRef.current >= ORBI_ASK_PRESENCE.listenIntervalMs
+
+    // One layout read per interval, never one per keystroke.
+    if (due || !askAimRef.current) {
+      askAimRef.current = askGazeTo('#orbi-ask-input')
+    }
+    if (due) askGlanceRef.current = now
+
+    const aim = askAimRef.current
+    if (aim) {
+      // A small adjustment when one is due, so attention reads as alive
+      // rather than as a stare. Held for most of a second — long enough to be
+      // seen — then the eyes settle back onto the input for the rest of the
+      // interval. The whole thing is two timestamp comparisons.
+      const adjusting =
+        now - askGlanceRef.current < ORBI_ASK_PRESENCE.adjustHoldMs
+      const drift = adjusting ? ORBI_ASK_PRESENCE.listenDrift : 0
+      glanceAt({ x: aim.x + drift, y: aim.y - drift }, 0, 'ask:listening')
+    }
+
+    // The pause beat, re-armed by every keystroke so it only ever fires once
+    // the visitor has actually stopped. One per composition.
+    //
+    // An empty input arms nothing. The panel focuses itself as it opens, and
+    // treating that as a pause spent the one beat this composition gets before
+    // the visitor had typed a character — so the real pause, the one worth
+    // reacting to, never had a beat left to use.
+    if (!hasText) return
+    const token = ++askPauseTokenRef.current
+    later(() => {
+      if (token !== askPauseTokenRef.current) return
+      if (!askOpenRef.current || askPendingRef.current) return
+      if (askPausedRef.current) return
+      askPausedRef.current = true
+      note('ask:pause')
+      // Waiting, not confused: the curious lean, and never `unsure`.
+      feel(ORBI_EMOTION.askCurious, 'curious', 'emotion:ask:pause')
+    }, ORBI_ASK_PRESENCE.pauseAfterMs)
+  }, [askGazeTo, feel, glanceAt, later, note])
 
   /* ── Content discovery ───────────────────────────────────────────────── */
   // Phase 17. Once a section has finished reacting, ORBI takes one quieter
@@ -4370,9 +4717,11 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           // opens, so there is no second way into Phase 12.
           setAskOpen(false)
           note('ask:explore')
+          endAskPresence(false)
           guideRef.current?.openMenu()
         }}
         onClose={closeAsk}
+        onComposing={handleComposing}
       />
       {debugEnabled && (
         <OrbiDebug

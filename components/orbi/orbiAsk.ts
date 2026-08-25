@@ -148,10 +148,65 @@ export function normaliseOutcome(value: unknown): OrbiAskOutcome {
   return value === 'unsure' ? 'unsure' : 'answered'
 }
 
+/**
+ * How the answer should *feel*, as the provider reads the visitor.
+ *
+ * Phase 25. The model picks one word from this list and nothing else: no
+ * animation name, no timing, no gaze, no transform, no selector. ORBI's own
+ * systems decide what each word looks like, so the worst a compromised or
+ * confused provider can do is choose a different face from a set of seven
+ * faces ORBI already had.
+ *
+ * `thinking` is deliberately absent. It belongs to the *request*, not to the
+ * answer — it means "a fetch is in flight" and it lasts exactly as long as
+ * that fetch does. A model that could ask for it could make ORBI look busy
+ * while nothing was happening.
+ *
+ * So are `shy`, `sleepy`, `dizzy` and `wink`: each is already owned by a
+ * deterministic local trigger (a body poke, the idle timer, the easter egg),
+ * and letting an answer borrow one would make the rare thing common.
+ */
+export type OrbiAskEmotion =
+  | 'normal'
+  | 'happy'
+  | 'curious'
+  | 'excited'
+  | 'unsure'
+  | 'concerned'
+  | 'surprised'
+
+export const ORBI_ASK_EMOTIONS: readonly OrbiAskEmotion[] = [
+  'normal',
+  'happy',
+  'curious',
+  'excited',
+  'unsure',
+  'concerned',
+  'surprised',
+]
+
+/**
+ * Anything at all → a known emotion, the same way actions are handled.
+ *
+ * Membership is tested against the frozen list rather than by indexing a map
+ * with the incoming string, so `"../../happy"`, `"constructor"`, `"__proto__"`
+ * and `"<script>"` are all simply not in the list. Non-strings — an object, an
+ * array, a function — fail the `typeof` check before anything else looks at
+ * them. There is no failure case: unknown means `normal`.
+ */
+export function normaliseEmotion(value: unknown): OrbiAskEmotion {
+  if (typeof value !== 'string') return 'normal'
+  const lower = value.trim().toLowerCase()
+  return (ORBI_ASK_EMOTIONS as readonly string[]).includes(lower)
+    ? (lower as OrbiAskEmotion)
+    : 'normal'
+}
+
 export interface OrbiAskReply {
   message: string
   action: OrbiAskAction
   outcome?: OrbiAskOutcome
+  emotion?: OrbiAskEmotion
 }
 
 /** Everything the panel is allowed to say when something goes wrong. */

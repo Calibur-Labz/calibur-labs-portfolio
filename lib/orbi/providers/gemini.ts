@@ -1,7 +1,9 @@
 import {
   normaliseAction,
+  normaliseEmotion,
   normaliseOutcome,
   ORBI_ACTIONS,
+  ORBI_ASK_EMOTIONS,
   ORBI_ASK_OUTCOMES,
   ORBI_ASK,
   type OrbiAskReply,
@@ -83,9 +85,10 @@ export const REPLY_SCHEMA = {
     message: { type: 'STRING' },
     action: { type: 'STRING', enum: [...ORBI_ACTIONS] },
     outcome: { type: 'STRING', enum: [...ORBI_ASK_OUTCOMES] },
+    emotion: { type: 'STRING', enum: [...ORBI_ASK_EMOTIONS] },
   },
-  required: ['message', 'action', 'outcome'],
-  propertyOrdering: ['message', 'action', 'outcome'],
+  required: ['message', 'action', 'outcome', 'emotion'],
+  propertyOrdering: ['message', 'action', 'outcome', 'emotion'],
 } as const
 
 /**
@@ -139,10 +142,11 @@ export function parseGeminiReply(raw: string | undefined): OrbiAskReply {
     throw new Error('reply was not an object')
   }
 
-  const { message, action, outcome } = parsed as {
+  const { message, action, outcome, emotion } = parsed as {
     message?: unknown
     action?: unknown
     outcome?: unknown
+    emotion?: unknown
   }
   const text = typeof message === 'string' ? message.trim() : ''
   if (!text) throw new Error('reply had no message')
@@ -152,6 +156,9 @@ export function parseGeminiReply(raw: string | undefined): OrbiAskReply {
     message: text,
     action: normaliseAction(action),
     outcome: normaliseOutcome(outcome),
+    // The schema constrains this to seven words; the normaliser assumes it
+    // did not. Structured output is a convenience, never the guarantee.
+    emotion: normaliseEmotion(emotion),
   }
 }
 

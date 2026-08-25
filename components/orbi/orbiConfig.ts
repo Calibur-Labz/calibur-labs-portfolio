@@ -28,6 +28,32 @@ export type OrbiExpression =
    * upset, and this is the whole of it. No colour change, no droop, no tears.
    */
   | 'concerned'
+  /*
+   * The four faces this phase added.
+   *
+   * Every one of them was already a *feeling* ORBI could have — Phase 25 lets
+   * a provider ask for curious and excited, Phase 23 gives shy to the fourth
+   * poke, Phase 24 gives unsure to an answer that is really a redirect. What
+   * none of them had was a face: `curious` and `shy` both rendered as
+   * `normal`, `excited` borrowed `happy`, and `unsure` borrowed `thinking`.
+   *
+   * So four feelings were being expressed by two faces, and the brief's rule —
+   * happy must not look like excited, thinking must not look like unsure —
+   * could not be met by tuning a tilt. These are the missing faces, not a
+   * second emotion system: the enum ORBI's own state machine already speaks,
+   * with the four gaps filled in.
+   *
+   * None of them widens what a provider may ask for. `ORBI_ASK_EMOTIONS` is
+   * still the same seven words, and `shy` is still unreachable from an answer.
+   */
+  /** Leaning in at something. Eyes toward it, and not quite level. */
+  | 'curious'
+  /** Stronger than happy, and it has to look it: star eyes and a wide smile. */
+  | 'excited'
+  /** Caught being pleased with himself — down, away, and blushing. */
+  | 'shy'
+  /** "I don't have that one." Lopsided eyes and a wavering mouth. */
+  | 'unsure'
 
 /**
  * Expressions that already own the eyelids — the blink scheduler stays out.
@@ -38,7 +64,20 @@ export type OrbiExpression =
  * staring. Blinking restores whatever face was underneath, so a blink over a
  * concerned beat reads as a blink, not as a change of mind.
  */
-const EYES_BUSY = ['blink', 'surprised', 'sleepy', 'dizzy', 'wink'] as const
+const EYES_BUSY = [
+  'blink',
+  'surprised',
+  'sleepy',
+  'dizzy',
+  'wink',
+  // The three new faces whose *point* is the eye shape. A blink cutting
+  // through a star eye or a half-closed bashful lid reads as a glitch, and all
+  // three are short beats, so nothing is held long enough to leave ORBI
+  // staring — which is the reason `concerned` is still deliberately absent.
+  'excited',
+  'shy',
+  'unsure',
+] as const
 
 export const holdsEyes = (e: OrbiExpression): boolean =>
   (EYES_BUSY as readonly string[]).includes(e)
@@ -1497,6 +1536,38 @@ export const ORBI_EMOTION = {
    * feeling would only be a second thing to keep in sync.
    */
   unsure: { gaze: { x: 0.62, y: -0.12 }, tilt: 2.4, holdMs: 950 },
+  /**
+   * Phase 25 — a good answer, and one ORBI is pleased to be giving.
+   *
+   * `askHappy` is the warm version of `answered`: same shape, a touch longer,
+   * and used when the provider says the visitor was being kind rather than
+   * merely asking. `askExcited` is the same feeling with the lean of someone
+   * sitting forward — the one place enthusiasm is honest, because the visitor
+   * has just described work they want built.
+   */
+  askHappy: { gaze: { x: 0, y: -0.2 }, tilt: -1.4, holdMs: 900 },
+  askExcited: { gaze: { x: 0, y: -0.34 }, tilt: -2.6, holdMs: 1100 },
+  /**
+   * "Go on." Eyes toward the panel the conversation is in, and a lean of the
+   * same couple of degrees a project card earns — this is the same curiosity,
+   * pointed at a sentence instead of a picture.
+   */
+  askCurious: { gaze: { x: -0.34, y: 0.3 }, tilt: 2.2, holdMs: 1000 },
+  /**
+   * Caught off guard. The shortest beat ORBI has: wide eyes and almost no
+   * body, gone before it can look like a performance.
+   */
+  askSurprised: { gaze: { x: 0, y: -0.42 }, tilt: 0.8, holdMs: 800 },
+  /**
+   * The least often ORBI may glance at the Ask panel while someone is typing.
+   *
+   * Six seconds, which on a normal sentence means *once*. The brief is
+   * explicit that ORBI must not react to every keystroke, and the honest way
+   * to guarantee that is a floor on the interval rather than a debounce on
+   * the input — a debounce still fires once per pause, and a long question
+   * has several.
+   */
+  askGlanceCooldownMs: 6000,
   /** Leaning in at a card the visitor has settled on. */
   curiousLean: 2.2,
   /**
@@ -1505,6 +1576,100 @@ export const ORBI_EMOTION = {
    * and rare enough that most visitors never see it.
    */
   shyEveryNthClick: 4,
+} as const
+
+/**
+ * Phase 25 — the seven words a provider may choose, and what each one looks
+ * like on ORBI.
+ *
+ * A `Map`, not an object literal, and read only *after* `normaliseEmotion` has
+ * checked the incoming string against the frozen enum. Two independent
+ * reasons that matters: an unknown key can never reach here, and even if one
+ * did, a `Map` has no prototype to walk — `"__proto__"`, `"constructor"` and
+ * `"../../happy"` are all simply absent rather than resolving to something.
+ *
+ * `normal` is not in the map on purpose. It is the resting state, so it means
+ * "do nothing at all" rather than "play the normal feeling", and it is what
+ * every unrecognised value becomes.
+ *
+ * Every pose here is an existing `ORBI_EMOTION` entry. The model chooses a
+ * word; this file, and nothing the model can reach, chooses the movement.
+ */
+export const ORBI_ASK_FEELING: ReadonlyMap<
+  string,
+  { emotion: { gaze: { x: number; y: number }; tilt: number; holdMs: number }; expression: OrbiExpression }
+> = new Map([
+  ['happy', { emotion: ORBI_EMOTION.askHappy, expression: 'happy' as OrbiExpression }],
+  // Was `happy` too, which meant the two strongest positive answers ORBI can
+  // give were the same face a second apart. Star eyes and a wider smile now
+  // separate them without the body having to shout.
+  ['excited', { emotion: ORBI_EMOTION.askExcited, expression: 'excited' as OrbiExpression }],
+  // Was `normal` — a "curious" answer literally had no face, and the whole
+  // emotion was carried by two degrees of lean.
+  ['curious', { emotion: ORBI_EMOTION.askCurious, expression: 'curious' as OrbiExpression }],
+  ['surprised', { emotion: ORBI_EMOTION.askSurprised, expression: 'surprised' as OrbiExpression }],
+  // The two Phase 24 already had. Reused rather than re-tuned, so an unsure
+  // answer looks the same whether the outcome flag or the emotion word got
+  // ORBI there.
+  // Was `thinking`, which is the face ORBI wears while the request is still in
+  // flight — so "I worked it out" and "I could not" looked identical.
+  ['unsure', { emotion: ORBI_EMOTION.unsure, expression: 'unsure' as OrbiExpression }],
+  ['concerned', { emotion: ORBI_EMOTION.concerned, expression: 'concerned' as OrbiExpression }],
+])
+
+/**
+ * Phase 26 — how present ORBI is during a conversation.
+ *
+ * Timings only. Every one of these moments is played by machinery that already
+ * existed: the arbiter decides whether it may happen, the gaze controller
+ * points the eyes, `feel` leans the body, and one shared timer helper defers
+ * things. Nothing here is a loop, an interval, an observer or a listener.
+ */
+export const ORBI_ASK_PRESENCE = {
+  /**
+   * The panel opening. Long enough to read as "ORBI turned to look", short
+   * enough that it is over before the visitor has finished reaching for the
+   * input.
+   */
+  openAckMs: 700,
+  /**
+   * How still the visitor has to be, mid-sentence, before ORBI reads it as a
+   * pause worth a small beat. Under a second catches ordinary typing rhythm;
+   * this is the length of someone actually thinking.
+   */
+  pauseAfterMs: 1800,
+  /** The pause beat itself. One per composition, and barely there. */
+  pauseHoldMs: 900,
+  /**
+   * The eyes going to the message that was just sent. Deliberately the
+   * shortest thing ORBI does — it happens *while* the request is already in
+   * flight, and it must never look like a step the answer waited for.
+   */
+  sendAckMs: 260,
+  /**
+   * Reading the answer, after the reaction to it has finished. Face stays
+   * normal; only the eyes do this.
+   */
+  readingMs: 950,
+  /** The gap between the reaction releasing and the eyes moving to the answer. */
+  readingDelayMs: 120,
+  /**
+   * The floor on re-measuring the panel and on the small listening
+   * adjustments. One layout read per this interval while typing, not one per
+   * keystroke, and one visible adjustment at most.
+   */
+  listenIntervalMs: 6000,
+  /** How far a listening adjustment strays from the input. Barely a shift. */
+  listenDrift: 0.14,
+  /**
+   * How long an adjustment stays applied.
+   *
+   * Without this the shift lasted exactly one keystroke — the next `onChange`
+   * put the eyes straight back and nobody could see it happen. Holding it for
+   * most of a second is what turns the adjustment into something a person
+   * notices once, rather than a value that was briefly different.
+   */
+  adjustHoldMs: 900,
 } as const
 
 /* ── Content discovery ─────────────────────────────────────────────────── */

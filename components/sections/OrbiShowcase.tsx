@@ -106,11 +106,13 @@ const REACTIONS: Reaction[] = [
   },
   {
     id: 'curious',
-    expression: 'normal',
+    expression: 'curious',
     label: 'Curious about what you found',
     sub: 'Leans in at whatever catches your attention',
     // Gaze and lean the *same* way: leaning toward what he is looking at is
-    // what separates curious from shy, which does the opposite.
+    // what separates curious from shy, which does the opposite. The face now
+    // carries it too — wider eyes at different heights, and a mouth lifted at
+    // the end he is looking toward.
     gaze: { x: -0.9, y: 0.12 },
     tilt: -ORBI_EMOTION.curiousLean * 1.6,
   },
@@ -143,7 +145,7 @@ const REACTIONS: Reaction[] = [
   },
   {
     id: 'shy',
-    expression: 'happy',
+    expression: 'shy',
     label: 'Goes a little bashful',
     sub: 'Especially when you make a fuss',
     gaze: ORBI_EMOTION.shy.gaze,
@@ -158,11 +160,13 @@ const REACTIONS: Reaction[] = [
   },
   {
     id: 'excited',
-    expression: 'happy',
+    expression: 'excited',
     label: 'Gets excited about great work',
     sub: 'Some things deserve extra enthusiasm',
-    // Louder than Happy on every axis the robot has: eyes lifted, arms out,
-    // and four times the rise. Same face, unmistakably more of it.
+    // Louder than Happy on every axis the robot has: star eyes, a wider
+    // smile, sparks around his head, arms out, and four times the rise. It
+    // used to be the happy face with the volume up, which is precisely the
+    // thing the brief says is not good enough.
     bright: true,
     armsOut: true,
     lift: 12,
@@ -170,13 +174,14 @@ const REACTIONS: Reaction[] = [
   },
   {
     id: 'unsure',
-    expression: 'thinking',
+    expression: 'unsure',
     label: 'Tilts his head when he is not sure',
     sub: 'Even ORBI has to think twice sometimes',
-    // Same eyes as Thinking, pointed sideways instead of up and cocked twice
-    // as far. Thinking considers; this hesitates.
-    gaze: ORBI_EMOTION.confused.gaze,
-    tilt: ORBI_EMOTION.confused.tilt * 1.8,
+    // No longer the thinking face pointed sideways. One eye pinched, the
+    // other opened wide, a wavering mouth, and a question mark beside his
+    // head — Thinking considers, and this hesitates, and now they look it.
+    gaze: ORBI_EMOTION.unsure.gaze,
+    tilt: ORBI_EMOTION.unsure.tilt * 1.8,
   },
   {
     id: 'concerned',

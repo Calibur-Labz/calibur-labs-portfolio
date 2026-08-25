@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type RefObject } from 'react'
+import OrbiEmotionAccents from './OrbiEmotionAccents'
 import OrbiFace from './OrbiFace'
 import {
   ORBI_COLORS,
@@ -292,6 +293,18 @@ export default function OrbiRobot({
         asleep={asleep}
         gazeRef={gazeRef}
       />
+
+      {/*
+        The marks that live around his head — a question mark, sparks, circling
+        stars. Inside the same viewBox as the face, so they scale, dock and tilt
+        with him for free, and after it so they draw over the shell rather than
+        under it. Nothing renders at all for the faces that need no annotation,
+        which is nearly always.
+
+        Deliberately not shown while ORBI is under: `dozing` and `asleep` own
+        the face outright, and the Z's are already the sleep symbol.
+      */}
+      <OrbiEmotionAccents expression={expression} awake={awake && !dozing && !asleep} />
 
       {/*
         The head. A separate hit region over the top of the shell and the visor,

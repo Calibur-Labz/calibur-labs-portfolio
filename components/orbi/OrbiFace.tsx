@@ -54,9 +54,44 @@ function eyePoses(expression: OrbiExpression): [EyePose, EyePose] {
         { ...OPEN, opacity: 0 },
       ]
     case 'thinking':
+      // Up and aside, lopsided. Pushed further up than it used to be so that
+      // `unsure` — which is also lopsided, but level — cannot be mistaken for
+      // it at the size ORBI actually renders.
       return [
-        { scaleX: 1, scaleY: 0.45, dx: 2.5, dy: -1.5, opacity: 1 },
-        { scaleX: 1, scaleY: 0.8, dx: 2.5, dy: -1.5, opacity: 1 },
+        { scaleX: 1, scaleY: 0.42, dx: 2.6, dy: -2.4, opacity: 1 },
+        { scaleX: 1, scaleY: 0.82, dx: 2.6, dy: -2.4, opacity: 1 },
+      ]
+    case 'unsure':
+      // The opposite lopsidedness to `thinking`: one eye pinched almost shut,
+      // the *other* opened wider than normal, and both level rather than
+      // raised. Nobody reads this as concentration — it reads as hedging, and
+      // the wavering mouth under it says the same thing again.
+      return [
+        { scaleX: 0.9, scaleY: 0.38, dx: 3, dy: 0.8, opacity: 1 },
+        { scaleX: 1.16, scaleY: 1.16, dx: 3, dy: -0.6, opacity: 1 },
+      ]
+    case 'curious':
+      // Both eyes hard over toward whatever caught his attention, opened a
+      // little wider, and sitting at slightly different heights — the small
+      // asymmetry is what turns "looking" into "interested".
+      return [
+        { scaleX: 1.06, scaleY: 1.14, dx: 3.4, dy: -1.4, opacity: 1 },
+        { scaleX: 0.96, scaleY: 1, dx: 3.4, dy: 0.7, opacity: 1 },
+      ]
+    case 'excited':
+      // The stars take the eyes over completely, the same way the happy arcs
+      // do — two shapes in one socket reads as a double image.
+      return [
+        { ...OPEN, opacity: 0 },
+        { ...OPEN, opacity: 0 },
+      ]
+    case 'shy':
+      // Down and away, and markedly uneven: the near lid comes most of the way
+      // over while the far eye stays open. `concerned` lowers both lids evenly
+      // and looks straight ahead, which is what keeps the two apart.
+      return [
+        { scaleX: 1, scaleY: 0.3, dx: -3.6, dy: 2.8, opacity: 1 },
+        { scaleX: 0.96, scaleY: 0.78, dx: -3.6, dy: 2.4, opacity: 1 },
       ]
     case 'surprised':
       return [
@@ -80,12 +115,13 @@ function eyePoses(expression: OrbiExpression): [EyePose, EyePose] {
         { scaleX: 1, scaleY: 0.72, dx: 0, dy: 1.2, opacity: 1 },
       ]
     case 'dizzy':
-      // Off balance, not cartoon: the lids sit at different heights, each eye
-      // is tipped a few degrees the wrong way, and the pupils drift apart.
-      // Still unmistakably ORBI — just not quite level.
+      // The spirals do the talking now, so the pupils get out of their way —
+      // otherwise a spiral drawn over a filled ellipse is just a smudge. What
+      // stays is the drift apart, which is what stops the two spirals reading
+      // as a symmetrical pattern.
       return [
-        { scaleX: 1.06, scaleY: 0.6, dx: -2.4, dy: 1.5, opacity: 1, rotate: -13 },
-        { scaleX: 0.92, scaleY: 0.92, dx: 2.6, dy: -1.2, opacity: 1, rotate: 11 },
+        { scaleX: 1, scaleY: 1, dx: -2.2, dy: 1.2, opacity: 0, rotate: -13 },
+        { scaleX: 1, scaleY: 1, dx: 2.4, dy: -1, opacity: 0, rotate: 11 },
       ]
     case 'wink':
       // One lid down. ORBI's only knowing face, and the rarest of them.
@@ -97,6 +133,48 @@ function eyePoses(expression: OrbiExpression): [EyePose, EyePose] {
     default:
       return [OPEN, OPEN]
   }
+}
+
+/**
+ * A four-point sparkle, centred on an eye.
+ *
+ * Drawn rather than scaled from a font so it inherits the eye gradient and the
+ * eye glow, which is what keeps it looking like ORBI's own eye lighting up
+ * rather than like a sticker placed over his face. The concave sides are the
+ * whole trick: a convex four-pointed shape reads as a diamond.
+ */
+function starPath(cx: number, cy: number, r: number): string {
+  const w = r * 0.3
+  return (
+    `M ${cx} ${cy - r} ` +
+    `Q ${cx + w} ${cy - w} ${cx + r} ${cy} ` +
+    `Q ${cx + w} ${cy + w} ${cx} ${cy + r} ` +
+    `Q ${cx - w} ${cy + w} ${cx - r} ${cy} ` +
+    `Q ${cx - w} ${cy - w} ${cx} ${cy - r} Z`
+  )
+}
+
+/**
+ * Two and a bit turns of a spiral, centred on an eye.
+ *
+ * Sampled as a polyline rather than approximated with arcs — at this size the
+ * difference is invisible and the maths is one loop instead of six control
+ * points. This is the one eye treatment that is unmistakable at 88px across,
+ * which is the whole reason dizzy uses it.
+ */
+function spiralPath(cx: number, cy: number, r: number): string {
+  const turns = 2.35
+  const steps = 34
+  let d = ''
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const angle = t * turns * Math.PI * 2
+    const radius = t * r
+    const x = cx + Math.cos(angle) * radius
+    const y = cy + Math.sin(angle) * radius
+    d += `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)} `
+  }
+  return d.trim()
 }
 
 /**
@@ -169,12 +247,30 @@ export default function OrbiFace({
   const left = dozing || asleep ? shut : posed[0]
   const right = dozing || asleep ? shut : posed[1]
 
+  // Nothing below may fire while ORBI is under; `awake` is a separate concern
+  // from `dozing`, and every face has to yield to the sleeping one.
+  const up = !dozing && !asleep
   // The knowing face borrows the happy mouth — a wink with a flat mouth reads
   // as a malfunction rather than as mischief.
-  const isHappy = (expression === 'happy' || expression === 'wink') && !dozing && !asleep
-  const isSurprised = expression === 'surprised' || expression === 'dizzy'
+  const isHappy = (expression === 'happy' || expression === 'wink') && up
+  const isExcited = expression === 'excited' && up
+  const isSurprised = expression === 'surprised' && up
+  const isDizzy = expression === 'dizzy' && up
   const isSleepy = expression === 'sleepy' || dozing || asleep
-  const isConcerned = expression === 'concerned' && !dozing && !asleep
+  const isConcerned = expression === 'concerned' && up
+  const isUnsure = expression === 'unsure' && up
+  const isThinking = expression === 'thinking' && up
+  const isCurious = expression === 'curious' && up
+  const isShy = expression === 'shy' && up
+  // Whether the resting mouth stays out of the way. Every face that draws its
+  // own mouth is listed once, here, so adding another cannot leave two mouths
+  // on screen at the same time.
+  const mouthTaken =
+    isHappy || isExcited || isSurprised || isDizzy || isSleepy ||
+    isConcerned || isUnsure || isThinking || isCurious || isShy
+  // Blush: pleased, thrilled, or caught being pleased. Strongest when shy,
+  // which is the one where the blush *is* the emotion.
+  const blush = isShy ? 0.62 : isExcited ? 0.5 : expression === 'happy' && up ? 0.4 : 0
   const { eyeLeft, eyeRight, mouth } = ORBI_ART
 
   return (
@@ -245,12 +341,76 @@ export default function OrbiFace({
             />
           ))}
         </g>
+
+        {/*
+          Excited: star eyes.
+
+          The one treatment that makes excited unmistakably *more* than happy
+          without asking the body to shout. Filled with the same eye gradient
+          and carrying the same glow, so it reads as ORBI's eyes catching
+          light rather than as decoration laid on top of them.
+        */}
+        <g
+          style={{
+            opacity: isExcited ? 1 : 0,
+            transition: isExcited
+              ? 'opacity 180ms ease 50ms'
+              : 'opacity 120ms ease',
+          }}
+        >
+          {[eyeLeft, eyeRight].map((eye) => (
+            <path
+              key={eye.x}
+              d={starPath(eye.x, eye.y, 11)}
+              fill="url(#orbi-eye)"
+              filter="url(#orbi-eye-glow)"
+            />
+          ))}
+        </g>
+
+        {/*
+          Dizzy: spirals where the pupils were.
+
+          Stroked, not filled, because a filled spiral is a disc. The two turn
+          in opposite directions — a matched pair reads as a pattern, and a
+          mismatched pair reads as a robot that cannot focus.
+        */}
+        <g
+          style={{
+            opacity: isDizzy ? 0.95 : 0,
+            transition: isDizzy
+              ? 'opacity 180ms ease 50ms'
+              : 'opacity 120ms ease',
+          }}
+        >
+          {[
+            { eye: eyeLeft, flip: 1 },
+            { eye: eyeRight, flip: -1 },
+          ].map(({ eye, flip }) => (
+            <g key={eye.x} transform={`translate(${eye.x} ${eye.y}) scale(${flip} 1)`}>
+              <path
+                d={spiralPath(0, 0, 9.5)}
+                fill="none"
+                stroke="url(#orbi-eye)"
+                strokeWidth={2}
+                strokeLinecap="round"
+                filter="url(#orbi-eye-glow)"
+              />
+            </g>
+          ))}
+        </g>
       </g>
 
-      {/* Cheek tint — only when properly happy, never on a wink. */}
+      {/*
+        Cheek tint. Never on a wink — a wink is knowing, not flustered.
+
+        Shared by the three faces that need colour in them: pleased, thrilled,
+        and caught. Strongest on `shy`, where the blush is not a garnish on the
+        emotion but most of what the emotion *is*.
+      */}
       <g
         style={{
-          opacity: expression === 'happy' && !dozing && !asleep ? 0.4 : 0,
+          opacity: blush,
           transition: 'opacity 220ms ease',
         }}
       >
@@ -264,7 +424,7 @@ export default function OrbiFace({
           d={`M ${mouth.x - 8} ${mouth.y} Q ${mouth.x} ${mouth.y + 3.5} ${mouth.x + 8} ${mouth.y}`}
           strokeWidth={2.2}
           style={{
-            opacity: isHappy || isSurprised || isSleepy || isConcerned ? 0 : 0.32,
+            opacity: mouthTaken ? 0 : 0.32,
             transition: 'opacity 200ms ease',
           }}
         />
@@ -273,6 +433,19 @@ export default function OrbiFace({
           strokeWidth={2.6}
           style={{ opacity: isHappy ? 0.85 : 0, transition: 'opacity 200ms ease' }}
         />
+        {/*
+          Excited: the happy smile, wider and deeper.
+
+          Same shape language on purpose — excited is *more* of the same
+          feeling, not a different one — but big enough that the two are never
+          in doubt when they play a second apart.
+        */}
+        <path
+          d={`M ${mouth.x - 11} ${mouth.y - 4} Q ${mouth.x} ${mouth.y + 11} ${mouth.x + 11} ${mouth.y - 4}`}
+          strokeWidth={3}
+          style={{ opacity: isExcited ? 0.95 : 0, transition: 'opacity 200ms ease' }}
+        />
+        {/* Surprised: a round, open O. */}
         <ellipse
           cx={mouth.x}
           cy={mouth.y + 1}
@@ -280,6 +453,68 @@ export default function OrbiFace({
           ry={4.2}
           strokeWidth={2.2}
           style={{ opacity: isSurprised ? 0.75 : 0, transition: 'opacity 200ms ease' }}
+        />
+        {/*
+          Dizzy: a small open mouth pulled off centre.
+
+          Not the surprised O — the two used to share it, and sharing a mouth
+          is exactly how "startled" and "spun round five times" ended up
+          looking alike. Narrower, lower, and off to one side.
+        */}
+        <ellipse
+          cx={mouth.x + 2.2}
+          cy={mouth.y + 2}
+          rx={2.6}
+          ry={3.4}
+          strokeWidth={2}
+          style={{ opacity: isDizzy ? 0.7 : 0, transition: 'opacity 200ms ease' }}
+        />
+        {/*
+          Thinking: a short line, off centre and slightly tipped.
+
+          The smallest mouth ORBI has. Concentration is not an expression you
+          make with your mouth, so this only has to be *not* the resting curve
+          — enough that thinking never looks like normal with the eyes moved.
+        */}
+        <path
+          d={`M ${mouth.x - 6.5} ${mouth.y + 1.6} L ${mouth.x + 2.5} ${mouth.y - 0.4}`}
+          strokeWidth={2.2}
+          style={{ opacity: isThinking ? 0.42 : 0, transition: 'opacity 200ms ease' }}
+        />
+        {/*
+          Unsure: a wavering line.
+
+          One shallow rise and one shallow fall — the shape a mouth makes when
+          the answer is "well…". Deliberately nothing like `concerned`'s smooth
+          frown: that one is sorry, this one is hedging, and the pair have to
+          be told apart at a glance.
+        */}
+        <path
+          d={
+            `M ${mouth.x - 8} ${mouth.y + 1} ` +
+            `Q ${mouth.x - 4} ${mouth.y - 3} ${mouth.x} ${mouth.y + 0.6} ` +
+            `Q ${mouth.x + 4} ${mouth.y + 4} ${mouth.x + 8} ${mouth.y}`
+          }
+          strokeWidth={2.2}
+          style={{ opacity: isUnsure ? 0.7 : 0, transition: 'opacity 200ms ease' }}
+        />
+        {/*
+          Curious: the resting curve, lifted at the end he is looking toward.
+          A question in the shape of a mouth, without being a smile.
+        */}
+        <path
+          d={`M ${mouth.x - 7} ${mouth.y + 1.5} Q ${mouth.x - 1} ${mouth.y + 4} ${mouth.x + 7.5} ${mouth.y - 2}`}
+          strokeWidth={2.2}
+          style={{ opacity: isCurious ? 0.5 : 0, transition: 'opacity 200ms ease' }}
+        />
+        {/*
+          Shy: a small smile, narrow and pushed away from the side he is
+          hiding toward. Pleased, but not willing to show it.
+        */}
+        <path
+          d={`M ${mouth.x - 2} ${mouth.y} Q ${mouth.x + 2.5} ${mouth.y + 4.5} ${mouth.x + 7} ${mouth.y - 0.5}`}
+          strokeWidth={2.4}
+          style={{ opacity: isShy ? 0.7 : 0, transition: 'opacity 200ms ease' }}
         />
         {/*
           Concerned: the resting curve turned over.
@@ -293,7 +528,7 @@ export default function OrbiFace({
         <path
           d={`M ${mouth.x - 8} ${mouth.y + 1.5} Q ${mouth.x} ${mouth.y - 2.5} ${mouth.x + 8} ${mouth.y + 1.5}`}
           strokeWidth={2.2}
-          style={{ opacity: isConcerned ? 0.5 : 0, transition: 'opacity 200ms ease' }}
+          style={{ opacity: isConcerned ? 0.7 : 0, transition: 'opacity 200ms ease' }}
         />
 
         {/* Sleepy: a short flat line, softer than the resting smile. */}

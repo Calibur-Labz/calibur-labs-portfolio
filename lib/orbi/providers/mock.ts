@@ -1,7 +1,9 @@
 import { orbiAddOns, orbiPackages, techStack } from '../../data'
 import {
   normaliseAction,
+  normaliseEmotion,
   type OrbiAskAction,
+  type OrbiAskEmotion,
   type OrbiAskOutcome,
   type OrbiAskReply,
   type OrbiAskTurn,
@@ -104,6 +106,24 @@ const REPLIES = {
   )}.`,
   build:
     'That sounds like a good fit — e-commerce and custom builds are a lot of what we do. The quickest way to start is the contact form.',
+  /**
+   * Phase 25. Three lines that exist so the *social* half of a conversation
+   * lands somewhere better than the fallback: a greeting, a compliment and a
+   * thank-you are all things a visitor says, and answering them with "ask me
+   * about our services" reads as a robot that was not listening.
+   */
+  greeting:
+    'Hey — I’m ORBI. Ask me about our services, our work, the technologies we use, or how to reach the team.',
+  compliment:
+    'Thank you, that’s kind. I’ll pass it on to the team. Anything you’d like to see while you’re here?',
+  thanks: 'Any time. Ask me anything else while you’re looking around.',
+  /**
+   * Something is wrong, or something did not land. Calm and useful: ORBI
+   * neither argues nor apologises twice, and the one thing he can actually do
+   * is put the visitor in front of the people who can fix it.
+   */
+  negative:
+    'Sorry about that — thanks for telling me. I can’t fix it myself, but the team would want to know, and the contact form reaches them directly.',
   fallback:
     'I’m here mainly to help you explore xCalibur Labz. Ask me about our services, work, client stories, technologies, or how to get in touch.',
 } as const
@@ -203,6 +223,8 @@ const INTENTS: ReadonlyArray<{
       'need a website',
       'need an app',
       'build me',
+      'build my',
+      'want you to build',
       'build a',
       'build an',
       'hire',
@@ -306,6 +328,50 @@ const INTENTS: ReadonlyArray<{
     message: REPLIES.about,
     action: 'SHOW_ABOUT',
   },
+  /*
+   * Phase 25 — the social tail of the table.
+   *
+   * Deliberately *last*. Every one of these matches on words that also turn up
+   * inside real questions ("I love your pricing", "this package is confusing"),
+   * and a visitor asking about pricing while being nice about it wants the
+   * pricing answer. Sitting below every business intent means these can only
+   * ever catch what nothing else wanted — which is exactly when they are right.
+   */
+  {
+    id: 'greeting',
+    keys: ['hi orbi', 'hey orbi', 'hello', 'hiya', 'good morning', 'good afternoon', 'good evening', 'how are you'],
+    message: REPLIES.greeting,
+    action: 'NO_ACTION',
+  },
+  {
+    id: 'thanks',
+    keys: ['thank you', 'thanks', 'cheers', 'appreciate it', 'much appreciated'],
+    message: REPLIES.thanks,
+    action: 'NO_ACTION',
+  },
+  {
+    id: 'negative',
+    keys: [
+      'broken', 'is a bug', 'has a bug', 'a bug', 'glitch', 'crashed', 'crashes',
+      'not working', 'doesnt work', "doesn't work", 'does not work', 'dont work',
+      "don't work", 'not work', 'dont like', "don't like", 'do not like',
+      'confusing', 'confused', 'frustrating', 'annoying', 'terrible', 'awful', 'useless',
+      'dont understand', "don't understand", 'do not understand',
+    ],
+    message: REPLIES.negative,
+    action: 'SHOW_CONTACT',
+  },
+  {
+    id: 'compliment',
+    keys: [
+      'cool robot', 'cute', 'adorable', 'love this', 'love your', 'love it',
+      'like orbi', 'like this', 'nice website', 'nice site', 'nice work',
+      'amazing', 'awesome', 'so cool', 'really cool', 'very cool', 'impressive',
+      'beautiful', 'well done', 'great job', 'looks great', 'looks good',
+    ],
+    message: REPLIES.compliment,
+    action: 'NO_ACTION',
+  },
 ]
 
 /** Lower-cased, punctuation flattened, curly quotes folded to straight. */
@@ -369,6 +435,13 @@ export function matchOrbiIntent(question: string): {
   if (isCustomBuildPricing(text, question.toLowerCase())) {
     return { id: 'quote', message: REPLIES.quote, action: 'SHOW_CONTACT' }
   }
+  // "hi" is two letters, and the table matches on substrings — as a key it
+  // would fire inside "which", "this" and "hire". Whole-message equality is
+  // the only safe way to catch a bare greeting, so it is checked rather than
+  // listed. A greeting cannot be anything else, so its position is harmless.
+  if (BARE_GREETINGS.has(text)) {
+    return { id: 'greeting', message: REPLIES.greeting, action: 'NO_ACTION' }
+  }
   // An apostrophe survives normalisation, so both spellings of "let's" match.
   for (const intent of INTENTS) {
     if (intent.keys.some((key) => text.includes(normalise(key)))) {
@@ -401,7 +474,80 @@ export function mockDelayFor(question: string, min = 400, max = 700): number {
  * "the team has to price that", which is uncertainty, not knowledge. The
  * fallback line is the same thing for an off-topic question.
  */
-const UNSURE_INTENTS = new Set(['quote', 'ecommerce'])
+const UNSURE_INTENTS = new Set(['quote'])
+
+/**
+ * Greetings short enough that they can only be matched whole.
+ *
+ * `text` here has already been through `normalise`, so punctuation is gone and
+ * "Hi!" and "  hi  " both arrive as "hi".
+ */
+const BARE_GREETINGS = new Set(['hi', 'hey', 'hello', 'yo', 'hiya', 'sup', 'howdy', 'hi there', 'hey there'])
+
+/**
+ * Phase 25 — what each intent *feels* like.
+ *
+ * A lookup, not an inference: every entry is a fixed word chosen here, so the
+ * mock demonstrates the emotion system without pretending to understand
+ * anything. Anything absent is `normal`, which is most of the table on
+ * purpose — a companion who reacts to "what technologies do you use?" is
+ * exhausting, and the brief is explicit that normal is the resting state.
+ */
+const INTENT_EMOTION: Readonly<Record<string, OrbiAskEmotion>> = {
+  greeting: 'happy',
+  compliment: 'happy',
+  thanks: 'happy',
+  negative: 'concerned',
+  // Someone describing work they want is the most valuable thing a visitor
+  // ever types, and the one place enthusiasm is the honest reaction.
+  build: 'excited',
+  ecommerce: 'excited',
+  quote: 'excited',
+  // Helping someone choose is genuinely uncertain — the reply says so in
+  // words ("it depends what you need"), and the face should agree.
+  recommend: 'unsure',
+}
+
+/**
+ * The visitor's tone, where it should outrank the topic.
+ *
+ * Two narrow cases, both of which the table cannot reach on its own because a
+ * business intent matches first: "I don't understand your packages" is the
+ * packages answer said to someone who is struggling, and "I love your work"
+ * is the projects answer said to someone being kind. The topic decides what
+ * ORBI *says*; this decides how he says it.
+ *
+ * Kept to two word lists on purpose. It is not sentiment analysis and must
+ * not grow into it — anything subtler than this belongs to the real provider,
+ * which reads the sentence rather than scanning it.
+ */
+const STRUGGLING = [
+  'dont understand', "don't understand", 'do not understand', 'confusing', 'confused',
+  'broken', 'not working', 'doesnt work', "doesn't work", 'does not work',
+  'dont work', "don't work", 'glitch', 'crashed', 'frustrating', 'annoying',
+  'dont like', "don't like", 'do not like', 'terrible', 'awful', 'useless',
+] as const
+
+const KIND = [
+  'love this', 'love your', 'love it', 'love the', 'amazing', 'awesome',
+  'impressive', 'beautiful', 'well done', 'great job', 'looks great',
+  'so cool', 'really cool', 'very cool', 'cool robot', 'nice work',
+  'thank you', 'thanks',
+] as const
+
+/**
+ * Which feeling a question earns. Deterministic, and never derived from the
+ * answer — only from what the visitor typed and which intent it landed on.
+ */
+export function mockEmotionFor(question: string, intentId: string | null): OrbiAskEmotion {
+  const text = normalise(question)
+  // Struggling wins over kind: "I love this but it's broken" is a bug report.
+  if (STRUGGLING.some((key) => text.includes(key))) return 'concerned'
+  if (KIND.some((key) => text.includes(key))) return 'happy'
+  // Nothing recognised at all — ORBI is about to say so, and should look it.
+  if (!intentId) return 'unsure'
+  return INTENT_EMOTION[intentId] ?? 'normal'
+}
 
 export const mockProvider: OrbiProvider = {
   name: 'mock',
@@ -434,6 +580,9 @@ export const mockProvider: OrbiProvider = {
       // literals today, but a provider is not trusted to police itself.
       action: normaliseAction(hit?.action),
       outcome,
+      // Same rule for the emotion: a literal from a table, put through the
+      // same gate an untrusted model's answer goes through.
+      emotion: normaliseEmotion(mockEmotionFor(question, hit?.id ?? null)),
     }
   },
 }

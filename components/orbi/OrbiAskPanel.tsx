@@ -38,6 +38,7 @@ export default function OrbiAskPanel({
   onAction,
   onExplore,
   onClose,
+  onComposing,
   reducedMotion,
 }: {
   open: boolean
@@ -51,6 +52,16 @@ export default function OrbiAskPanel({
       provider cannot answer. */
   onExplore: () => void
   onClose: () => void
+  /**
+   * The visitor is writing something. Fired on focus and on each change, and
+   * deliberately *not* throttled here: the panel reports, the guide decides
+   * how often that is worth looking up for.
+   *
+   * `hasText` is whether the input actually holds anything. The panel focuses
+   * itself when it opens, and an empty focused input is somebody who has not
+   * started yet — not somebody who paused mid-sentence.
+   */
+  onComposing?: (hasText: boolean) => void
   reducedMotion: boolean
 }) {
   const [draft, setDraft] = useState('')
@@ -108,6 +119,9 @@ export default function OrbiAskPanel({
     if (!log) return
     log.scrollTop = log.scrollHeight
   }, [entries.length, pending])
+
+  /** The newest thing ORBI said, which is what he glances back at. */
+  const latestAnswerId = [...entries].reverse().find((e) => e.role === 'orbi' && !e.failed)?.id
 
   if (!open) return null
 
@@ -290,7 +304,16 @@ export default function OrbiAskPanel({
           style={{ display: 'contents' }}
         >
         {visible.map((entry) => (
-          <div key={entry.id}>
+          <div
+            key={entry.id}
+            /*
+              Phase 26 — the container ORBI looks at once he has answered.
+              Marked on the newest ORBI turn only, so the guide can find it
+              with one query and no observer. Containers only: nothing tracks
+              individual lines of text.
+            */
+            {...(entry.id === latestAnswerId ? { 'data-orbi-ask-answer': '' } : null)}
+          >
             <div
               style={{
                 color: entry.role === 'user' ? '#8FA2B7' : ORBI_COLORS.speechText,
@@ -347,7 +370,12 @@ export default function OrbiAskPanel({
           id="orbi-ask-input"
           ref={inputRef}
           value={draft}
-          onChange={(event) => setDraft(event.target.value.slice(0, ORBI_ASK.maxInput))}
+          onFocus={() => onComposing?.(draft.trim().length > 0)}
+          onChange={(event) => {
+            const next = event.target.value.slice(0, ORBI_ASK.maxInput)
+            setDraft(next)
+            onComposing?.(next.trim().length > 0)
+          }}
           maxLength={ORBI_ASK.maxInput}
           placeholder={ORBI_ASK_MESSAGES.placeholder}
           autoComplete="off"
