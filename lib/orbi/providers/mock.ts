@@ -343,7 +343,7 @@ function isCustomBuildPricing(text: string, raw: string): boolean {
     )
   // Checked against the *raw* text as well: `normalise` strips punctuation, so
   // a currency symbol is long gone by the time the table sees it — and
-  // "for $390?" is unmistakably a question about money.
+  // "for $490?" is unmistakably a question about money.
   const money =
     /\b(price|pricing|cost|costs|quote|budget|cheap|cheapest|afford|affordable|how much|rate|fee|charge)/.test(
       text,
