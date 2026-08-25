@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   normaliseAction,
+  normaliseOutcome,
   ORBI_ASK,
   ORBI_ASK_MESSAGES,
   type OrbiAskAction,
+  type OrbiAskOutcome,
   type OrbiAskTurn,
 } from './orbiAsk'
 
@@ -28,6 +30,12 @@ export interface OrbiAskEntry {
   action?: Exclude<OrbiAskAction, 'NO_ACTION'>
   /** A failure ORBI is reporting, rather than something he said. */
   failed?: boolean
+  /**
+   * How well the provider judged its own answer. Drives ORBI's face — a
+   * confident answer earns a brief happy beat, an unsure one earns the unsure
+   * one — and is never shown to the visitor.
+   */
+  outcome?: OrbiAskOutcome
 }
 
 export interface OrbiAskApi {
@@ -121,7 +129,7 @@ export function useOrbiAsk(): OrbiAskApi {
           // The route answers with the same shape whatever the status, so a
           // 429 or a 502 still carries a sentence worth showing.
           const data = (await response.json().catch(() => null)) as
-            | { message?: unknown; action?: unknown }
+            | { message?: unknown; action?: unknown; outcome?: unknown }
             | null
 
           const text =
@@ -141,6 +149,8 @@ export function useOrbiAsk(): OrbiAskApi {
             text,
             failed: !ok,
             action: action === 'NO_ACTION' ? undefined : action,
+            // Validated on this side of the wire too, exactly like the action.
+            outcome: ok ? normaliseOutcome(data?.outcome) : undefined,
           })
 
           if (ok) {

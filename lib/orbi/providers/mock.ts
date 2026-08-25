@@ -2,6 +2,7 @@ import { orbiAddOns, orbiPackages, techStack } from '../../data'
 import {
   normaliseAction,
   type OrbiAskAction,
+  type OrbiAskOutcome,
   type OrbiAskReply,
   type OrbiAskTurn,
 } from '../../../components/orbi/orbiAsk'
@@ -337,7 +338,7 @@ function formatList(items: readonly string[]): string {
  */
 function isCustomBuildPricing(text: string, raw: string): boolean {
   const buildThing =
-    /\b(website|web site|webpage|app|application|store|shop|platform|system|software|development|project|build)\b/.test(
+    /\b(website|web site|webpage|web page|site|landing page|homepage|home page|portfolio|blog|app|application|store|shop|platform|system|software|development|project|build|rebuild|redesign)\b/.test(
       text,
     )
   // Checked against the *raw* text as well: `normalise` strips punctuation, so
@@ -393,6 +394,15 @@ export function mockDelayFor(question: string, min = 400, max = 700): number {
   return min + (hash % (max - min + 1))
 }
 
+/**
+ * Which scripted answers are ORBI admitting he cannot help directly.
+ *
+ * `quote` and `ecommerce` both answer a real question — but the answer is
+ * "the team has to price that", which is uncertainty, not knowledge. The
+ * fallback line is the same thing for an off-topic question.
+ */
+const UNSURE_INTENTS = new Set(['quote', 'ecommerce'])
+
 export const mockProvider: OrbiProvider = {
   name: 'mock',
   ready: () => true,
@@ -413,11 +423,17 @@ export const mockProvider: OrbiProvider = {
       signal?.addEventListener('abort', onAbort, { once: true })
     })
 
+    // No match at all, or a match whose answer is "ask the team": both are
+    // ORBI being unsure rather than informative.
+    const outcome: OrbiAskOutcome =
+      !hit || UNSURE_INTENTS.has(hit.id) ? 'unsure' : 'answered'
+
     return {
       message: hit?.message ?? REPLIES.fallback,
       // Normalised here as well as in the route. The mock's actions are
       // literals today, but a provider is not trusted to police itself.
       action: normaliseAction(hit?.action),
+      outcome,
     }
   },
 }

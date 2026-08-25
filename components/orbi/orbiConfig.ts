@@ -29,8 +29,16 @@ export type OrbiExpression =
    */
   | 'concerned'
 
-/** Expressions that already own the eyelids — the blink scheduler stays out. */
-const EYES_BUSY = ['blink', 'surprised', 'sleepy', 'dizzy', 'wink', 'concerned'] as const
+/**
+ * Expressions that already own the eyelids — the blink scheduler stays out.
+ *
+ * `concerned` is deliberately not here. It only lowers the lids a little, and
+ * it is the one face ORBI can hold for a long time — the contact form wears it
+ * for as long as a field is wrong — so suppressing the blink would leave him
+ * staring. Blinking restores whatever face was underneath, so a blink over a
+ * concerned beat reads as a blink, not as a change of mind.
+ */
+const EYES_BUSY = ['blink', 'surprised', 'sleepy', 'dizzy', 'wink'] as const
 
 export const holdsEyes = (e: OrbiExpression): boolean =>
   (EYES_BUSY as readonly string[]).includes(e)
@@ -1475,6 +1483,20 @@ export const ORBI_EMOTION = {
    * than as another look at something.
    */
   shy: { gaze: { x: -0.58, y: 0.48 }, tilt: 2.8, holdMs: 850 },
+  /**
+   * An answer ORBI is confident in. A short pleased beat between the thinking
+   * face and normal — eyes level and back to the visitor, the smallest lift of
+   * a lean. Deliberately briefer than every other feeling here, because it
+   * happens on each good answer and must never read as a celebration.
+   */
+  answered: { gaze: { x: 0, y: -0.14 }, tilt: -1.1, holdMs: 700 },
+  /**
+   * An answer ORBI knows is a redirect rather than a real answer. Reuses the
+   * confused pose on purpose: the face for "I couldn't follow that" is the
+   * same face as "I don't have that one", and a second pose for the same
+   * feeling would only be a second thing to keep in sync.
+   */
+  unsure: { gaze: { x: 0.62, y: -0.12 }, tilt: 2.4, holdMs: 950 },
   /** Leaning in at a card the visitor has settled on. */
   curiousLean: 2.2,
   /**

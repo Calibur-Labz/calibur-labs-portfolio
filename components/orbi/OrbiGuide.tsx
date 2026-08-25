@@ -2524,7 +2524,9 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       if (speak) holdRef.current = ORBI_TIMING.messageHoldMs
       setState((current) => ({
         ...current,
-        expression: 'thinking',
+        // Concerned, not thinking: nothing is being worked out here, ORBI has
+        // simply noticed the field is not right yet.
+        expression: 'concerned',
         ...(speak
           ? {
               message: ORBI_FORM_MESSAGES.invalid,
@@ -2541,7 +2543,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     later(
       () =>
         setState((current) =>
-          current.expression === 'thinking'
+          current.expression === 'concerned'
             ? { ...current, expression: 'normal' }
             : current,
         ),
@@ -2696,19 +2698,30 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       }
 
       // Concerned, not alarmed. The form's own message is the real one; ORBI
-      // is only acknowledging it.
+      // is only acknowledging it — with the face that actually means it, now
+      // that one exists.
       restAnimationRef.current = null
       later(() => {
         holdRef.current = ORBI_FORM.errorHoldMs
         setState((current) => ({
           ...current,
-          expression: 'thinking',
+          expression: 'concerned',
           animation: 'idle',
           message: ORBI_FORM_MESSAGES.error,
           messageId: current.messageId + 1,
         }))
       }, 0)
-      later(() => arbiter.release('form-result'), ORBI_FORM.errorHoldMs)
+      // Puts its own face down when the hold is over. Whether the validation
+      // effect happens to be watching is not this branch's business, and a
+      // face nobody clears is a face ORBI wears until the next thing happens.
+      later(() => {
+        setState((current) =>
+          current.expression === 'concerned'
+            ? { ...current, expression: 'normal' }
+            : current,
+        )
+        arbiter.release('form-result')
+      }, ORBI_FORM.errorHoldMs)
       return
     }
 
@@ -2878,11 +2891,15 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   /**
    * How the last answer landed.
    *
-   * Two feelings share one effect because they are the same moment seen from
-   * either side: ORBI could not use what the visitor typed, or ORBI could not
-   * answer at all. The status the route already returned tells them apart —
-   * a 4xx is "I couldn't follow that", anything else is "something broke" —
-   * so neither needs a new signal or a change to the response contract.
+   * Every ending of the same moment lives in one effect, because they are one
+   * moment seen four ways: ORBI answered, ORBI redirected, ORBI could not use
+   * what the visitor typed, or ORBI could not answer at all.
+   *
+   * Nothing here reads the answer's words. The failure cases are told apart by
+   * the status the route already returned — a 4xx is "I couldn't follow that",
+   * anything else is "something broke" — and the two successes by the
+   * `outcome` field the provider fills in beside the action it already
+   * chooses. Both are contract, so both mean the same thing on every provider.
    *
    * Keyed on the entry id, so a re-render never re-feels an old answer.
    */
@@ -2894,16 +2911,30 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     if (!last || last.role !== 'orbi') return
     if (last.id === feltEntryRef.current) return
     feltEntryRef.current = last.id
-    if (!last.failed) return
 
-    // 400 means the input itself could not be used — the closest thing ORBI
-    // has to "I didn't understand you". Everything else is a failure.
-    const confused = /http 4/.test(ask.lastError ?? '')
+    if (last.failed) {
+      // 400 means the input itself could not be used — the closest thing ORBI
+      // has to "I didn't understand you". Everything else is a failure.
+      const confused = /http 4/.test(ask.lastError ?? '')
+      later(
+        () =>
+          confused
+            ? feel(ORBI_EMOTION.confused, 'thinking', 'emotion:confused')
+            : feel(ORBI_EMOTION.concerned, 'concerned', 'emotion:concerned'),
+        0,
+      )
+      return
+    }
+
+    // An answer ORBI stood behind, or one he had to hand back. The thinking
+    // face is holding at this point either way; both of these replace it and
+    // then let the usual revert take ORBI back to normal.
+    const unsure = last.outcome === 'unsure'
     later(
       () =>
-        confused
-          ? feel(ORBI_EMOTION.confused, 'thinking', 'emotion:confused')
-          : feel(ORBI_EMOTION.concerned, 'concerned', 'emotion:concerned'),
+        unsure
+          ? feel(ORBI_EMOTION.unsure, 'thinking', 'emotion:unsure')
+          : feel(ORBI_EMOTION.answered, 'happy', 'emotion:answered'),
       0,
     )
   }, [askOpen, ask.entries, ask.lastError, feel, later])

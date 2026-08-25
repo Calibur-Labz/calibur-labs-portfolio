@@ -1,6 +1,8 @@
 import {
   normaliseAction,
+  normaliseOutcome,
   ORBI_ACTIONS,
+  ORBI_ASK_OUTCOMES,
   ORBI_ASK,
   type OrbiAskReply,
   type OrbiAskTurn,
@@ -75,14 +77,15 @@ export const GEMINI_CONFIG = {
  * guarantee — `parseGeminiReply` re-checks it, the route re-checks it, and the
  * browser re-checks it again.
  */
-const REPLY_SCHEMA = {
+export const REPLY_SCHEMA = {
   type: 'OBJECT',
   properties: {
     message: { type: 'STRING' },
     action: { type: 'STRING', enum: [...ORBI_ACTIONS] },
+    outcome: { type: 'STRING', enum: [...ORBI_ASK_OUTCOMES] },
   },
-  required: ['message', 'action'],
-  propertyOrdering: ['message', 'action'],
+  required: ['message', 'action', 'outcome'],
+  propertyOrdering: ['message', 'action', 'outcome'],
 } as const
 
 /**
@@ -136,12 +139,20 @@ export function parseGeminiReply(raw: string | undefined): OrbiAskReply {
     throw new Error('reply was not an object')
   }
 
-  const { message, action } = parsed as { message?: unknown; action?: unknown }
+  const { message, action, outcome } = parsed as {
+    message?: unknown
+    action?: unknown
+    outcome?: unknown
+  }
   const text = typeof message === 'string' ? message.trim() : ''
   if (!text) throw new Error('reply had no message')
   if (text.length > ORBI_ASK.maxInput * 4) throw new Error('reply was too long')
 
-  return { message: text, action: normaliseAction(action) }
+  return {
+    message: text,
+    action: normaliseAction(action),
+    outcome: normaliseOutcome(outcome),
+  }
 }
 
 /**

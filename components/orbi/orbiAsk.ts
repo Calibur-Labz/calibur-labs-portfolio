@@ -125,9 +125,33 @@ export interface OrbiAskTurn {
   content: string
 }
 
+/**
+ * How well the answer went, as the *provider* judges it.
+ *
+ * Phase 24 needs this so ORBI can look unsure when he genuinely is. The
+ * alternative was matching the answer text against a known fallback line,
+ * which fails the moment a model words its redirect differently — and the
+ * mock and Gemini word theirs differently today, so it would have been wrong
+ * on arrival.
+ *
+ * Deliberately about the *answer*, never the provider: it says "I could not
+ * answer that from what I know", not which model ran or why. Optional, and
+ * anything that omits it is treated as `answered`, so a provider that never
+ * sets it simply never looks unsure.
+ */
+export type OrbiAskOutcome = 'answered' | 'unsure'
+
+export const ORBI_ASK_OUTCOMES: readonly OrbiAskOutcome[] = ['answered', 'unsure']
+
+/** Anything at all → a known outcome. Untrusted in, safe value out. */
+export function normaliseOutcome(value: unknown): OrbiAskOutcome {
+  return value === 'unsure' ? 'unsure' : 'answered'
+}
+
 export interface OrbiAskReply {
   message: string
   action: OrbiAskAction
+  outcome?: OrbiAskOutcome
 }
 
 /** Everything the panel is allowed to say when something goes wrong. */
