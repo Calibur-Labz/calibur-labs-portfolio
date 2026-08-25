@@ -5,11 +5,14 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion'
 
+// Root-relative so every link also works from a page that is not the
+// homepage — `/orbi` has no #services of its own to jump to.
 const links = [
-  { label: 'Services', href: '#services' },
-  { label: 'Work', href: '#work' },
-  { label: 'About', href: '#about' },
-  { label: 'Contact', href: '#contact' },
+  { label: 'Services', href: '/#services' },
+  { label: 'Work', href: '/#work' },
+  { label: 'ORBI', href: '/orbi' },
+  { label: 'About', href: '/#about' },
+  { label: 'Contact', href: '/#contact' },
 ]
 
 export default function Navbar() {
@@ -95,7 +98,7 @@ export default function Navbar() {
             ))}
           </div>
           <Link
-            href="#contact"
+            href="/#contact"
             className="btn-shimmer btn-primary"
             style={{
               display: 'inline-flex',
@@ -184,7 +187,7 @@ export default function Navbar() {
                 </Link>
               ))}
               <Link
-                href="#contact"
+                href="/#contact"
                 onClick={() => setMenuOpen(false)}
                 className="btn-shimmer btn-primary"
                 style={{

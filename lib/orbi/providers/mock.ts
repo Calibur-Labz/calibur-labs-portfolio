@@ -1,4 +1,4 @@
-import { techStack } from '../../data'
+import { orbiAddOns, orbiPackages, techStack } from '../../data'
 import {
   normaliseAction,
   type OrbiAskAction,
@@ -29,7 +29,18 @@ import type { OrbiProvider } from './types'
  *    provider answered — which is what makes swapping one in later safe.
  */
 
-/** Everything the mock is allowed to say. Nothing is generated. */
+const usd = (amount: number) => `$${amount.toLocaleString('en-US')}`
+/** Lowest setup fee wins; ties keep document order. */
+const cheapest = () => orbiPackages.reduce((a, b) => (a.setupUsd <= b.setupUsd ? a : b))
+/** The tier the page promotes, falling back to the dearest if none is flagged. */
+const popular = () =>
+  orbiPackages.find((p) => p.popular) ??
+  orbiPackages.reduce((a, b) => (a.setupUsd >= b.setupUsd ? a : b))
+
+/**
+ * Everything the mock is allowed to say. The prose is fixed; every figure and
+ * every product name is read from `lib/data.ts`.
+ */
 const REPLIES = {
   services:
     'We build modern web experiences, custom software, e-commerce solutions, and digital products.',
@@ -45,6 +56,51 @@ const REPLIES = {
    * to prevent.
    */
   technologies: `We work with ${formatList(techStack.map((t) => t.name))}.`,
+  /**
+   * The packages, and the prices, read from `orbiPackages` — the same array
+   * the page renders and the same one the knowledge builder reads. A second
+   * copy of the pricing table here is exactly the drift this whole approach
+   * exists to prevent, so there is not one.
+   */
+  packages: `We license ORBI in three tiers: ${formatList(
+    orbiPackages.map((p) => p.name),
+  )}. They start at ${usd(cheapest().setupUsd)} one-time plus ${usd(
+    cheapest().monthlyUsd,
+  )} a month.`,
+  pricing: `${orbiPackages
+    .map((p) => `${p.name} is ${usd(p.setupUsd)} one-time plus ${usd(p.monthlyUsd)} a month`)
+    .join('; ')}. Those are starting prices for a standard build — for anything custom the team can give you an accurate quote.`,
+  cheapest: `${cheapest().name} is the most affordable tier, at ${usd(
+    cheapest().setupUsd,
+  )} one-time plus ${usd(cheapest().monthlyUsd)} a month.`,
+  best: `${popular().name} is the one most people pick, at ${usd(
+    popular().setupUsd,
+  )} one-time plus ${usd(popular().monthlyUsd)} a month.`,
+  /**
+   * Anything the packages do not cover. Deliberately quotes no number at all —
+   * a scripted assistant guessing at a custom price is the one failure mode
+   * that costs real money.
+   */
+  quote:
+    'That sounds like custom work, and I don’t have a price for it. Our team can give you an accurate quote — the contact form is the quickest way.',
+  /**
+   * Helping someone choose. Careful on purpose — "looks like the closest fit",
+   * never "this is the one you need" — and it ends by handing the decision to
+   * a human rather than closing it.
+   */
+  recommend: `It depends what you need: ${orbiPackages
+    .map((p) => `${p.name} ${p.builds ? `adds to ${p.builds}` : 'covers the basics'}`)
+    .join(', ')}. ${popular().name} looks like the closest fit for most business sites, but the team can confirm what suits yours.`,
+  /**
+   * There is no e-commerce *package* — e-commerce is a service the team builds
+   * to order. Saying so is the difference between an honest answer and one
+   * that invents a product.
+   */
+  ecommerce:
+    'We build e-commerce and online stores as custom work rather than as an off-the-shelf package, so there’s no fixed price for one. The team can give you an accurate quote.',
+  addOns: `On top of any tier we offer ${formatList(
+    orbiAddOns.map((a) => `${a.name} at ${usd(a.priceUsd)} ${a.unit}`),
+  )}.`,
   build:
     'That sounds like a good fit — e-commerce and custom builds are a lot of what we do. The quickest way to start is the contact form.',
   fallback:
@@ -66,12 +122,83 @@ const INTENTS: ReadonlyArray<{
   action: OrbiAskAction
 }> = [
   {
+    /*
+     * Custom work, and the cost of a website or an app.
+     *
+     * Highest priority of all, and it names no figure. The published prices
+     * are for ORBI licences; the site publishes nothing for a bespoke build,
+     * so any number here would be invented. This sits above every pricing
+     * intent precisely so "how much does a website cost" can never be answered
+     * with a package price.
+     */
+    id: 'quote',
+    keys: [
+      'custom quote', 'get a quote', 'quote for', 'a quote',
+      'how much does a website', 'how much for a website', 'how much would a website',
+      'website cost', 'cost of a website', 'website price', 'price of a website',
+      'how much does an app', 'how much for an app', 'app cost', 'cost of an app',
+      'custom price', 'custom work', 'bespoke',
+    ],
+    message: REPLIES.quote,
+    action: 'SHOW_CONTACT',
+  },
+  {
+    // Above `build`, whose "build an" would otherwise swallow "build an
+    // online store".
+    id: 'ecommerce',
+    keys: ['ecommerce', 'e commerce', 'online store', 'online shop', 'shopping cart', 'webshop'],
+    message: REPLIES.ecommerce,
+    action: 'SHOW_CONTACT',
+  },
+  {
+    id: 'cheapest',
+    keys: ['cheapest', 'most affordable', 'lowest price', 'least expensive', 'budget option', 'entry level', 'starter package'],
+    message: REPLIES.cheapest,
+    action: 'NO_ACTION',
+  },
+  {
+    id: 'recommend',
+    keys: [
+      'which package', 'what package should', 'which tier', 'which plan',
+      'should i choose', 'recommend', 'good for a small', 'for a small business',
+      'small business', 'suitable for', 'right for me', 'best for',
+    ],
+    message: REPLIES.recommend,
+    action: 'NO_ACTION',
+  },
+  {
+    id: 'best',
+    keys: ['best package', 'best tier', 'best plan', 'most popular', 'top package', 'most complete'],
+    message: REPLIES.best,
+    action: 'NO_ACTION',
+  },
+  {
+    id: 'addOns',
+    keys: ['add on', 'addon', 'extra language', 'voice pack', 'custom character', 'extras'],
+    message: REPLIES.addOns,
+    action: 'NO_ACTION',
+  },
+  {
+    id: 'pricing',
+    keys: ['how much', 'price', 'pricing', 'cost', 'fee', 'subscription', 'per month', 'monthly'],
+    message: REPLIES.pricing,
+    action: 'NO_ACTION',
+  },
+  {
+    id: 'packages',
+    keys: ['package', 'product', 'tier', 'plan', 'licence', 'license'],
+    message: REPLIES.packages,
+    action: 'NO_ACTION',
+  },
+  {
     // "I want to build an ecommerce website" — someone describing work, not
     // asking a question. The most valuable thing a visitor ever types.
     id: 'build',
     keys: [
       'i want to build',
       'want to build',
+      'want a website',
+      'want an app',
       'need a website',
       'need an app',
       'build me',
@@ -195,6 +322,40 @@ function formatList(items: readonly string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
 }
 
+/**
+ * Is this a question about the price of *custom build work*?
+ *
+ * The keyword table cannot answer this on its own, and Phase 22 proved it:
+ * "give me your cheapest website development price" hit the `cheapest`
+ * keyword and came back with the ORBI **licence** price, which is exactly the
+ * confusion that costs real money. A published figure for licensing ORBI is
+ * not a quote for building someone a website.
+ *
+ * So this runs *before* the table: something being built (a website, an app, a
+ * store, a project) together with anything about money, and no mention of the
+ * ORBI product line, is a custom-quote question whatever else it says.
+ */
+function isCustomBuildPricing(text: string, raw: string): boolean {
+  const buildThing =
+    /\b(website|web site|webpage|app|application|store|shop|platform|system|software|development|project|build)\b/.test(
+      text,
+    )
+  // Checked against the *raw* text as well: `normalise` strips punctuation, so
+  // a currency symbol is long gone by the time the table sees it — and
+  // "for $390?" is unmistakably a question about money.
+  const money =
+    /\b(price|pricing|cost|costs|quote|budget|cheap|cheapest|afford|affordable|how much|rate|fee|charge)/.test(
+      text,
+    ) || /\$\s?[0-9]/.test(raw)
+  // A question genuinely about the ORBI tiers is not custom work, even though
+  // "ORBI Core" is something we build.
+  const aboutOrbiProduct =
+    /\b(orbi|package|packages|tier|tiers|plan|plans|licence|license|subscription|add on|addon)\b/.test(
+      text,
+    )
+  return buildThing && money && !aboutOrbiProduct
+}
+
 /** Which intent a question belongs to, or `null` for the fallback. */
 export function matchOrbiIntent(question: string): {
   id: string
@@ -202,6 +363,11 @@ export function matchOrbiIntent(question: string): {
   action: OrbiAskAction
 } | null {
   const text = normalise(question)
+
+  // Ahead of the table: never quote a licence price for a bespoke build.
+  if (isCustomBuildPricing(text, question.toLowerCase())) {
+    return { id: 'quote', message: REPLIES.quote, action: 'SHOW_CONTACT' }
+  }
   // An apostrophe survives normalisation, so both spellings of "let's" match.
   for (const intent of INTENTS) {
     if (intent.keys.some((key) => text.includes(normalise(key)))) {

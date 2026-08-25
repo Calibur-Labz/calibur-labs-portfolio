@@ -1,0 +1,733 @@
+'use client'
+
+/**
+ * The ORBI product page body.
+ *
+ * The homepage carries a short overview and sends people here; this is where
+ * the detail, the options and the prices live. Same visual language as the
+ * page sections — inline styles, the shared motion variants, the site's topic
+ * ramp on headings and blue kept for structure rather than words.
+ */
+
+import { useEffect } from 'react'
+import Link from 'next/link'
+import OrbiShowcase from '@/components/sections/OrbiShowcase'
+import { motion } from 'framer-motion'
+import { fadeUp, slideInLeft, stagger, staggerFast } from '@/lib/motion'
+import {
+  groupsForTier,
+  orbiAddOns,
+  orbiFaq,
+  orbiPackages,
+  orbiStats,
+  type ProductPackage,
+} from '@/lib/data'
+import SectionLabel from '@/components/ui/SectionLabel'
+
+const usd = (value: number) => `$${value.toLocaleString('en-US')}`
+
+const ACCENT = '#00B7FF'
+const TEXT = '#E9F1F8'
+const MUTED = '#6E8399'
+const POPPINS = 'var(--font-poppins), system-ui, sans-serif'
+const SYNE = 'var(--font-syne), system-ui, sans-serif'
+
+const BLUE = 'linear-gradient(135deg, #00B7FF 0%, #5EE9FF 100%)'
+
+/** The site's heading treatment — the ramp `GradientText` uses everywhere. */
+const topicText = {
+  background: 'linear-gradient(135deg, #E9F1F8 0%, #93A6BC 100%)',
+  WebkitBackgroundClip: 'text',
+  backgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+} as const
+
+const blueText = {
+  background: BLUE,
+  WebkitBackgroundClip: 'text',
+  backgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+} as const
+
+function PackageCard({ pkg }: { pkg: ProductPackage }) {
+  const popular = Boolean(pkg.popular)
+
+  return (
+    <motion.div
+      variants={fadeUp}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '32px 28px 28px',
+        borderRadius: '18px',
+        background: popular ? '#101825' : '#0C121C',
+        border: popular
+          ? '1px solid rgba(0,183,255,0.45)'
+          : '1px solid rgba(255,255,255,0.05)',
+        boxShadow: popular ? '0 0 60px rgba(0,183,255,0.14)' : 'none',
+        transition: 'border-color 0.3s, box-shadow 0.3s',
+        cursor: 'default',
+      }}
+      onMouseEnter={(e) => {
+        const el = e.currentTarget as HTMLElement
+        el.style.borderColor = 'rgba(0,183,255,0.45)'
+        el.style.boxShadow = '0 0 50px rgba(0,183,255,0.18)'
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget as HTMLElement
+        el.style.borderColor = popular
+          ? 'rgba(0,183,255,0.45)'
+          : 'rgba(255,255,255,0.05)'
+        el.style.boxShadow = popular ? '0 0 60px rgba(0,183,255,0.14)' : 'none'
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: '18%',
+          width: '64%',
+          height: '1px',
+          background: popular
+            ? 'linear-gradient(90deg, transparent, #00B7FF, transparent)'
+            : 'linear-gradient(90deg, transparent, rgba(0,183,255,0.45), transparent)',
+        }}
+      />
+
+      {popular && (
+        <span
+          style={{
+            position: 'absolute',
+            top: '-11px',
+            left: '28px',
+            padding: '4px 14px',
+            borderRadius: '99px',
+            background: BLUE,
+            color: '#04070C',
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            fontFamily: POPPINS,
+          }}
+        >
+          Most popular
+        </span>
+      )}
+
+      <h3
+        style={{
+          fontSize: '18px',
+          fontWeight: 700,
+          margin: 0,
+          fontFamily: SYNE,
+          letterSpacing: '-0.01em',
+          ...topicText,
+        }}
+      >
+        {pkg.name}
+      </h3>
+
+      <div style={{ margin: '18px 0 22px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+          <span
+            style={{
+              fontSize: '32px',
+              fontWeight: 800,
+              fontFamily: SYNE,
+              letterSpacing: '-0.03em',
+              lineHeight: 1,
+              ...topicText,
+            }}
+          >
+            {usd(pkg.setupUsd)}
+          </span>
+          <span style={{ fontSize: '13px', color: MUTED, fontFamily: POPPINS }}>
+            one-time
+          </span>
+        </div>
+        <div
+          style={{
+            marginTop: '6px',
+            fontSize: '13px',
+            color: TEXT,
+            fontFamily: POPPINS,
+            fontWeight: 600,
+          }}
+        >
+          + {usd(pkg.monthlyUsd)}
+          <span style={{ color: MUTED, fontWeight: 500 }}> / month</span>
+        </div>
+      </div>
+
+      <p
+        style={{
+          fontSize: '13px',
+          color: TEXT,
+          fontWeight: 600,
+          margin: '0 0 4px',
+          fontFamily: POPPINS,
+        }}
+      >
+        {pkg.summary}
+      </p>
+
+      {/* What this price buys — one line per capability, derived from the
+          tier so a card can never claim something the groups do not describe.
+          The individual beats live in ORBI's own knowledge base; a pricing
+          card is for deciding, not for reading a specification. */}
+      <ul
+        style={{
+          listStyle: 'none',
+          padding: 0,
+          margin: '20px 0 0',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+          flexGrow: 1,
+        }}
+      >
+        {groupsForTier(pkg.tier).map((group) => (
+          <li key={group.id} style={{ display: 'flex', gap: '11px' }}>
+            <span
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '8px',
+                background: 'rgba(0,183,255,0.12)',
+                border: '1px solid rgba(0,183,255,0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                color: ACCENT,
+                flexShrink: 0,
+                marginTop: '1px',
+              }}
+            >
+              {group.icon}
+            </span>
+            <span>
+              <span
+                style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  fontFamily: SYNE,
+                  letterSpacing: '-0.005em',
+                  marginBottom: '3px',
+                  ...topicText,
+                }}
+              >
+                {group.title}
+              </span>
+              <span
+                style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  color: MUTED,
+                  lineHeight: 1.55,
+                  fontFamily: POPPINS,
+                }}
+              >
+                {group.description}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <Link
+        href="/#contact"
+        className="btn-shimmer btn-primary"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginTop: '24px',
+          padding: '12px 22px',
+          borderRadius: '12px',
+          fontSize: '14px',
+          fontWeight: 600,
+          fontFamily: POPPINS,
+          textDecoration: 'none',
+        }}
+      >
+        Get started
+      </Link>
+    </motion.div>
+  )
+}
+
+export default function OrbiProduct() {
+  // Land at the top. Arriving from a scrolled homepage — or coming back
+  // through the history stack — otherwise restores the old offset and the page
+  // visibly jumps upward a frame later.
+  useEffect(() => {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+    window.scrollTo(0, 0)
+  }, [])
+
+  return (
+    <>
+      {/* ── Hero ─────────────────────────────────────────────────────── */}
+      <section
+        style={{
+          position: 'relative',
+          zIndex: 10,
+          padding: '160px 24px 72px',
+          background: '#0A0F16',
+          overflow: 'hidden',
+        }}
+      >
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={stagger}
+          className="orbi-hero"
+          style={{
+            position: 'relative',
+            maxWidth: '1200px',
+            margin: '0 auto',
+            display: 'grid',
+            gridTemplateColumns: '0.78fr 1.22fr',
+            gap: '48px',
+            alignItems: 'center',
+          }}
+        >
+          <motion.div variants={slideInLeft}>
+            <OrbiShowcase />
+          </motion.div>
+
+          <div>
+            <motion.h1
+              variants={fadeUp}
+              style={{
+                fontSize: 'clamp(26px, 3.6vw, 46px)',
+                fontWeight: 800,
+                margin: '0 0 16px',
+                fontFamily: SYNE,
+                letterSpacing: '-0.03em',
+                lineHeight: 1.1,
+                ...topicText,
+              }}
+            >
+              ORBI — a site companion
+              <br />
+              with a <span style={blueText}>personality</span>
+            </motion.h1>
+
+            <motion.p
+              variants={fadeUp}
+              style={{
+                fontSize: '16px',
+                color: MUTED,
+                lineHeight: 1.75,
+                margin: '0 0 28px',
+                maxWidth: '560px',
+                fontFamily: POPPINS,
+              }}
+            >
+              Most website chat widgets are a button that opens a box. ORBI is a
+              character who lives on the page: he arrives, notices you, reacts
+              to what you are reading, shows you around if you ask, keeps you
+              company in the contact form, and falls asleep when things go
+              quiet. He is scroll-aware, cursor-aware, and — at the top tier —
+              able to answer questions about your business in plain language.
+            </motion.p>
+
+            {/* Hard numbers */}
+            <motion.div
+              variants={fadeUp}
+              className="orbi-stats"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '16px',
+                marginTop: '36px',
+                paddingTop: '28px',
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+              }}
+            >
+              {orbiStats.map((stat) => (
+                <div key={stat.label}>
+                  <div
+                    style={{
+                      fontSize: '22px',
+                      fontWeight: 800,
+                      fontFamily: SYNE,
+                      letterSpacing: '-0.02em',
+                      lineHeight: 1,
+                      ...topicText,
+                    }}
+                  >
+                    {stat.value}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: MUTED,
+                      lineHeight: 1.4,
+                      marginTop: '6px',
+                      fontFamily: POPPINS,
+                    }}
+                  >
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* ── Pricing ──────────────────────────────────────────────────── */}
+      <section
+        id="pricing"
+        style={{
+          position: 'relative',
+          zIndex: 10,
+          padding: '60px 24px',
+          background: '#0A0F16',
+          scrollMarginTop: '110px',
+        }}
+      >
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-80px' }}
+            variants={stagger}
+            style={{ marginBottom: '44px' }}
+          >
+            <motion.div variants={fadeUp}>
+              <SectionLabel>Pricing</SectionLabel>
+            </motion.div>
+            <motion.h2
+              variants={fadeUp}
+              style={{
+                fontSize: 'clamp(30px, 4vw, 44px)',
+                fontWeight: 800,
+                margin: 0,
+                fontFamily: SYNE,
+                letterSpacing: '-0.03em',
+                lineHeight: 1.1,
+                ...topicText,
+              }}
+            >
+              Three ways to put him to work
+            </motion.h2>
+            <motion.p
+              variants={fadeUp}
+              style={{
+                color: MUTED,
+                fontSize: '16px',
+                lineHeight: 1.7,
+                marginTop: '16px',
+                maxWidth: '520px',
+                fontFamily: POPPINS,
+              }}
+            >
+              A fixed build fee plus a monthly retainer covering hosting,
+              updates and support. All prices in USD, excluding local taxes.
+            </motion.p>
+          </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-60px' }}
+            variants={stagger}
+            className="orbi-pricing"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '20px',
+              alignItems: 'stretch',
+            }}
+          >
+            {orbiPackages.map((pkg) => (
+              <PackageCard key={pkg.id} pkg={pkg} />
+            ))}
+          </motion.div>
+
+          {/* ── Add-ons ──────────────────────────────────────────────
+              One panel, not three cards: these are footnotes to a decision
+              already made above, and three separate bordered boxes competed
+              with the tiers they sit under. Unlabelled on purpose — the
+              prices and the units say what they are without a heading
+              introducing them. */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-40px' }}
+            variants={fadeUp}
+            style={{
+              marginTop: '32px',
+              borderRadius: '16px',
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Three columns, divided rather than boxed */}
+            <div
+              className="orbi-addons"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+              }}
+            >
+              {orbiAddOns.map((addOn, i) => (
+                <div
+                  key={addOn.name}
+                  className="orbi-addon"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
+                    padding: '20px 22px',
+                    borderLeft:
+                      i === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      background: 'rgba(0,183,255,0.12)',
+                      border: '1px solid rgba(0,183,255,0.25)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '16px',
+                      color: ACCENT,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {addOn.icon}
+                  </span>
+
+                  <span style={{ minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        fontFamily: SYNE,
+                        letterSpacing: '-0.005em',
+                        marginBottom: '4px',
+                        ...topicText,
+                      }}
+                    >
+                      {addOn.name}
+                    </span>
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: '6px',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '17px',
+                          fontWeight: 800,
+                          fontFamily: SYNE,
+                          letterSpacing: '-0.02em',
+                          lineHeight: 1,
+                          ...topicText,
+                        }}
+                      >
+                        {usd(addOn.priceUsd)}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '11.5px',
+                          color: MUTED,
+                          fontFamily: POPPINS,
+                        }}
+                      >
+                        {addOn.unit}
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── FAQ ──────────────────────────────────────────────────────── */}
+      <section style={{ position: 'relative', zIndex: 10, padding: '60px 24px' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-80px' }}
+            variants={stagger}
+            style={{ marginBottom: '40px' }}
+          >
+            <motion.div variants={fadeUp}>
+              <SectionLabel>Before You Ask</SectionLabel>
+            </motion.div>
+            <motion.h2
+              variants={fadeUp}
+              style={{
+                fontSize: 'clamp(28px, 3.6vw, 40px)',
+                fontWeight: 800,
+                margin: 0,
+                fontFamily: SYNE,
+                letterSpacing: '-0.03em',
+                lineHeight: 1.1,
+                ...topicText,
+              }}
+            >
+              The honest answers
+            </motion.h2>
+          </motion.div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-60px' }}
+            variants={staggerFast}
+            className="orbi-faq"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '20px',
+            }}
+          >
+            {orbiFaq.map((item) => (
+              <motion.div
+                key={item.question}
+                variants={fadeUp}
+                style={{
+                  padding: '26px 24px',
+                  borderRadius: '14px',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: 700,
+                    margin: '0 0 10px',
+                    fontFamily: SYNE,
+                    ...topicText,
+                  }}
+                >
+                  {item.question}
+                </h3>
+                <p
+                  style={{
+                    fontSize: '14px',
+                    color: MUTED,
+                    lineHeight: 1.7,
+                    margin: 0,
+                    fontFamily: POPPINS,
+                  }}
+                >
+                  {item.answer}
+                </p>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* Closing line */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-40px' }}
+            variants={stagger}
+            style={{
+              marginTop: '56px',
+              padding: '40px 32px',
+              borderRadius: '18px',
+              background: '#0C121C',
+              border: '1px solid rgba(0,183,255,0.20)',
+              textAlign: 'center',
+            }}
+          >
+            <motion.h3
+              variants={fadeUp}
+              style={{
+                fontSize: 'clamp(22px, 3vw, 30px)',
+                fontWeight: 800,
+                margin: '0 0 12px',
+                fontFamily: SYNE,
+                letterSpacing: '-0.025em',
+                ...topicText,
+              }}
+            >
+              He is on this page right now
+            </motion.h3>
+            <motion.p
+              variants={fadeUp}
+              style={{
+                fontSize: '15px',
+                color: MUTED,
+                lineHeight: 1.7,
+                margin: '0 auto 24px',
+                maxWidth: '460px',
+                fontFamily: POPPINS,
+              }}
+            >
+              Poke him, scroll past him, or leave the tab alone for a minute and
+              watch what happens. Then tell us what you want yours to do.
+            </motion.p>
+            <motion.div variants={fadeUp}>
+              <Link
+                href="/#contact"
+                className="btn-shimmer btn-primary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '14px 30px',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  fontFamily: POPPINS,
+                  textDecoration: 'none',
+                }}
+              >
+                Start a conversation
+              </Link>
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
+      <style>{`
+        @media (max-width: 980px) {
+          .orbi-hero {
+            grid-template-columns: 1fr !important;
+            gap: 36px !important;
+          }
+          .orbi-pricing,
+          .orbi-faq,
+          .orbi-addons {
+            grid-template-columns: 1fr !important;
+          }
+          .orbi-addon {
+            border-left: none !important;
+          }
+          .orbi-addon + .orbi-addon {
+            border-top: 1px solid rgba(255,255,255,0.06);
+          }
+        }
+        @media (max-width: 420px) {
+          .orbi-stats {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 18px 16px !important;
+          }
+        }
+      `}</style>
+    </>
+  )
+}

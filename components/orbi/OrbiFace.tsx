@@ -71,6 +71,14 @@ function eyePoses(expression: OrbiExpression): [EyePose, EyePose] {
         { scaleX: 1, scaleY: 0.34, dx: 0, dy: 2.2, opacity: 1 },
         { scaleX: 1, scaleY: 0.34, dx: 0, dy: 2.2, opacity: 1 },
       ]
+    case 'concerned':
+      // Lids a little down and the eyes sitting slightly low — enough to read
+      // as troubled next to `normal`, nowhere near the heavy squash `sleepy`
+      // uses. The turned-down mouth below does the rest.
+      return [
+        { scaleX: 1, scaleY: 0.72, dx: 0, dy: 1.2, opacity: 1 },
+        { scaleX: 1, scaleY: 0.72, dx: 0, dy: 1.2, opacity: 1 },
+      ]
     case 'dizzy':
       // Off balance, not cartoon: the lids sit at different heights, each eye
       // is tipped a few degrees the wrong way, and the pupils drift apart.
@@ -166,6 +174,7 @@ export default function OrbiFace({
   const isHappy = (expression === 'happy' || expression === 'wink') && !dozing && !asleep
   const isSurprised = expression === 'surprised' || expression === 'dizzy'
   const isSleepy = expression === 'sleepy' || dozing || asleep
+  const isConcerned = expression === 'concerned' && !dozing && !asleep
   const { eyeLeft, eyeRight, mouth } = ORBI_ART
 
   return (
@@ -255,7 +264,7 @@ export default function OrbiFace({
           d={`M ${mouth.x - 8} ${mouth.y} Q ${mouth.x} ${mouth.y + 3.5} ${mouth.x + 8} ${mouth.y}`}
           strokeWidth={2.2}
           style={{
-            opacity: isHappy || isSurprised || isSleepy ? 0 : 0.32,
+            opacity: isHappy || isSurprised || isSleepy || isConcerned ? 0 : 0.32,
             transition: 'opacity 200ms ease',
           }}
         />
@@ -272,6 +281,21 @@ export default function OrbiFace({
           strokeWidth={2.2}
           style={{ opacity: isSurprised ? 0.75 : 0, transition: 'opacity 200ms ease' }}
         />
+        {/*
+          Concerned: the resting curve turned over.
+
+          Deliberately the *same* path as the neutral mouth with the control
+          point flipped — same width, same weight, same position — so it reads
+          as ORBI's own mouth doing something different rather than as a second
+          mouth appearing. Shallower than the happy curve is deep, because a
+          frown that matches a smile's amplitude reads as misery.
+        */}
+        <path
+          d={`M ${mouth.x - 8} ${mouth.y + 1.5} Q ${mouth.x} ${mouth.y - 2.5} ${mouth.x + 8} ${mouth.y + 1.5}`}
+          strokeWidth={2.2}
+          style={{ opacity: isConcerned ? 0.5 : 0, transition: 'opacity 200ms ease' }}
+        />
+
         {/* Sleepy: a short flat line, softer than the resting smile. */}
         <path
           d={`M ${mouth.x - 5} ${mouth.y + 1} L ${mouth.x + 5} ${mouth.y + 1}`}

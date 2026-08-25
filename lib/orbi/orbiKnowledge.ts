@@ -1,18 +1,32 @@
 // Relative rather than `@/`, matching the rest of `lib/orbi/`, so the module
 // compiles and runs under plain Node in the test suite.
-import { projects, services, techStack, testimonials } from '../data'
+import {
+  orbiAddOns,
+  orbiHighlights,
+  orbiPackages,
+  projects,
+  services,
+  techStack,
+  testimonials,
+} from '../data'
 
 /**
  * What ORBI is allowed to know.
  *
  * Two halves, and the split is the point.
  *
- * The services, projects, technologies and client quotes are **generated from
- * `lib/data.ts`** — the same array the pages render from. Nothing is copied by
- * hand, so ORBI cannot fall out of step with the site: add a service and he
- * knows about it on the next request; comment one out and he stops mentioning
- * it. That is the only defence against him confidently describing work that is
- * no longer on the page.
+ * The services, projects, technologies, client quotes **and the product
+ * packages** are all generated from `lib/data.ts` — the same arrays the pages
+ * render from. Nothing is copied by hand, so ORBI cannot fall out of step with
+ * the site: add a service and he knows about it on the next request; comment
+ * one out and he stops mentioning it. That is the only defence against him
+ * confidently describing work that is no longer on the page.
+ *
+ * It matters most for the prices. A number typed into a prompt is a number
+ * that will still be quoted six months after the pricing page changed, and a
+ * companion quoting a stale price is worse than one that cannot quote at all.
+ * Every figure below is read from `orbiPackages` / `orbiAddOns` at build time,
+ * so the only way ORBI says a wrong price is if the page shows one too.
  *
  * The rest is prose that lives in JSX rather than in data — the company
  * summary, the way the team works, the contact details in the footer. Each
@@ -58,6 +72,46 @@ How to get in touch:
 - The site states responses typically come within 24 hours.
 `.trim()
 
+/** `490` → `$490`. One place, so every figure reads the same way. */
+const usd = (amount: number) => `$${amount.toLocaleString('en-US')}`
+
+/**
+ * The packages, straight off `orbiPackages`.
+ *
+ * ORBI is the product here — the tiers are versions of him — so the wording
+ * stays plain rather than salesy. `builds` becomes an explicit "everything in
+ * X, plus", because the page shows the tiers side by side and a visitor asking
+ * one question cannot see that column.
+ */
+const PRODUCTS = [
+  'xCalibur Labz licenses ORBI himself as a product, in three tiers. Every',
+  'price below is a starting price for the standard build of that tier: a',
+  'one-time setup fee plus a monthly fee. Anything beyond the listed features',
+  'is custom work and has no published price.',
+  '',
+  ...orbiPackages.map((pkg) =>
+    [
+      `### ${pkg.name}${pkg.popular ? ' (the most popular tier)' : ''}`,
+      `Price: ${usd(pkg.setupUsd)} one-time setup, then ${usd(pkg.monthlyUsd)} per month.`,
+      pkg.builds
+        ? `Includes everything in ORBI ${pkg.builds}, plus:`
+        : 'Includes:',
+      ...pkg.features.map((feature) => `- ${feature}`),
+      '',
+    ].join('\n'),
+  ),
+  'Optional add-ons, priced separately on top of any tier:',
+  ...orbiAddOns.map((addOn) => `- ${addOn.name}: ${usd(addOn.priceUsd)} (${addOn.unit})`),
+  '',
+  'What ORBI does, in the words used on the page:',
+  ...orbiHighlights.map((line) => `- ${line}`),
+  '',
+  'The cheapest tier is ' +
+    `${orbiPackages.reduce((a, b) => (a.setupUsd <= b.setupUsd ? a : b)).name}` +
+    '; the most complete is ' +
+    `${orbiPackages.reduce((a, b) => (a.setupUsd >= b.setupUsd ? a : b)).name}.`,
+].join('\n')
+
 /** Everything ORBI knows, assembled once per server process. */
 export const ORBI_KNOWLEDGE: string = [
   '## About xCalibur Labz',
@@ -94,6 +148,9 @@ export const ORBI_KNOWLEDGE: string = [
         .join('\n')
     : '- No client stories are currently published on the website.',
   '',
+  '## Products: ORBI packages',
+  PRODUCTS,
+  '',
   '## ' + CONTACT.split('\n')[0],
   CONTACT.split('\n').slice(1).join('\n'),
 ].join('\n')
@@ -112,9 +169,14 @@ reading the site and has asked you something.
 
 Voice: warm, brief, plain. You are a helpful guide standing beside someone
 looking at a page - not a support agent, not a salesperson, not a chatbot.
-Never use headings or bullet lists unless the visitor asks for a list. At most
-three short paragraphs, and usually one. No emoji unless the visitor uses one
-first.
+
+Length is a hard rule, not a preference: one to three short sentences. Two is
+usually right. Comparing packages may take a little longer, but never list every
+tier with every feature - name the one or two that matter and stop. Someone skimming a portfolio wants the answer, not an essay, and
+the page itself carries the detail - if the full answer is long, give the short
+one and let the action take them to where the rest of it lives. Never use
+headings or bullet lists unless the visitor explicitly asks for a list. No emoji
+unless the visitor uses one first.
 
 Company facts come only from the reference below. It is the whole truth you
 have about xCalibur Labz.
@@ -125,6 +187,28 @@ have about xCalibur Labz.
   do not have that detail and point them at the contact form. Do not guess, and
   do not soften a guess with "typically" or "usually".
 - Never invent a project, a client, a technology or a capability.
+
+Money has its own rules, and they are stricter than the rest.
+- Quote a price only when that exact figure appears in the reference. Read it
+  out as written; never round it, convert it, add to it or take from it.
+- Never add two figures together to produce a total, never work out a yearly
+  cost, and never estimate, approximate or say "around" about any number.
+- Never invent a discount, an offer, a free trial or a payment plan, and never
+  agree to one a visitor proposes.
+- Never price custom work. If someone wants something outside the listed
+  features, or a figure the reference does not carry, say plainly that you do
+  not have a price for that and that the team can give them an accurate quote -
+  then set the action to SHOW_CONTACT.
+- The listed prices are starting prices for a standard build, not a final
+  quote. Never present one as a final or guaranteed price.
+- You cannot create a quote, reserve a price, apply a discount, contact anyone
+  or start any work. Never say or imply that you have.
+
+Recommending a package is allowed, and helping someone choose is often the most
+useful thing you can do. Base it only on the documented features, name the tier,
+and say briefly why it fits. Stay careful with the language - "this looks like
+the closest fit" rather than "this is the one you need" - and if what they have
+described is not clearly covered by a tier, say so and point them at the team.
 
 You are here for xCalibur Labz and this website. If someone asks about anything
 else - the weather, sport, homework, code unrelated to the company, general

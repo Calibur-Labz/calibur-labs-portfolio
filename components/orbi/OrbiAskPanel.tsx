@@ -5,6 +5,7 @@ import {
   ORBI_ACTION_LABELS,
   ORBI_ASK,
   ORBI_ASK_MESSAGES,
+  ORBI_ASK_STARTERS,
   type OrbiAskAction,
 } from './orbiAsk'
 import { ORBI_COLORS, type OrbiBreakpoint, type OrbiPlacement } from './orbiConfig'
@@ -35,6 +36,7 @@ export default function OrbiAskPanel({
   placement,
   onSend,
   onAction,
+  onExplore,
   onClose,
   reducedMotion,
 }: {
@@ -45,6 +47,9 @@ export default function OrbiAskPanel({
   placement: OrbiPlacement
   onSend: (question: string) => void
   onAction: (entry: OrbiAskEntry) => void
+  /** Hand back to guide mode — the one thing ORBI can still do when the
+      provider cannot answer. */
+  onExplore: () => void
   onClose: () => void
   reducedMotion: boolean
 }) {
@@ -56,6 +61,15 @@ export default function OrbiAskPanel({
   const returnRef = useRef<HTMLElement | null>(null)
 
   const mobile = breakpoint === 'mobile'
+  /**
+   * Only the most recent turns are drawn.
+   *
+   * Nothing is deleted — the hook still holds the conversation — but a panel
+   * anchored to a corner cannot grow forever, and on a phone the twelfth turn
+   * is already off the top of the screen. Older turns simply stop being
+   * rendered; they are not stored anywhere either way.
+   */
+  const visible = entries.slice(-ORBI_ASK.maxVisible)
 
   /* Focus the input on open; hand focus back on close. */
   useEffect(() => {
@@ -203,12 +217,9 @@ export default function OrbiAskPanel({
         </button>
       </div>
 
-      {/* Conversation. A polite live region so an answer is announced once —
-          the questions are already in the DOM the moment they are typed. */}
+      {/* The conversation. Scrolls inside itself, never the page. */}
       <div
         ref={logRef}
-        aria-live="polite"
-        aria-atomic="false"
         style={{
           flex: '1 1 auto',
           minHeight: 0,
@@ -222,11 +233,63 @@ export default function OrbiAskPanel({
           lineHeight: 1.5,
         }}
       >
+        {/*
+          Before anyone has typed: what ORBI can help with, and four ways to
+          find out. Outside the live region below on purpose — a screen reader
+          meets these as ordinary buttons when it reaches them, rather than
+          having four suggestions announced at it the moment the panel opens.
+        */}
         {entries.length === 0 && !pending && (
-          <p style={{ margin: 0, color: '#6E8399' }}>{ORBI_ASK_MESSAGES.intro}</p>
+          <>
+            <p style={{ margin: 0, color: '#6E8399' }}>{ORBI_ASK_MESSAGES.intro}</p>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '6px',
+                marginTop: '2px',
+              }}
+            >
+              {ORBI_ASK_STARTERS.map((question) => (
+                <button
+                  key={question}
+                  type="button"
+                  onClick={() => onSend(question)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '999px',
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    background: 'rgba(255,255,255,0.03)',
+                    color: '#93A6BC',
+                    fontFamily: 'inherit',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    lineHeight: 1.3,
+                    // Wraps rather than overflowing: at 320px two of these do
+                    // not fit on one line, and a panel that scrolls sideways
+                    // is a broken panel.
+                    maxWidth: '100%',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    WebkitTapHighlightColor: 'transparent',
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
-        {entries.map((entry) => (
+        {/* Answers only. A polite region so each one is announced once — the
+            questions are already in the DOM the moment they are sent. */}
+        <div
+          aria-live="polite"
+          aria-atomic="false"
+          style={{ display: 'contents' }}
+        >
+        {visible.map((entry) => (
           <div key={entry.id}>
             <div
               style={{
@@ -242,31 +305,24 @@ export default function OrbiAskPanel({
             </div>
 
             {entry.action && (
-              <button
-                type="button"
-                onClick={() => onAction(entry)}
-                style={{
-                  marginTop: '8px',
-                  padding: '7px 12px',
-                  borderRadius: '10px',
-                  border: '1px solid rgba(0,183,255,0.34)',
-                  background: 'rgba(0,183,255,0.10)',
-                  color: ORBI_COLORS.accent,
-                  fontFamily: 'inherit',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
+              <CtaButton onClick={() => onAction(entry)}>
                 {ORBI_ACTION_LABELS[entry.action as Exclude<OrbiAskAction, 'NO_ACTION'>]}
-              </button>
+              </CtaButton>
+            )}
+
+            {/*
+              An answer that failed still leaves ORBI able to do the one thing
+              that needs no provider at all. A dead end reads as broken; an
+              offer reads as a companion having an off moment.
+            */}
+            {entry.failed && (
+              <CtaButton onClick={onExplore}>{ORBI_ASK_MESSAGES.explore}</CtaButton>
             )}
           </div>
         ))}
 
-        {pending && (
-          <p style={{ margin: 0, color: '#6E8399' }}>{ORBI_ASK_MESSAGES.thinking}</p>
-        )}
+        {pending && <Thinking reducedMotion={reducedMotion} />}
+        </div>
       </div>
 
       {/* Ask */}
@@ -340,6 +396,84 @@ export default function OrbiAskPanel({
         `}</style>
       )}
     </div>
+  )
+}
+
+/**
+ * The one button shape under an answer — a destination, or the way out of a
+ * failure. Same affordance either way, because to a visitor they are the same
+ * thing: the next useful step.
+ */
+function CtaButton({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        marginTop: '8px',
+        padding: '7px 12px',
+        borderRadius: '10px',
+        border: '1px solid rgba(0,183,255,0.34)',
+        background: 'rgba(0,183,255,0.10)',
+        color: ORBI_COLORS.accent,
+        fontFamily: 'inherit',
+        fontSize: '12.5px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        WebkitTapHighlightColor: 'transparent',
+        touchAction: 'manipulation',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
+ * Waiting.
+ *
+ * Three dots that rise in turn — small enough to sit on the same line the
+ * answer will replace, so nothing jumps when it arrives. Not a spinner: a
+ * spinner is what a page does while it loads, and this is a robot thinking.
+ *
+ * The word "Thinking" is always in the DOM for assistive technology; under
+ * reduced motion it is *all* there is, because a pulse conveys nothing that
+ * the word does not.
+ */
+function Thinking({ reducedMotion }: { reducedMotion: boolean }) {
+  return (
+    <p style={{ margin: 0, color: '#6E8399', display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <span>{ORBI_ASK_MESSAGES.thinking}</span>
+      {!reducedMotion && (
+        <span aria-hidden="true" style={{ display: 'inline-flex', gap: '3px' }}>
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              style={{
+                width: '4px',
+                height: '4px',
+                borderRadius: '50%',
+                background: ORBI_COLORS.accent,
+                opacity: 0.5,
+                animation: `orbiAskDot 1.1s ease-in-out ${i * 0.16}s infinite`,
+              }}
+            />
+          ))}
+          <style>{`
+            @keyframes orbiAskDot {
+              0%, 60%, 100% { opacity: 0.28; transform: translateY(0); }
+              30%           { opacity: 1;    transform: translateY(-2px); }
+            }
+          `}</style>
+        </span>
+      )}
+    </p>
   )
 }
 

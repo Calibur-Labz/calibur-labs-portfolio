@@ -7,18 +7,19 @@ import { MailIcon, PhoneIcon, MapPinIcon } from '@/components/ui/icons'
 const LINKEDIN_URL = 'https://www.linkedin.com/company/calibur-labs'
 
 const navLinks = [
-  { label: 'Services', href: '#services' },
-  { label: 'Work', href: '#work' },
-  { label: 'About', href: '#about' },
-  { label: 'Contact', href: '#contact' },
+  { label: 'Services', href: '/#services' },
+  { label: 'Work', href: '/#work' },
+  { label: 'ORBI', href: '/orbi' },
+  { label: 'About', href: '/#about' },
+  { label: 'Contact', href: '/#contact' },
 ]
 
 const serviceLinks = [
-  { label: 'Web Development', href: '#services' },
-  { label: 'Mobile Apps', href: '#services' },
-  { label: 'UI/UX Design', href: '#services' },
-  { label: 'Cloud & DevOps', href: '#services' },
-  { label: 'AI Integration', href: '#services' },
+  { label: 'Web Development', href: '/#services' },
+  { label: 'Mobile Apps', href: '/#services' },
+  { label: 'UI/UX Design', href: '/#services' },
+  { label: 'Cloud & DevOps', href: '/#services' },
+  { label: 'AI Integration', href: '/#services' },
 ]
 
 const socialLinks = [
@@ -190,7 +191,7 @@ export default function Footer() {
             </div>
 
             <Link
-              href="#contact"
+              href="/#contact"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

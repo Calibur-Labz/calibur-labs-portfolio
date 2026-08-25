@@ -47,12 +47,32 @@ export const ORBI_ACTION_LABELS: Record<
   Exclude<OrbiAskAction, 'NO_ACTION'>,
   string
 > = {
-  SHOW_SERVICES: 'Show Our Services',
-  SHOW_PROJECTS: 'Show Our Work',
-  SHOW_TESTIMONIALS: 'Show Client Stories',
-  SHOW_ABOUT: 'About xCalibur Labz',
+  SHOW_SERVICES: 'View Services',
+  SHOW_PROJECTS: 'See Our Work',
+  SHOW_TESTIMONIALS: 'Read Client Stories',
+  SHOW_ABOUT: 'About Calibur',
   SHOW_CONTACT: 'Let’s Talk',
 }
+
+/**
+ * The four questions offered before anyone has typed.
+ *
+ * Not shortcuts: pressing one sends exactly this text through exactly the path
+ * a typed question takes — same validation, same rate limit, same provider,
+ * same enum. There is no second code path to keep in step, which is the only
+ * reason they are safe to add.
+ *
+ * The wording is chosen to cover the four things a visitor actually wants from
+ * a portfolio: what you do, what you have done, how you build, and how to
+ * start. Every one of them matches an intent in the scripted provider too, so
+ * they work with no key configured.
+ */
+export const ORBI_ASK_STARTERS = [
+  'What services do you offer?',
+  'Show me your work',
+  'What technologies do you use?',
+  'I want to start a project',
+] as const
 
 /**
  * Anything at all → a known action.
@@ -91,6 +111,13 @@ export const ORBI_ASK = {
   maxPerWindow: 8,
   /** Two identical questions back to back are a double-click, not a question. */
   duplicateWindowMs: 1500,
+  /**
+   * How many turns stay on screen. Independent of `maxHistory`, which is what
+   * the server is *told*: this only stops a long session growing a panel
+   * taller than the phone it is on. Older turns scroll out of existence rather
+   * than being remembered anywhere.
+   */
+  maxVisible: 12,
 } as const
 
 export interface OrbiAskTurn {
@@ -116,7 +143,10 @@ export const ORBI_ASK_MESSAGES = {
    * whether it was a timeout, a 500 or a missing key, and the site behind ORBI
    * still works either way.
    */
-  error: 'I’m having a little trouble right now. You can still explore the site.',
+  error:
+    'I’m having a little trouble answering right now. You can still explore the site with me.',
+  /** The one way out of a failed answer: the guide, which needs no provider. */
+  explore: 'Explore with ORBI',
   rateLimited: 'That’s a lot of questions at once — give me a moment.',
   tooLong: 'That’s a bit long for me. Could you shorten it?',
   /**

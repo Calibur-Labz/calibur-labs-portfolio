@@ -22,9 +22,15 @@ export type OrbiExpression =
   | 'dizzy'
   /** One lid down. The asymmetric blink, and ORBI's only mischievous face. */
   | 'wink'
+  /**
+   * Briefly troubled — the face for a failed answer. Lids a little lowered and
+   * the resting curve turned down, and nothing more: ORBI is *concerned*, not
+   * upset, and this is the whole of it. No colour change, no droop, no tears.
+   */
+  | 'concerned'
 
 /** Expressions that already own the eyelids — the blink scheduler stays out. */
-const EYES_BUSY = ['blink', 'surprised', 'sleepy', 'dizzy', 'wink'] as const
+const EYES_BUSY = ['blink', 'surprised', 'sleepy', 'dizzy', 'wink', 'concerned'] as const
 
 export const holdsEyes = (e: OrbiExpression): boolean =>
   (EYES_BUSY as readonly string[]).includes(e)
@@ -1428,6 +1434,55 @@ export const ORBI_SELECTORS = {
   logo: '[data-orbi-logo]',
   /** The head/visor hit region inside the robot itself. */
   head: '[data-orbi-part="head"]',
+} as const
+
+/* ── Emotional reactions ───────────────────────────────────────────────── */
+
+/**
+ * Phase 23 — the small feelings.
+ *
+ * Not an emotion engine: four numbers-and-directions tables that existing
+ * primitives read. Every reaction below is `notice()` — the "look at that for
+ * a beat" helper that already claims priority, moves the eyes, sets a face and
+ * puts both back — plus, on a desktop, a couple of degrees through the tilt
+ * writer that was already summing the hover and menu leans.
+ *
+ * The amounts are deliberately smaller than a section reaction. A feeling that
+ * announces itself is a performance; these are meant to be caught out of the
+ * corner of an eye, or missed entirely.
+ */
+export const ORBI_EMOTION = {
+  /**
+   * Waiting on an answer. Eyes drift up and slightly aside — the direction
+   * people look when they are thinking rather than reading. Held for the
+   * length of the request, so it has no duration of its own.
+   */
+  thinking: { gaze: { x: 0.28, y: -0.72 }, tilt: 1.6 },
+  /**
+   * "I didn't follow that." Eyes to one side, a small head cock, gone in
+   * under a second.
+   */
+  confused: { gaze: { x: 0.62, y: -0.12 }, tilt: 2.4, holdMs: 900 },
+  /**
+   * Something went wrong. Eyes lowered, a small settle, and nothing more —
+   * ORBI is briefly subdued, not upset. No colour change, no droop beyond
+   * this, and it is over before the visitor has finished reading the error.
+   */
+  concerned: { gaze: { x: -0.12, y: 0.62 }, tilt: -1.4, holdMs: 1100 },
+  /**
+   * Caught being pleased with himself. Eyes down and away, a tilt in the
+   * opposite direction to the glance, which is what reads as bashful rather
+   * than as another look at something.
+   */
+  shy: { gaze: { x: -0.58, y: 0.48 }, tilt: 2.8, holdMs: 850 },
+  /** Leaning in at a card the visitor has settled on. */
+  curiousLean: 2.2,
+  /**
+   * One click in this many earns the shy beat. Walked off the existing click
+   * counter, so it is deterministic rather than a new source of randomness —
+   * and rare enough that most visitors never see it.
+   */
+  shyEveryNthClick: 4,
 } as const
 
 /* ── Content discovery ─────────────────────────────────────────────────── */

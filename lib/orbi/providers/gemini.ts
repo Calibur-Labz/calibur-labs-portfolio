@@ -65,15 +65,6 @@ export const GEMINI_CONFIG = {
   maxOutputTokens: 800,
   /** Low. These are factual company questions; answers should not wander. */
   temperature: 0.3,
-  /**
-   * Thinking off. This is a lookup against a short reference, so a reasoning
-   * budget buys nothing and costs latency and tokens.
-   *
-   * If a live test ever returns a 400 for this field, it is the first thing to
-   * drop — the SDK documents the error as applying to models that do not
-   * support thinking at all.
-   */
-  thinkingBudget: 0,
 } as const
 
 /**
@@ -159,9 +150,19 @@ export function parseGeminiReply(raw: string | undefined): OrbiAskReply {
  * The SDK does not put the key in error messages, but a provider error is the
  * one string this file hands to `console.error`, and a key in a log is a key
  * in a log however it got there.
+ *
+ * Two passes, because pattern-matching a key format is a losing game: Google
+ * issues at least `AIza…` and `AQ.…` keys, and Phase 22 found a live key in
+ * the second format that the original `AIza`-only pattern walked straight
+ * past.
  */
-export function redactGemini(text: string): string {
-  return text.replace(/AIza[0-9A-Za-z_-]{10,}/g, '[redacted]')
+export function redactGemini(text: string, key: string | undefined = API_KEY): string {
+  // The configured key first: an exact match cannot go out of date.
+  const safe = key && key.length >= 8 ? text.split(key).join('[redacted]') : text
+  // ...then the known prefixes, as a net for any *other* key in the string.
+  return safe
+    .replace(/AIza[0-9A-Za-z_-]{10,}/g, '[redacted]')
+    .replace(/AQ\.[0-9A-Za-z_.-]{10,}/g, '[redacted]')
 }
 
 /**
@@ -303,7 +304,19 @@ async function ask(
     responseSchema: REPLY_SCHEMA as never,
     temperature: GEMINI_CONFIG.temperature,
     maxOutputTokens: GEMINI_CONFIG.maxOutputTokens,
-    thinkingConfig: { thinkingBudget: GEMINI_CONFIG.thinkingBudget },
+    /*
+     * No `thinkingConfig`.
+     *
+     * Phase 19 set `thinkingBudget: 0` to keep a lookup cheap. Phase 22 tested
+     * it against the live API and it is **not portable**: `gemini-3.6-flash`
+     * rejects it outright with 400 INVALID_ARGUMENT — breaking the chain at
+     * exactly the model it falls back *to*. `thinkingLevel: 'low'` is no
+     * better; it fails on 2.5.
+     *
+     * Only omitting the field works on every model in the chain, so each model
+     * uses its own default now. `maxOutputTokens` still caps what comes back,
+     * which is where the real cost is.
+     */
     // The route's abort is the only clock. Gemini never outlives it.
     abortSignal: signal,
   }

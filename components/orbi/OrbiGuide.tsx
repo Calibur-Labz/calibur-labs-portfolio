@@ -99,6 +99,7 @@ import {
   ORBI_COOLDOWNS,
   ORBI_DISCOVERY,
   ORBI_EASTER_EGGS,
+  ORBI_EMOTION,
   ORBI_EASTER_SPECS,
   ORBI_INITIAL_STATE,
   ORBI_INTERACTION,
@@ -1279,6 +1280,8 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const lastClickRef = useRef(-Infinity)
   /** Whether ORBI has been clicked at all this visit. */
   const clickedRef = useRef(false)
+  /** How many times, for the rare bashful beat. */
+  const clickCountRef = useRef(0)
   const lastHoverGreetRef = useRef(-Infinity)
   const lastCuriousRef = useRef(-Infinity)
   const lastNavRef = useRef(-Infinity)
@@ -1430,6 +1433,58 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
     cue(clickedRef.current ? 'acknowledge' : 'happy')
     clickedRef.current = true
 
+    // Phase 23. Every so often, being made a fuss of leaves ORBI a little
+    // bashful: eyes down and away, a tilt in the other direction, gone in
+    // under a second. Deliberately late — the wave and the line come first,
+    // and `feel` refuses if either is still going — and deliberately rare, on
+    // a counter rather than a coin toss so it stays reproducible.
+    clickCountRef.current += 1
+    if (clickCountRef.current % ORBI_EMOTION.shyEveryNthClick === 0) {
+      later(() => {
+        // Written out here rather than through `feel`, which is defined much
+        // further down the file: reaching it would need a mirror ref, and a
+        // ref written in an effect that an earlier callback reads is exactly
+        // the pattern the compiler rejects. Ten lines of primitives already in
+        // scope is the cheaper answer.
+        const shy = ORBI_EMOTION.shy
+        if (arbiter.level() > ORBI_PRIORITY.ambient) return
+        if (stateRef.current.message) return
+        if (companionRef.current || drowsinessRef.current !== 0) return
+        if (!isRestingAnimation(stateRef.current.animation)) return
+        if (!arbiter.claim(ORBI_PRIORITY.ambient, 'emotion:shy', shy.holdMs + 300)) {
+          return
+        }
+
+        note('emotion:shy')
+        gazeRef.current?.set('interaction', shy.gaze.x, shy.gaze.y)
+        setGazeLead('interaction')
+        setState((current) => ({ ...current, expression: 'happy' }))
+
+        // The tilt goes the *other* way to the glance — looking away while
+        // leaning away is what reads as bashful rather than as another look
+        // at something. Desktop only.
+        const lean =
+          quietBodyRef.current || motionRef.current.reducedMotion ? 0 : shy.tilt
+        if (lean) {
+          auxTiltRef.current.discover = lean
+          applyBodyTilt()
+        }
+
+        later(() => {
+          gazeRef.current?.clear('interaction')
+          setGazeLead('gesture')
+          if (auxTiltRef.current.discover !== 0) {
+            auxTiltRef.current.discover = 0
+            applyBodyTilt()
+          }
+          setState((current) =>
+            current.expression === 'happy' ? { ...current, expression: 'normal' } : current,
+          )
+          arbiter.release('emotion:shy')
+        }, shy.holdMs)
+      }, ORBI_TIMING.clickStartleMs + ORBI_TIMING.messageHoldMs + 500)
+    }
+
     const pool = ORBI_CLICK_MESSAGES
     let index = Math.floor(Math.random() * pool.length)
     if (index === clickMessageRef.current) index = (index + 1) % pool.length
@@ -1452,7 +1507,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       }))
     }, ORBI_TIMING.clickStartleMs)
     },
-    [arbiter, blink, cue, later, note, wake],
+    [applyBodyTilt, arbiter, blink, cue, later, note, wake],
   )
 
   /** The robot itself. */
@@ -2020,13 +2075,28 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
    * new controller: one effect writing an expression the face already had.
    */
   useEffect(() => {
-    if (!askOpen) return
+    if (!askOpen) {
+      // Closing the panel mid-thought must not leave the eyes parked upward.
+      gazeRef.current?.clear('interaction')
+      return
+    }
     // A tick behind, so the face never cascades a render off the back of the
     // effect that observed the request — the same shape the form companion
     // uses for exactly the same reason.
     later(() => {
       if (ask.pending) {
         softExpressionRef.current = null
+        // Phase 23: the eyes go where people look when they are thinking
+        // rather than reading — up, and slightly aside. Held for the length of
+        // the request, so there is no timer and no loop; the answer arriving
+        // is what ends it.
+        const { gaze, tilt } = ORBI_EMOTION.thinking
+        gazeRef.current?.set('interaction', gaze.x, gaze.y)
+        setGazeLead('interaction')
+        if (!quietBodyRef.current && !motionRef.current.reducedMotion) {
+          auxTiltRef.current.discover = tilt
+          applyBodyTilt()
+        }
         setState((current) =>
           isRestingAnimation(current.animation)
             ? { ...current, expression: 'thinking' }
@@ -2034,13 +2104,20 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
         )
         return
       }
+      // The answer landed: eyes back to the visitor, body straight.
+      gazeRef.current?.clear('interaction')
+      setGazeLead('gesture')
+      if (auxTiltRef.current.discover !== 0) {
+        auxTiltRef.current.discover = 0
+        applyBodyTilt()
+      }
       setState((current) =>
         current.expression === 'thinking'
           ? { ...current, expression: 'normal' }
           : current,
       )
     }, 0)
-  }, [askOpen, ask.pending, later])
+  }, [askOpen, ask.pending, later, applyBodyTilt])
 
   const runAskAction = useCallback(
     (action: OrbiAskAction) => {
@@ -2204,6 +2281,13 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const lastDockRef = useRef<string | null>(null)
   const modalOpenRef = useRef(false)
   const noticeTokenRef = useRef(0)
+
+  /**
+   * Invalidates a body lean when a newer feeling replaces it. Declared here,
+   * with the other token, because both the dwell lean and `feel` write it and
+   * the first of those is defined further up the file.
+   */
+  const emotionTokenRef = useRef(0)
 
   /**
    * Take note of something and look at it for a beat — the reaction that
@@ -2681,9 +2765,30 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
 
       note(`project:${signal.key}`)
       setState((current) => ({ ...current, expression: 'happy' }))
+
+      // Phase 23. The *sweep* across a row stays eyes-only — a gesture per
+      // card would be exhausting, which is why `handleProject` has none. This
+      // is the dwell: the visitor has settled on one card for over a second,
+      // and leaning a couple of degrees toward it is what turns a glance into
+      // interest. Desktop only; the eyes carry it everywhere else.
+      const lean =
+        quietBodyRef.current || motionRef.current.reducedMotion
+          ? 0
+          : Math.sign(signal.gaze.x || 1) * ORBI_EMOTION.curiousLean
+      if (lean) {
+        const token = ++emotionTokenRef.current
+        auxTiltRef.current.discover = lean
+        applyBodyTilt()
+        later(() => {
+          if (token !== emotionTokenRef.current) return
+          auxTiltRef.current.discover = 0
+          applyBodyTilt()
+        }, 1200)
+      }
+
       later(() => arbiter.release('project'), 1200)
     },
-    [arbiter, later, note],
+    [applyBodyTilt, arbiter, later, note],
   )
 
   /**
@@ -2713,6 +2818,95 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
       return { x: dx / length, y: dy / length }
     })
   }, [rootRef])
+
+  /* ── Emotional reactions ─────────────────────────────────────────────── */
+  // Phase 23. No controller and no state machine: every feeling below is the
+  // existing `notice()` primitive — which already claims priority, moves the
+  // eyes, sets a face and puts both back — plus, on a desktop, a couple of
+  // degrees through the tilt writer that was already summing the hover, menu
+  // and discovery leans.
+  //
+  // Claiming at `ambient` is what enforces the priority rule: guide mode, a
+  // cinematic, the form companion, a submission and the entrance all outrank
+  // it, so a feeling is refused rather than layered on top of them.
+
+  /**
+   * Feel something, briefly.
+   *
+   * The lean is desktop-only and dropped under reduced motion — the eyes and
+   * the face carry the whole thing everywhere else, which is the same split
+   * every other ORBI reaction uses.
+   */
+  const feel = useCallback(
+    (
+      emotion: { gaze: { x: number; y: number }; tilt: number; holdMs: number },
+      expression: OrbiExpression,
+      owner: string,
+    ) => {
+      // `notice` refuses on its own if something better holds ORBI, so the
+      // lean must not be applied until it has agreed to run.
+      if (arbiter.level() > ORBI_PRIORITY.ambient) return
+      if (companionRef.current) return
+      // A line still being read owns the face; a feeling is not worth
+      // changing ORBI's expression out from under his own bubble.
+      if (stateRef.current.message) return
+      if (drowsinessRef.current !== 0) return
+      if (cinematicRef.current?.active) return
+      if (easterRef.current?.active) return
+      if (guideRef.current?.open) return
+      if (environmentRef.current?.modal) return
+      if (askOpenRef.current && owner.startsWith('emotion:shy')) return
+
+      notice(emotion.gaze, expression, ORBI_PRIORITY.ambient, owner, emotion.holdMs)
+
+      const lean =
+        quietBodyRef.current || motionRef.current.reducedMotion ? 0 : emotion.tilt
+      if (!lean) return
+
+      const token = ++emotionTokenRef.current
+      auxTiltRef.current.discover = lean
+      applyBodyTilt()
+      later(() => {
+        if (token !== emotionTokenRef.current) return
+        auxTiltRef.current.discover = 0
+        applyBodyTilt()
+      }, emotion.holdMs)
+    },
+    [applyBodyTilt, arbiter, later, notice],
+  )
+
+  /**
+   * How the last answer landed.
+   *
+   * Two feelings share one effect because they are the same moment seen from
+   * either side: ORBI could not use what the visitor typed, or ORBI could not
+   * answer at all. The status the route already returned tells them apart —
+   * a 4xx is "I couldn't follow that", anything else is "something broke" —
+   * so neither needs a new signal or a change to the response contract.
+   *
+   * Keyed on the entry id, so a re-render never re-feels an old answer.
+   */
+  const feltEntryRef = useRef(0)
+
+  useEffect(() => {
+    if (!askOpen) return
+    const last = ask.entries[ask.entries.length - 1]
+    if (!last || last.role !== 'orbi') return
+    if (last.id === feltEntryRef.current) return
+    feltEntryRef.current = last.id
+    if (!last.failed) return
+
+    // 400 means the input itself could not be used — the closest thing ORBI
+    // has to "I didn't understand you". Everything else is a failure.
+    const confused = /http 4/.test(ask.lastError ?? '')
+    later(
+      () =>
+        confused
+          ? feel(ORBI_EMOTION.confused, 'thinking', 'emotion:confused')
+          : feel(ORBI_EMOTION.concerned, 'concerned', 'emotion:concerned'),
+      0,
+    )
+  }, [askOpen, ask.entries, ask.lastError, feel, later])
 
   /* ── Content discovery ───────────────────────────────────────────────── */
   // Phase 17. Once a section has finished reacting, ORBI takes one quieter
@@ -4138,6 +4332,14 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
           if (!entry.action) return
           ask.clearAction(entry.id)
           runAskAction(entry.action)
+        }}
+        onExplore={() => {
+          // Ask ORBI could not answer; guide mode needs no provider at all.
+          // Closes the panel and opens the menu — the same door the control
+          // opens, so there is no second way into Phase 12.
+          setAskOpen(false)
+          note('ask:explore')
+          guideRef.current?.openMenu()
         }}
         onClose={closeAsk}
       />

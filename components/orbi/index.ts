@@ -11,6 +11,7 @@ export { default as OrbiGuide } from './OrbiGuide'
 export { default as OrbiRobot } from './OrbiRobot'
 export { default as OrbiFace } from './OrbiFace'
 export { default as OrbiSpeech } from './OrbiSpeech'
+export { default as OrbiSleepParticles } from './OrbiSleepParticles'
 export { useOrbi } from './OrbiContext'
 export { useOrbiSection } from './useOrbiSection'
 export {
@@ -97,6 +98,7 @@ export {
   ORBI_AUDIO_TOGGLE,
   ORBI_DOCKS,
   ORBI_EASTER_EGGS,
+  ORBI_EMOTION,
   ORBI_EASTER_MESSAGES,
   ORBI_EASTER_SPECS,
   ORBI_ENVIRONMENT,
