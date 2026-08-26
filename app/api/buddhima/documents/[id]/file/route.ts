@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { get } from '@vercel/blob'
 import { dbErrorResponse, ensureSchema, sql } from '@/lib/db'
 import { getSession } from '@/lib/require-auth'
-import { blobErrorResponse, blobNotConfigured, hasBlobToken } from '@/lib/blob'
+import { blobErrorResponse, blobNotConfigured, blobTokenProblem } from '@/lib/blob'
 
 type Row = { file_pathname: string; file_name: string; file_type: string | null }
 
@@ -17,8 +17,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!(await getSession())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (!hasBlobToken()) {
-    return blobNotConfigured()
+  // Same shape check the upload route uses: a malformed token should say so
+  // rather than fail later as an opaque storage error.
+  const tokenProblem = blobTokenProblem()
+  if (tokenProblem) {
+    return blobNotConfigured(tokenProblem)
   }
 
   const id = Number((await params).id)

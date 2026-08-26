@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 export const CHART = {
   income: 'var(--color-success, #34D399)',
@@ -9,6 +9,72 @@ export const CHART = {
 }
 const GRID = 'rgba(255,255,255,0.07)'
 const AXIS = 'var(--muted-text, #6E8399)'
+
+/**
+ * A smooth path through the points that never invents a value.
+ *
+ * Monotone cubic interpolation (Fritsch–Carlson), not the Catmull-Rom spline
+ * most "curved chart" snippets reach for. The difference matters here: a plain
+ * spline overshoots around a peak, so two months of £4k income either side of
+ * an £8k month draw a curve that bulges to £9k, and a net-cashflow line
+ * between two positive months can dip below zero. On a finance dashboard a
+ * curve that reads as a loss the business never had is not a style choice, it
+ * is a wrong number drawn convincingly.
+ *
+ * This clamps each tangent so every segment stays inside the two values it
+ * connects. The result is still soft — it just cannot lie.
+ */
+function smoothPath(pts: { x: number; y: number }[]): string {
+  const n = pts.length
+  if (n === 0) return ''
+  if (n === 1) return `M ${pts[0].x} ${pts[0].y}`
+  if (n === 2) return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`
+
+  // Secant slope of each segment.
+  const dx: number[] = []
+  const slope: number[] = []
+  for (let i = 0; i < n - 1; i++) {
+    const h = pts[i + 1].x - pts[i].x
+    dx.push(h)
+    slope.push(h === 0 ? 0 : (pts[i + 1].y - pts[i].y) / h)
+  }
+
+  // Tangents: average of neighbouring secants, endpoints take their own.
+  const m: number[] = new Array(n)
+  m[0] = slope[0]
+  m[n - 1] = slope[n - 2]
+  for (let i = 1; i < n - 1; i++) {
+    m[i] = slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2
+  }
+
+  // Fritsch–Carlson clamp — this is what removes the overshoot.
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) {
+      m[i] = 0
+      m[i + 1] = 0
+      continue
+    }
+    const a = m[i] / slope[i]
+    const b = m[i + 1] / slope[i]
+    const sq = a * a + b * b
+    if (sq > 9) {
+      const t = 3 / Math.sqrt(sq)
+      m[i] = t * a * slope[i]
+      m[i + 1] = t * b * slope[i]
+    }
+  }
+
+  let d = `M ${pts[0].x} ${pts[0].y}`
+  for (let i = 0; i < n - 1; i++) {
+    const third = dx[i] / 3
+    const c1x = pts[i].x + third
+    const c1y = pts[i].y + m[i] * third
+    const c2x = pts[i + 1].x - third
+    const c2y = pts[i + 1].y - m[i + 1] * third
+    d += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${pts[i + 1].x.toFixed(2)} ${pts[i + 1].y.toFixed(2)}`
+  }
+  return d
+}
 
 function niceMax(value: number): number {
   if (value <= 0) return 1
@@ -33,6 +99,16 @@ export function LineChart({
   formatValue?: (n: number) => string
 }) {
   const [active, setActive] = useState<number | null>(null)
+  /*
+   * Gradient and filter ids have to be unique per chart. Two `LineChart`s
+   * render on the Overview at once, and SVG defs share one document-wide
+   * namespace — duplicate ids mean the second chart silently paints with the
+   * first one's fill.
+   */
+  // Stripped to letters and digits: React's generated ids contain characters
+  // (`:` in 18, `«»` in 19) that are not valid in an SVG id and would break
+  // the `url(#...)` reference that points at the gradient.
+  const uid = `c${useId().replace(/[^a-zA-Z0-9]/g, '')}`
 
   if (data.length === 0) {
     return <Empty>No data for this period yet.</Empty>
@@ -98,14 +174,74 @@ export function LineChart({
             {d.label}
           </text>
         ))}
-        {/* one line per series */}
+        {/*
+          Fills are drawn from the line down to the zero baseline, not to the
+          bottom of the plot. On the net-cashflow chart that is the difference
+          between shading "money made" and shading "everything above the axis",
+          which for a negative month would be the wrong region entirely.
+        */}
+        <defs>
+          {series.map((s, si) => (
+            <linearGradient key={s.label} id={`${uid}-fill-${si}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.color} stopOpacity={0.28} />
+              <stop offset="70%" stopColor={s.color} stopOpacity={0.06} />
+              <stop offset="100%" stopColor={s.color} stopOpacity={0} />
+            </linearGradient>
+          ))}
+        </defs>
+
+        {/* A guide under the cursor, so the eye can line the point up with its label. */}
+        {active !== null && (
+          <line
+            x1={x(active)}
+            y1={padT}
+            x2={x(active)}
+            y2={padT + plotH}
+            stroke={AXIS}
+            strokeWidth={1}
+            strokeDasharray="3 3"
+            opacity={0.45}
+          />
+        )}
+
+        {/* one curve per series */}
         {series.map((s, si) => {
-          const pts = data.map((d, i) => `${x(i)},${y(d.values[si] ?? 0)}`).join(' ')
+          const pts = data.map((d, i) => ({ x: x(i), y: y(d.values[si] ?? 0) }))
+          const line = smoothPath(pts)
+          // The fill closes back along the baseline, so it needs the same
+          // curve followed by a return path at zero.
+          const baseY = y(Math.min(Math.max(0, min), max))
+          const area =
+            pts.length > 1
+              ? `${line} L ${pts[pts.length - 1].x} ${baseY} L ${pts[0].x} ${baseY} Z`
+              : ''
           return (
             <g key={s.label}>
-              <polyline points={pts} fill="none" stroke={s.color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+              {area && <path d={area} fill={`url(#${uid}-fill-${si})`} stroke="none" />}
+              <path
+                d={line}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={2.5}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
               {data.map((d, i) => (
-                <circle key={i} cx={x(i)} cy={y(d.values[si] ?? 0)} r={active === i ? 5 : 3} fill={s.color} />
+                <g key={i}>
+                  {/* A halo only under the hovered point, so the row of dots
+                      stays quiet until someone is actually looking at one. */}
+                  {active === i && (
+                    <circle cx={x(i)} cy={y(d.values[si] ?? 0)} r={8} fill={s.color} opacity={0.18} />
+                  )}
+                  <circle
+                    cx={x(i)}
+                    cy={y(d.values[si] ?? 0)}
+                    r={active === i ? 4.5 : 3}
+                    fill={active === i ? 'var(--panel-raised, #121A26)' : s.color}
+                    stroke={s.color}
+                    strokeWidth={active === i ? 2.5 : 0}
+                  />
+                </g>
               ))}
             </g>
           )

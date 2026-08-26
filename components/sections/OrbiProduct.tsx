@@ -9,8 +9,10 @@
  * ramp on headings and blue kept for structure rather than words.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Modal from '@/components/ui/Modal'
+import ContactForm from '@/components/sections/ContactForm'
 import OrbiShowcase from '@/components/sections/OrbiShowcase'
 import { motion } from 'framer-motion'
 import { fadeUp, slideInLeft, stagger, staggerFast } from '@/lib/motion'
@@ -49,7 +51,13 @@ const blueText = {
   WebkitTextFillColor: 'transparent',
 } as const
 
-function PackageCard({ pkg }: { pkg: ProductPackage }) {
+function PackageCard({
+  pkg,
+  onGetStarted,
+}: {
+  pkg: ProductPackage
+  onGetStarted: () => void
+}) {
   const popular = Boolean(pkg.popular)
 
   return (
@@ -163,9 +171,10 @@ function PackageCard({ pkg }: { pkg: ProductPackage }) {
 
       <p
         style={{
-          fontSize: '13px',
+          fontSize: '14px',
           color: TEXT,
-          fontWeight: 600,
+          fontWeight: 500,
+          lineHeight: 1.4,
           margin: '0 0 4px',
           fontFamily: POPPINS,
         }}
@@ -212,7 +221,7 @@ function PackageCard({ pkg }: { pkg: ProductPackage }) {
               <span
                 style={{
                   display: 'block',
-                  fontSize: '14px',
+                  fontSize: '15px',
                   fontWeight: 700,
                   fontFamily: SYNE,
                   letterSpacing: '-0.005em',
@@ -225,9 +234,9 @@ function PackageCard({ pkg }: { pkg: ProductPackage }) {
               <span
                 style={{
                   display: 'block',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   color: MUTED,
-                  lineHeight: 1.55,
+                  lineHeight: 1.6,
                   fontFamily: POPPINS,
                 }}
               >
@@ -238,8 +247,12 @@ function PackageCard({ pkg }: { pkg: ProductPackage }) {
         ))}
       </ul>
 
-      <Link
-        href="/#contact"
+      {/* Opens the contact form in place rather than sending the visitor to
+          the homepage's — they are reading a tier, and the enquiry carries
+          which one. The page-bottom CTA still links to /#contact. */}
+      <button
+        type="button"
+        onClick={onGetStarted}
         className="btn-shimmer btn-primary"
         style={{
           display: 'inline-flex',
@@ -252,15 +265,24 @@ function PackageCard({ pkg }: { pkg: ProductPackage }) {
           fontWeight: 600,
           fontFamily: POPPINS,
           textDecoration: 'none',
+          cursor: 'pointer',
         }}
       >
         Get started
-      </Link>
+      </button>
     </motion.div>
   )
 }
 
 export default function OrbiProduct() {
+  /* The tier whose "Get started" was clicked, and whether its form is showing.
+   *
+   * Two pieces of state rather than one nullable: closing only flips the flag,
+   * so `selected` survives the exit animation and the heading does not blank
+   * out to "Get started —" on the way off screen. */
+  const [selected, setSelected] = useState<ProductPackage | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+
   // Land at the top. Arriving from a scrolled homepage — or coming back
   // through the history stack — otherwise restores the old offset and the page
   // visibly jumps upward a frame later.
@@ -455,7 +477,14 @@ export default function OrbiProduct() {
             }}
           >
             {orbiPackages.map((pkg) => (
-              <PackageCard key={pkg.id} pkg={pkg} />
+              <PackageCard
+                key={pkg.id}
+                pkg={pkg}
+                onGetStarted={() => {
+                  setSelected(pkg)
+                  setModalOpen(true)
+                }}
+              />
             ))}
           </motion.div>
 
@@ -738,6 +767,73 @@ export default function OrbiProduct() {
           }
         }
       `}</style>
+
+      {/* One modal for the section rather than one per card: `ContactForm`
+          hardcodes its `aria-describedby` ids, so two mounted copies would
+          emit duplicates. */}
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        labelledBy="orbi-package-form-title"
+      >
+        <div style={{ padding: '34px 32px 32px' }}>
+          <h2
+            id="orbi-package-form-title"
+            style={{
+              margin: '0 0 8px',
+              fontSize: 'clamp(20px, 3vw, 26px)',
+              fontWeight: 800,
+              fontFamily: SYNE,
+              letterSpacing: '-0.02em',
+              lineHeight: 1.2,
+              ...topicText,
+            }}
+          >
+            Get started — {selected?.name}
+          </h2>
+          <p
+            style={{
+              margin: '0 0 26px',
+              fontSize: '14px',
+              lineHeight: 1.7,
+              color: MUTED,
+              fontFamily: POPPINS,
+            }}
+          >
+            Tell us where your site lives and what you want him to do. We reply
+            within 24 hours.
+          </p>
+
+          <ContactForm packageName={selected?.name} />
+        </div>
+
+        {/* Last in the DOM on purpose: the focus-on-open lands on the first
+            focusable, and that should be the name field, not Close. */}
+        <button
+          type="button"
+          onClick={() => setModalOpen(false)}
+          aria-label="Close"
+          style={{
+            position: 'absolute',
+            top: '14px',
+            right: '14px',
+            width: '34px',
+            height: '34px',
+            borderRadius: '50%',
+            border: '1px solid rgba(255,255,255,0.10)',
+            background: 'rgba(255,255,255,0.04)',
+            color: TEXT,
+            fontSize: '18px',
+            lineHeight: 1,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          ×
+        </button>
+      </Modal>
     </>
   )
 }

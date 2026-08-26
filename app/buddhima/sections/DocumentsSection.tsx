@@ -97,6 +97,41 @@ export default function DocumentsSection({
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  /**
+   * Ask the token route why it refused.
+   *
+   * `upload()` throws "Failed to retrieve the client token" for every
+   * non-2xx from `handleUploadUrl` — it never looks at the response body, so
+   * the reason our route took the trouble to explain (storage not configured,
+   * session expired, file type rejected) is thrown away before anyone sees
+   * it. Three very different problems arrive at the operator as one sentence
+   * that says nothing about any of them.
+   *
+   * So on failure we ask the same route the same question and read the answer
+   * this time. One extra request, only ever on the error path, and it turns
+   * "Failed to retrieve the client token" into something actionable.
+   */
+  async function explainUploadFailure(pathname: string): Promise<string | null> {
+    try {
+      const res = await fetch('/api/buddhima/documents/upload', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          type: 'blob.generate-client-token',
+          payload: { pathname, callbackUrl: '', clientPayload: null, multipart: false },
+        }),
+      })
+      if (res.ok) return null // It works now — the first failure was transient.
+      const data = (await res.json().catch(() => null)) as { error?: string } | null
+      if (res.status === 401) {
+        return 'Your session has expired. Sign in again and retry the upload.'
+      }
+      return data?.error ?? `Upload could not start (HTTP ${res.status}).`
+    } catch {
+      return 'Could not reach the server to start the upload. Check your connection.'
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!editId && !file) {
@@ -112,12 +147,25 @@ export default function DocumentsSection({
       let uploaded: Record<string, unknown> = {}
       if (file) {
         setProgress(0)
-        const blob = await upload(documentPathname(form.kind, file.name), file, {
-          access: 'private',
-          handleUploadUrl: '/api/buddhima/documents/upload',
-          multipart: file.size > MULTIPART_THRESHOLD,
-          onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
-        })
+        const pathname = documentPathname(form.kind, file.name)
+        let blob
+        try {
+          blob = await upload(pathname, file, {
+            access: 'private',
+            handleUploadUrl: '/api/buddhima/documents/upload',
+            multipart: file.size > MULTIPART_THRESHOLD,
+            onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
+          })
+        } catch (uploadError) {
+          // Only the token step hides its reason; everything after it (the
+          // transfer itself) already throws something meaningful.
+          const generic = /failed to\s+retrieve the client token/i.test(
+            uploadError instanceof Error ? uploadError.message : '',
+          )
+          if (!generic) throw uploadError
+          const reason = await explainUploadFailure(pathname)
+          throw new Error(reason ?? 'Upload could not start. Please try again.')
+        }
         uploaded = {
           file_name: file.name,
           file_pathname: blob.pathname,

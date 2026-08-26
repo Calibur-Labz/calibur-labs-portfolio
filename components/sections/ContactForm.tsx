@@ -21,7 +21,7 @@ const FIELDS = [
   { name: 'phone', label: 'Contact Number', type: 'tel', required: false, autoComplete: 'tel' },
 ] as const
 
-export default function ContactForm() {
+export default function ContactForm({ packageName }: { packageName?: string }) {
   const [status, setStatus] = useState<Status>('idle')
   const [message, setMessage] = useState<string | null>(null)
   /** Which controls have failed validation. Names only — never values. */
@@ -77,6 +77,7 @@ export default function ContactForm() {
             email: data.get('email'),
             company: data.get('company'),
             phone: data.get('phone'),
+            package: data.get('package'),
             message: data.get('message'),
           }),
         })
@@ -105,8 +106,14 @@ export default function ContactForm() {
       data-orbi-form=""
       data-orbi-form-state={status}
       data-orbi-label="contact-form"
+      className="contact-form"
       style={{ display: 'grid', gap: '18px', textAlign: 'left' }}
     >
+      {/* Which pricing tier the visitor clicked, when this form was opened
+          from the ORBI page's package cards. Nothing renders it — it rides
+          along in the FormData so the enquiry arrives tagged. */}
+      {packageName && <input type="hidden" name="package" value={packageName} />}
+
       <div
         className="form-row"
         style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px' }}
@@ -289,7 +296,9 @@ const controlStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.02)',
   border: '1px solid rgba(255,255,255,0.08)',
   color: '#E9F1F8',
-  fontSize: '15px',
+  // 16px, not 15: iOS Safari zooms the page on focus for anything smaller,
+  // which is jarring inside the ORBI page's fixed modal.
+  fontSize: '16px',
   fontFamily: 'var(--font-poppins), system-ui, sans-serif',
   outline: 'none',
   colorScheme: 'dark',

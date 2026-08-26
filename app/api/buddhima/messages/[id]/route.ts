@@ -35,7 +35,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       UPDATE contact_messages
       SET status = ${status}, read_at = ${readAt}
       WHERE id = ${id}
-      RETURNING id, name, email, company, message, status, read_at, created_at
+      RETURNING id, name, email, company, phone, package, message, status, read_at, created_at
     `) as ContactMessage[]
 
     if (!item) {

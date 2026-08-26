@@ -562,3 +562,37 @@ html {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── The contact form ─────────────────────────────────────────────────────
+ *
+ * These rules used to live in a `<style>` block inside `Contact.tsx`, scoped
+ * to `#contact` — the id on the homepage section. That worked while the form
+ * had exactly one home. It now also opens in a modal on the ORBI page, where
+ * there is no `#contact` ancestor, so the same form rendered there lost its
+ * focus ring, its invalid-state border and its placeholder colour.
+ *
+ * Scoped to the form's own class instead, so both mount points are styled by
+ * one definition rather than the homepage's copy and a duplicate.
+ */
+.contact-form input:focus-visible,
+.contact-form textarea:focus-visible {
+  border-color: rgba(0, 183, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(0, 183, 255, 0.12);
+  outline: none;
+}
+.contact-form [aria-invalid='true'] {
+  border-color: rgba(248, 113, 113, 0.6);
+}
+.contact-form input::placeholder,
+.contact-form textarea::placeholder {
+  color: #4a5a6c;
+}
+
+/* The two-column name/email and company/phone rows fold on narrow screens.
+ * Not scoped to the form: `.form-row` is only ever used inside it, and the
+ * rule has to win against the inline `gridTemplateColumns`. */
+@media (max-width: 600px) {
+  .form-row {
+    grid-template-columns: 1fr !important;
+  }
+}

@@ -179,27 +179,6 @@ export default function Contact() {
           </GlassCard>
         </motion.div>
       </div>
-
-      <style>{`
-        @media (max-width: 600px) {
-          .form-row {
-            grid-template-columns: 1fr !important;
-          }
-        }
-        #contact input:focus-visible,
-        #contact textarea:focus-visible {
-          border-color: rgba(0, 183, 255, 0.55);
-          box-shadow: 0 0 0 3px rgba(0, 183, 255, 0.12);
-          outline: none;
-        }
-        #contact [aria-invalid='true'] {
-          border-color: rgba(248, 113, 113, 0.6);
-        }
-        #contact input::placeholder,
-        #contact textarea::placeholder {
-          color: #4A5A6C;
-        }
-      `}</style>
     </section>
   )
 }

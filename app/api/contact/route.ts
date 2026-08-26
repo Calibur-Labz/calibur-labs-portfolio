@@ -18,6 +18,9 @@ export async function POST(request: NextRequest) {
   const email = clean(body.email, 200)
   const company = clean(body.company, 160) || null
   const phone = clean(body.phone, 40) || null
+  // Which pricing tier the visitor clicked, when the enquiry came from the
+  // ORBI page's package cards. Absent for the homepage form.
+  const pkg = clean(body.package, 80) || null
   const message = clean(body.message, 5000)
 
   if (!name || !email || !message) {
@@ -32,8 +35,8 @@ export async function POST(request: NextRequest) {
     await ensureSchema()
     // Lands as 'new', which is what lights up the bell in /buddhima.
     await sql`
-      INSERT INTO contact_messages (name, email, company, phone, message)
-      VALUES (${name}, ${email}, ${company}, ${phone}, ${message})
+      INSERT INTO contact_messages (name, email, company, phone, package, message)
+      VALUES (${name}, ${email}, ${company}, ${phone}, ${pkg}, ${message})
     `
     return NextResponse.json({ success: true }, { status: 201 })
   } catch (e) {

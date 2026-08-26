@@ -139,6 +139,9 @@ export function ensureSchema(): Promise<void> {
       `
       // Added after the table shipped, so existing databases need the column.
       await sql`ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS phone TEXT`
+      // The pricing tier a visitor clicked "Get started" on, when the enquiry
+      // came from the ORBI page rather than the homepage form.
+      await sql`ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS package TEXT`
       // Unread lookups drive the console's notification badge.
       await sql`
         CREATE INDEX IF NOT EXISTS contact_messages_status_idx
@@ -272,6 +275,7 @@ export type ContactMessage = {
   email: string
   company: string | null
   phone: string | null
+  package: string | null
   message: string
   status: 'new' | 'read' | 'archived'
   read_at: string | null

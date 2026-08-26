@@ -6,7 +6,7 @@ import {
   MAX_DOCUMENT_BYTES,
   blobErrorResponse,
   blobNotConfigured,
-  hasBlobToken,
+  blobTokenProblem,
 } from '@/lib/blob'
 
 /**
@@ -22,8 +22,11 @@ export async function POST(request: NextRequest) {
   if (!(await getSession())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (!hasBlobToken()) {
-    return blobNotConfigured()
+  // Checked for shape, not just presence: a malformed token otherwise fails
+  // later as an opaque 502 from inside the SDK.
+  const tokenProblem = blobTokenProblem()
+  if (tokenProblem) {
+    return blobNotConfigured(tokenProblem)
   }
 
   let body: HandleUploadBody
