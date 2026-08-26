@@ -9,6 +9,7 @@ import Projects from '@/components/sections/Projects'
 import Testimonials from '@/components/sections/Testimonials'
 import Contact from '@/components/sections/Contact'
 import MaintenanceScreen from '@/components/MaintenanceScreen'
+import HashScroll from '@/components/HashScroll'
 import OrbiGuide from '@/components/orbi/OrbiGuide'
 import { readSiteSettingsSafe } from '@/lib/settings'
 
@@ -74,6 +75,7 @@ export default async function Home() {
   return (
     <>
       <Navbar />
+      <HashScroll />
       {/* Server-rendered, so it is in the HTML a crawler receives. */}
       <script
         type="application/ld+json"

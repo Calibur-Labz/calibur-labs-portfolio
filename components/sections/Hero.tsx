@@ -141,11 +141,13 @@ export default function Hero() {
             <GradientText
               as="h1"
               style={{
-                fontSize: 'clamp(40px, 6vw, 72px)',
+                fontSize: 'clamp(36px, 5.4vw, 64px)',
                 fontWeight: 800,
-                lineHeight: 1.05,
+                lineHeight: 1,
                 letterSpacing: '-0.03em',
-                margin: '0 0 24px',
+                transform: 'scale(1.06, 1.25)',
+                transformOrigin: 'top center',
+                margin: '0 0 40px',
               }}
             >
               We Build Software That Drives Results.

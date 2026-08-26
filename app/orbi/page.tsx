@@ -5,7 +5,7 @@ import OrbiProduct from '@/components/sections/OrbiProduct'
 import MaintenanceScreen from '@/components/MaintenanceScreen'
 import OrbiGuide from '@/components/orbi/OrbiGuide'
 import { readSiteSettingsSafe } from '@/lib/settings'
-import { orbiPackages } from '@/lib/data'
+import { orbiFaq, orbiPackages } from '@/lib/data'
 
 // Same rule as the homepage: read the maintenance flag fresh on every request
 // so toggling it from the admin console takes effect immediately.
@@ -102,6 +102,30 @@ function orbiJsonLd(siteUrl: string) {
           category: 'Setup',
           url: `${siteUrl}/orbi`,
         })),
+      },
+      /*
+       * The page's own FAQ, from the same array it renders. Google stopped
+       * showing FAQ rich results for ordinary sites in 2023, so this earns no
+       * dropdown in the listing — it is here because it tells a crawler what
+       * the page answers, in the page's real words, and costs nothing.
+       */
+      {
+        '@type': 'FAQPage',
+        '@id': `${siteUrl}/orbi#faq`,
+        mainEntity: orbiFaq.map((entry) => ({
+          '@type': 'Question',
+          name: entry.question,
+          acceptedAnswer: { '@type': 'Answer', text: entry.answer },
+        })),
+      },
+      // Breadcrumbs still are a supported rich result: it puts
+      // "caliburlabz.com › ORBI" in the listing instead of a bare URL.
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+          { '@type': 'ListItem', position: 2, name: 'ORBI', item: `${siteUrl}/orbi` },
+        ],
       },
     ],
   }

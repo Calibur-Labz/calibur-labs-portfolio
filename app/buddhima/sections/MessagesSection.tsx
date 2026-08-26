@@ -206,6 +206,22 @@ export default function MessagesSection({
                         >
                           Reply by email
                         </a>
+                        {m.phone && (
+                          <a
+                            href={`tel:${m.phone.replace(/[^\d+]/g, '')}`}
+                            className="btn-primary"
+                            style={{
+                              padding: '10px 20px',
+                              borderRadius: '12px',
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              textDecoration: 'none',
+                              fontFamily: 'var(--font-poppins), system-ui, sans-serif',
+                            }}
+                          >
+                            Call {m.phone}
+                          </a>
+                        )}
                         <SubtleButton onClick={() => setStatus(m.id, isNew ? 'read' : 'new')}>
                           Mark as {isNew ? 'read' : 'unread'}
                         </SubtleButton>

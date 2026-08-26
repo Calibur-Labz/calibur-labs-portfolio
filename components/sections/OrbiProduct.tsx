@@ -304,12 +304,16 @@ export default function OrbiProduct() {
             <motion.h1
               variants={fadeUp}
               style={{
-                fontSize: 'clamp(26px, 3.6vw, 46px)',
+                fontSize: 'clamp(28px, 3.6vw, 44px)',
                 fontWeight: 800,
-                margin: '0 0 16px',
                 fontFamily: SYNE,
-                letterSpacing: '-0.03em',
+                letterSpacing: '-0.025em',
                 lineHeight: 1.1,
+                maxWidth: '640px',
+                transform: 'scale(1.06, 1.25)',
+                transformOrigin: 'top left',
+                margin: 0,
+                marginBottom: '28px',
                 ...topicText,
               }}
             >
@@ -407,12 +411,15 @@ export default function OrbiProduct() {
             <motion.h2
               variants={fadeUp}
               style={{
-                fontSize: 'clamp(30px, 4vw, 44px)',
+                fontSize: 'clamp(28px, 3.6vw, 44px)',
                 fontWeight: 800,
-                margin: 0,
                 fontFamily: SYNE,
-                letterSpacing: '-0.03em',
+                letterSpacing: '-0.025em',
                 lineHeight: 1.1,
+                transform: 'scale(1.06, 1.25)',
+                transformOrigin: 'top left',
+                margin: 0,
+                marginBottom: '28px',
                 ...topicText,
               }}
             >
@@ -577,12 +584,15 @@ export default function OrbiProduct() {
             <motion.h2
               variants={fadeUp}
               style={{
-                fontSize: 'clamp(28px, 3.6vw, 40px)',
+                fontSize: 'clamp(28px, 3.6vw, 44px)',
                 fontWeight: 800,
-                margin: 0,
                 fontFamily: SYNE,
-                letterSpacing: '-0.03em',
+                letterSpacing: '-0.025em',
                 lineHeight: 1.1,
+                transform: 'scale(1.06, 1.25)',
+                transformOrigin: 'top left',
+                margin: 0,
+                marginBottom: '28px',
                 ...topicText,
               }}
             >

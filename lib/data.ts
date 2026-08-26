@@ -399,8 +399,19 @@ export const orbiAddOns: ProductAddOn[] = [
  * in `components/orbi`, not a marketing round-up.
  */
 export const orbiStats: { value: string; label: string }[] = [
-  { value: '16', label: 'Build phases' },
-  { value: '143', label: 'Tests passing' },
+  /*
+   * Every distinct face ORBI can wear: normal, happy, blink, thinking,
+   * surprised, sleepy, dizzy, wink, concerned, curious, excited, shy and
+   * unsure. Counted from the `OrbiExpression` union in `orbiConfig.ts` — if
+   * a face is ever added or removed, this number is wrong and the union is
+   * the place to check.
+   *
+   * Replaced "16 Build phases", which measured how the work was scheduled
+   * rather than anything the visitor gets. Nobody buying a companion cares
+   * how many sprints it took.
+   */
+  { value: '13', label: 'Expressions' },
+  { value: '208', label: 'Tests passing' },
   { value: '60fps', label: 'Animation' },
   { value: '100%', label: 'Reduced-motion' },
 ]

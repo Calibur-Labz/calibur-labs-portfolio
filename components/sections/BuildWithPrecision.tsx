@@ -36,11 +36,14 @@ export default function BuildWithPrecision() {
               <GradientText
                 as="h2"
                 style={{
-                  fontSize: 'clamp(32px, 4.5vw, 52px)',
+                  fontSize: 'clamp(28px, 4vw, 46px)',
                   fontWeight: 800,
                   letterSpacing: '-0.03em',
                   lineHeight: 1.05,
                   marginTop: '20px',
+                  transform: 'scale(1.06, 1.25)',
+                  transformOrigin: 'top left',
+                  marginBottom: '0.55em',
                 }}
               >
                 Built{' '}

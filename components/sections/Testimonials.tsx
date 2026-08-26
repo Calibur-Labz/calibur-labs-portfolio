@@ -83,7 +83,7 @@ function FeedbackCard({
         display: "flex",
         flexDirection: "column",
         boxShadow: hover
-          ? "0 24px 60px -20px rgba(0,183,255,0.35), inset 0 1px 0 rgba(255,255,255,0.08)"
+          ? "0 12px 32px -18px rgba(0,183,255,0.18), inset 0 1px 0 rgba(255,255,255,0.06)"
           : "0 12px 40px -24px rgba(0,0,0,0.6)",
         transition:
           "box-shadow 0.35s ease, border-color 0.35s ease, background 0.35s ease",
@@ -305,10 +305,13 @@ export default function Testimonials() {
             <GradientText
               as="h2"
               style={{
-                fontSize: "clamp(28px, 3.5vw, 44px)",
+                fontSize: "clamp(26px, 3.2vw, 40px)",
                 fontWeight: 800,
                 letterSpacing: "-0.025em",
                 lineHeight: 1.1,
+                transform: "scale(1.06, 1.25)",
+                transformOrigin: "top center",
+                marginBottom: "0.3em",
               }}
             >
               What Our Clients Say

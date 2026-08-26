@@ -133,7 +133,7 @@ h1, h2, h3, h4, h5, h6 {
   background: transparent;
   color: #00B7FF;
   border-color: transparent;
-  box-shadow: 0 0 28px rgba(0, 183, 255, 0.4);
+  box-shadow: 0 0 10px rgba(0, 183, 255, 0.14);
 }
 
 /* Premium rotating gradient border ring — sits inside the button bounds

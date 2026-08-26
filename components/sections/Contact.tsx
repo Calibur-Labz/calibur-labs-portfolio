@@ -112,11 +112,13 @@ export default function Contact() {
             <GradientText
               as="h2"
               style={{
-                fontSize: 'clamp(28px, 3.5vw, 48px)',
+                fontSize: 'clamp(26px, 3.2vw, 44px)',
                 fontWeight: 800,
                 letterSpacing: '-0.025em',
                 lineHeight: 1.1,
-                marginBottom: '20px',
+                transform: 'scale(1.06, 1.25)',
+                transformOrigin: 'top center',
+                marginBottom: 'calc(20px + 0.55em)',
               }}
             >
               Ready to Build{' '}

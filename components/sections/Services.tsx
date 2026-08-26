@@ -24,7 +24,7 @@ export default function Services() {
           whileInView="visible"
           viewport={{ once: true, margin: '-80px' }}
           variants={stagger}
-          style={{ marginBottom: '64px' }}
+          style={{ marginBottom: '40px' }}
         >
           <motion.div variants={fadeUp}>
             <SectionLabel>What We Build</SectionLabel>
@@ -33,14 +33,18 @@ export default function Services() {
             <GradientText
               as="h2"
               style={{
-                fontSize: 'clamp(32px, 4vw, 48px)',
+                fontSize: 'clamp(28px, 3.6vw, 44px)',
                 fontWeight: 800,
                 letterSpacing: '-0.025em',
                 lineHeight: 1.1,
                 maxWidth: '640px',
+                transform: 'scale(1.06, 1.25)',
+                transformOrigin: 'top left',
+                marginBottom: '28px',
               }}
             >
-              End-to-End{' '}
+              End-to-End
+              <br />
               <span
                 style={{
                   background: 'linear-gradient(135deg, #00B7FF 0%, #5EE9FF 100%)',
@@ -102,7 +106,7 @@ export default function Services() {
               onMouseEnter={(e) => {
                 const el = e.currentTarget as HTMLElement
                 el.style.borderColor = 'rgba(0,183,255,0.45)'
-                el.style.boxShadow = '0 0 40px rgba(0,183,255,0.25)'
+                el.style.boxShadow = '0 0 20px rgba(0,183,255,0.14)'
               }}
               onMouseLeave={(e) => {
                 const el = e.currentTarget as HTMLElement

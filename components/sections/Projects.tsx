@@ -34,10 +34,13 @@ export default function Projects() {
             <GradientText
               as="h2"
               style={{
-                fontSize: 'clamp(32px, 4vw, 48px)',
+                fontSize: 'clamp(28px, 3.6vw, 44px)',
                 fontWeight: 800,
                 letterSpacing: '-0.025em',
                 lineHeight: 1.1,
+                transform: 'scale(1.25)',
+                transformOrigin: 'top center',
+                marginBottom: '0.3em',
               }}
             >
               Selected Projects

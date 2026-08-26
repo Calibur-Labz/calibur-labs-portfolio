@@ -137,6 +137,8 @@ export function ensureSchema(): Promise<void> {
           created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // Added after the table shipped, so existing databases need the column.
+      await sql`ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS phone TEXT`
       // Unread lookups drive the console's notification badge.
       await sql`
         CREATE INDEX IF NOT EXISTS contact_messages_status_idx
@@ -269,6 +271,7 @@ export type ContactMessage = {
   name: string
   email: string
   company: string | null
+  phone: string | null
   message: string
   status: 'new' | 'read' | 'archived'
   read_at: string | null

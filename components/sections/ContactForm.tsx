@@ -17,7 +17,8 @@ type Status = 'idle' | 'submitting' | 'success' | 'error'
 const FIELDS = [
   { name: 'name', label: 'Name', type: 'text', required: true, autoComplete: 'name' },
   { name: 'email', label: 'Email', type: 'email', required: true, autoComplete: 'email' },
-  { name: 'company', label: 'Company', type: 'text', required: false, autoComplete: 'organization' },
+  { name: 'company', label: 'Company Name', type: 'text', required: false, autoComplete: 'organization' },
+  { name: 'phone', label: 'Contact Number', type: 'tel', required: false, autoComplete: 'tel' },
 ] as const
 
 export default function ContactForm() {
@@ -75,6 +76,7 @@ export default function ContactForm() {
             name: data.get('name'),
             email: data.get('email'),
             company: data.get('company'),
+            phone: data.get('phone'),
             message: data.get('message'),
           }),
         })
@@ -119,7 +121,19 @@ export default function ContactForm() {
         ))}
       </div>
 
-      <Field field={FIELDS[2]} invalid={!!invalid.company} onRecover={clearInvalid} />
+      <div
+        className="form-row"
+        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px' }}
+      >
+        {FIELDS.slice(2, 4).map((field) => (
+          <Field
+            key={field.name}
+            field={field}
+            invalid={!!invalid[field.name]}
+            onRecover={clearInvalid}
+          />
+        ))}
+      </div>
 
       <label style={labelStyle}>
         <span style={labelTextStyle}>

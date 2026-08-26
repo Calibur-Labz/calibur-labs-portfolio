@@ -9,7 +9,7 @@ export async function GET() {
   try {
     await ensureSchema()
     const messages = (await sql`
-      SELECT id, name, email, company, message, status, read_at, created_at
+      SELECT id, name, email, company, phone, message, status, read_at, created_at
       FROM contact_messages
       ORDER BY created_at DESC
       LIMIT 500

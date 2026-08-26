@@ -36,11 +36,13 @@ export default function About() {
             <GradientText
               as="h2"
               style={{
-                fontSize: 'clamp(32px, 4.5vw, 48px)',
+                fontSize: 'clamp(28px, 4vw, 44px)',
                 fontWeight: 800,
                 letterSpacing: '-0.03em',
                 lineHeight: 1.05,
-                marginBottom: '28px',
+                transform: 'scale(1.06, 1.25)',
+                transformOrigin: 'top center',
+                marginBottom: 'calc(28px + 0.55em)',
                 textAlign: 'center',
               }}
             >
