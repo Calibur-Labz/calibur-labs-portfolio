@@ -525,7 +525,12 @@ export default function OrbiShowcase() {
       {/* Which reaction is showing */}
       <motion.div
         variants={fadeUp}
-        style={{ display: 'flex', gap: '7px', marginTop: '16px' }}
+        /*
+          The gap is smaller than it looks because each button now carries its
+          own padding — the dots keep their 7px spacing on screen while the
+          things a finger has to land on sit shoulder to shoulder.
+        */
+        style={{ display: 'flex', marginTop: '8px' }}
       >
         {REACTIONS.map((item, i) => (
           <button
@@ -534,17 +539,34 @@ export default function OrbiShowcase() {
             onClick={() => setIndex(i)}
             aria-label={item.label}
             aria-current={i === index}
+            /*
+              The dot is 7px; the target is 25px tall and at least 14px wide.
+              A 7×7 button is not something anyone can reliably tap, and there
+              are fifteen of them in a row — the padding is transparent, so the
+              row looks exactly as it did while becoming usable on a phone.
+            */
             style={{
-              width: i === index ? '22px' : '7px',
-              height: '7px',
-              padding: 0,
-              borderRadius: '99px',
+              padding: '9px 3.5px',
+              background: 'none',
               border: 'none',
               cursor: 'pointer',
-              background: i === index ? ACCENT : 'rgba(255,255,255,0.16)',
-              transition: 'width 0.35s ease, background 0.35s ease',
+              display: 'grid',
+              placeItems: 'center',
+              WebkitTapHighlightColor: 'transparent',
             }}
-          />
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                display: 'block',
+                width: i === index ? '22px' : '7px',
+                height: '7px',
+                borderRadius: '99px',
+                background: i === index ? ACCENT : 'rgba(255,255,255,0.16)',
+                transition: 'width 0.35s ease, background 0.35s ease',
+              }}
+            />
+          </button>
         ))}
       </motion.div>
 

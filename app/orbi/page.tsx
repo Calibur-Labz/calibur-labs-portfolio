@@ -11,24 +11,52 @@ import { orbiPackages } from '@/lib/data'
 // so toggling it from the admin console takes effect immediately.
 export const dynamic = 'force-dynamic'
 
+/**
+ * The cheapest published setup fee, read from the same table the page prints.
+ *
+ * The description used to say "$490" as a literal, which is a second copy of a
+ * price — and the last time this price moved, every literal copy of it went
+ * stale. A meta description promising a figure the page no longer charges is
+ * the worst place for that to happen, because it is what someone reads before
+ * they arrive.
+ */
+const FROM_PRICE = Math.min(...orbiPackages.map((p) => p.setupUsd))
+
 export const metadata: Metadata = {
-  title: 'ORBI — a site companion with a personality | xCalibur Labz',
+  /*
+   * "AI website companion" leads, because that is the thing someone would
+   * actually type. The personality line that used to lead is still what the
+   * page is about — it just is not what anyone searches for.
+   */
+  /*
+   * No brand suffix here. The root layout's title template appends
+   * "| xCalibur Labz" to every child title, so spelling it out again produced
+   * "… | xCalibur Labz | xCalibur Labz" — 71 characters, most of them a
+   * duplicate, in the one line a search result actually shows.
+   */
+  title: 'ORBI — AI Website Companion & Guide',
   description:
-    'ORBI is a character who lives on your page: scroll-aware, cursor-aware, and able to answer questions about your business. Packages from $490.',
+    `ORBI is an interactive AI website assistant: he greets visitors, guides them through your pages, and answers questions about your business. From $${FROM_PRICE}.`,
+  keywords: [
+    'AI website companion',
+    'interactive website assistant',
+    'AI website guide',
+    'intelligent website assistant',
+  ],
   alternates: { canonical: '/orbi' },
   openGraph: {
     type: 'website',
     url: '/orbi',
-    title: 'ORBI — a site companion with a personality',
+    title: 'ORBI — an AI website companion with a personality',
     description:
-      'Scroll-aware, cursor-aware, and able to answer questions about your business. Packages from $490.',
+      `An interactive AI assistant that guides visitors through your site and answers questions about your business. From $${FROM_PRICE}.`,
     images: [{ url: '/images/orbi.png', width: 1254, height: 1254, alt: 'ORBI, a site companion robot' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ORBI — a site companion with a personality',
+    title: 'ORBI — an AI website companion with a personality',
     description:
-      'Scroll-aware, cursor-aware, and able to answer questions about your business.',
+      'An interactive AI assistant that guides visitors through your site and answers questions about your business.',
     images: ['/images/orbi.png'],
   },
 }

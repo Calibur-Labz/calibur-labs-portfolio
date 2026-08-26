@@ -247,6 +247,8 @@ function Avatar({ src, name }: { src?: string; name: string }) {
         src={src}
         alt={name}
         fill
+        /* A 56px circle. It was requesting a full-viewport-width variant. */
+        sizes="56px"
         style={{ objectFit: "cover" }}
         onError={() => setFailed(true)}
       />

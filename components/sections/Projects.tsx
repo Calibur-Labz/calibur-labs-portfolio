@@ -100,6 +100,15 @@ export default function Projects() {
                     src={project.image}
                     alt={project.title}
                     fill
+                    /*
+                      Without this, `fill` means "assume 100vw", so a 1440px
+                      desktop downloads a ~1920px variant for a card that is
+                      384px wide. The grid is 3 columns inside a 1200px cap,
+                      2 below 900px and 1 below 540px — these are those
+                      breakpoints, so the browser picks a variant that matches
+                      what is actually on screen.
+                    */
+                    sizes="(max-width: 540px) 92vw, (max-width: 900px) 45vw, 400px"
                     style={{ objectFit: 'cover' }}
                   />
                 </motion.div>

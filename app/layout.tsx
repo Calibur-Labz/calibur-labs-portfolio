@@ -20,31 +20,53 @@ import './globals.css'
  */
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.caliburlabz.com'
 
-const TITLE = 'xCalibur Labz'
+/**
+ * Brand second, what we do first.
+ *
+ * The title was the company name alone, which tells a search engine nothing
+ * and a person scanning results only slightly more. Nobody searches for a
+ * studio they have not heard of — they search for the work. The name still
+ * closes the title, so the brand is present without leading with it.
+ */
+const TITLE = 'Custom Software & Web Development'
+const BRAND = 'xCalibur Labz'
+/**
+ * Written to be read, not to be counted. Each phrase we want to be found for
+ * appears once, in a sentence that describes the business honestly — the copy
+ * on the page already says the same thing.
+ */
 const DESCRIPTION =
-  "Let's discuss your project and create software that drives real business results."
+  'xCalibur Labz builds custom software, web apps and e-commerce platforms for growing businesses — from first idea to launch. Based in Galle, Sri Lanka.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: TITLE,
+    default: `${TITLE} | ${BRAND}`,
     // Child pages set their own title; this is the suffix they get for free.
-    template: '%s | xCalibur Labz',
+    template: `%s | ${BRAND}`,
   },
   description: DESCRIPTION,
-  applicationName: TITLE,
+  applicationName: BRAND,
+  keywords: [
+    'software development',
+    'web development',
+    'custom software',
+    'e-commerce development',
+    'digital products',
+    'Sri Lanka',
+  ],
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
-    siteName: TITLE,
+    siteName: BRAND,
     url: '/',
-    title: TITLE,
+    title: `${TITLE} | ${BRAND}`,
     description: DESCRIPTION,
-    images: [{ url: '/images/og-image.png', width: 1200, height: 630, alt: TITLE }],
+    images: [{ url: '/images/og-image.png', width: 1200, height: 630, alt: BRAND }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: TITLE,
+    title: `${TITLE} | ${BRAND}`,
     description: DESCRIPTION,
     images: ['/images/og-image.png'],
   },
