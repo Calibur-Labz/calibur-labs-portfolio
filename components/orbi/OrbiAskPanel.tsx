@@ -213,8 +213,17 @@ export default function OrbiAskPanel({
           onClick={onClose}
           aria-label={ORBI_ASK_MESSAGES.close}
           style={{
-            width: '26px',
-            height: '26px',
+            /*
+              Phase 27 §10. The control still *looks* 26px — the icon, the hover
+              ring and the spacing are unchanged — but the thing a thumb has to
+              hit is 44px, the size a target needs to be reliably tappable.
+              Done with a negative margin so the extra 18px is pure hit area and
+              costs no layout: the button occupies its old footprint in the
+              header row and simply reaches further than it appears to.
+            */
+            width: '44px',
+            height: '44px',
+            margin: '-9px',
             display: 'grid',
             placeItems: 'center',
             padding: 0,
@@ -389,7 +398,17 @@ export default function OrbiAskPanel({
             background: 'rgba(255,255,255,0.03)',
             color: ORBI_COLORS.speechText,
             fontFamily: 'inherit',
-            fontSize: '13px',
+            /*
+              Phase 27 §17. 16px on a phone, and not for looks.
+              
+              iOS Safari zooms the whole page when a focused input's text is
+              smaller than 16px, and it does not zoom back out afterwards — so
+              tapping the Ask box left the visitor on a magnified, sideways-
+              scrolling page they had to pinch their way out of. The desktop
+              panel keeps the compact 13px it was designed at; only the phone,
+              where the bug exists, pays the two pixels.
+            */
+            fontSize: mobile ? '16px' : '13px',
             outlineOffset: '1px',
           }}
         />

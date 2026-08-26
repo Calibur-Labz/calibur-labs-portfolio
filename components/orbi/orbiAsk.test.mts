@@ -46,6 +46,7 @@ import {
   isAbortError,
   isGeminiCapacityError,
   parseGeminiReply,
+  attemptBudget,
   redactGemini,
   REPLY_SCHEMA,
   runGeminiChain,
@@ -1307,4 +1308,214 @@ test('a complaint about pricing is still answered with real prices', async () =>
   for (const m of reply.message.matchAll(/\$([0-9,]+)/g)) {
     assert.ok(REAL_PRICES.includes(Number(m[1].replace(/,/g, ''))), `echoed $${m[1]}`)
   }
+})
+
+
+/* ── Phase 27: the fallback chain under a real budget ──────────────────── */
+
+/** A provider error shaped the way the SDK surfaces one. */
+const apiError = (status: number, message = '') => Object.assign(new Error(message), { status })
+const REPLY = { message: 'ok', action: 'NO_ACTION' as const, outcome: 'answered' as const }
+
+test('the attempt budget caps an attempt and refuses a hopeless one', () => {
+  // A full budget: the preferred model gets a real attempt, up to the cap.
+  assert.equal(attemptBudget(25000, 3), GEMINI_CONFIG.attemptMaxMs)
+  assert.equal(attemptBudget(25000, 1), GEMINI_CONFIG.attemptMaxMs)
+  // Almost nothing left: not worth starting.
+  assert.equal(attemptBudget(1000, 2), null)
+  assert.equal(attemptBudget(0, 3), null)
+  // Never longer than what actually remains.
+  assert.equal(attemptBudget(5000, 1), 5000)
+  assert.ok((attemptBudget(5000, 1) ?? 0) <= 5000)
+})
+
+test('the cap always leaves a real attempt for one more model', () => {
+  // The property the whole mechanism exists for. Measured production answers
+  // took up to 21.5s, so the cap must be generous enough not to kill healthy
+  // traffic — but never so generous that a hung model leaves the fallback
+  // nothing usable.
+  const budget = ORBI_ASK.serverTimeoutMs
+  const leftover = budget - GEMINI_CONFIG.attemptMaxMs
+  assert.ok(
+    leftover >= GEMINI_CONFIG.attemptMinMs,
+    `a hung first model would leave only ${leftover}ms`,
+  )
+  // And the primary must still be able to answer at observed real latency.
+  assert.ok(
+    GEMINI_CONFIG.attemptMaxMs >= 16400,
+    `cap of ${GEMINI_CONFIG.attemptMaxMs}ms would have killed a measured 16.4s answer`,
+  )
+})
+
+test('a slow first model no longer starves the fallback', async () => {
+  // The Phase 27 bug, reproduced: model one hangs past its slice, then the
+  // chain must still reach model two rather than dying on the abort.
+  const tried: string[] = []
+  let clock = 0
+  const reply = await runGeminiChain(
+    ['slow', 'fast'],
+    async (model, sig) => {
+      tried.push(model)
+      if (model === 'slow') {
+        // Hangs until its own slice expires.
+        await new Promise<void>((resolve) => {
+          if (sig.aborted) return resolve()
+          sig.addEventListener('abort', () => resolve(), { once: true })
+        })
+        clock += 12000
+        throw apiError(503, 'UNAVAILABLE')
+      }
+      return REPLY
+    },
+    undefined,
+    { budgetMs: 25000, now: () => clock },
+  )
+  assert.deepEqual(tried, ['slow', 'fast'])
+  assert.equal(reply.message, 'ok')
+})
+
+test('an attempt that runs out of time falls through to the next model', async () => {
+  const tried: string[] = []
+  const reply = await runGeminiChain(
+    ['a', 'b'],
+    async (model, sig) => {
+      tried.push(model)
+      if (model === 'a') {
+        await new Promise<void>((resolve) => {
+          if (sig.aborted) return resolve()
+          sig.addEventListener('abort', () => resolve(), { once: true })
+        })
+        throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+      }
+      return REPLY
+    },
+    undefined,
+    // Real timers, so the slice is deliberately tiny — the bounds are injected
+    // rather than lowered in production, which is the whole reason they are
+    // parameters.
+    { budgetMs: 400, attemptMaxMs: 150, attemptMinMs: 100 },
+  )
+  assert.deepEqual(tried, ['a', 'b'])
+  assert.equal(reply.message, 'ok')
+})
+
+test('only genuine capacity failures move to another model', async () => {
+  for (const [label, error] of [
+    ['400 bad request', apiError(400, 'INVALID_ARGUMENT')],
+    ['401 unauthenticated', apiError(401, 'UNAUTHENTICATED')],
+    ['403 permission denied', apiError(403, 'PERMISSION_DENIED')],
+    ['429 quota', apiError(429, 'RESOURCE_EXHAUSTED: quota exceeded, please try again later')],
+    ['429 text only', new Error('RESOURCE_EXHAUSTED: quota exceeded, please try again later')],
+    ['malformed reply', new Error('reply was not JSON')],
+    ['no message', new Error('reply had no message')],
+  ] as Array<[string, unknown]>) {
+    const tried: string[] = []
+    await assert.rejects(
+      runGeminiChain(
+        ['first', 'second', 'third'],
+        async (model) => {
+          tried.push(model)
+          throw error
+        },
+        undefined,
+        { budgetMs: 25000 },
+      ),
+    )
+    assert.deepEqual(tried, ['first'], `${label} tried ${tried.join(', ')}`)
+  }
+})
+
+test('a 503 does move to another model, and each is tried at most once', async () => {
+  const tried: string[] = []
+  await assert.rejects(
+    runGeminiChain(
+      ['a', 'b', 'c'],
+      async (model) => {
+        tried.push(model)
+        throw apiError(503, 'UNAVAILABLE')
+      },
+      undefined,
+      { budgetMs: 25000 },
+    ),
+  )
+  assert.deepEqual(tried, ['a', 'b', 'c'])
+  assert.equal(new Set(tried).size, tried.length, 'a model was tried twice')
+})
+
+test('the caller aborting stops the chain immediately', async () => {
+  const controller = new AbortController()
+  const tried: string[] = []
+  controller.abort()
+  await assert.rejects(
+    runGeminiChain(
+      ['a', 'b'],
+      async (model) => {
+        tried.push(model)
+        return REPLY
+      },
+      controller.signal,
+      { budgetMs: 25000 },
+    ),
+  )
+  assert.deepEqual(tried, [], 'an attempt started after the caller gave up')
+})
+
+test('an abort mid-attempt is not mistaken for a slow model', async () => {
+  const controller = new AbortController()
+  const tried: string[] = []
+  await assert.rejects(
+    runGeminiChain(
+      ['a', 'b'],
+      async (model, sig) => {
+        tried.push(model)
+        controller.abort()
+        // Aborting the outer signal aborts this one synchronously, so the
+        // listener would never fire — check the flag first or the promise
+        // hangs for the lifetime of the process.
+        await new Promise<void>((resolve) => {
+          if (sig.aborted) return resolve()
+          sig.addEventListener('abort', () => resolve(), { once: true })
+        })
+        throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+      },
+      controller.signal,
+      { budgetMs: 25000 },
+    ),
+  )
+  assert.deepEqual(tried, ['a'], 'the chain continued after the caller gave up')
+})
+
+test('the chain stops rather than starting an attempt it cannot finish', async () => {
+  const tried: string[] = []
+  let clock = 0
+  await assert.rejects(
+    runGeminiChain(
+      ['a', 'b', 'c'],
+      async (model) => {
+        tried.push(model)
+        clock += 11000
+        throw apiError(503, 'UNAVAILABLE')
+      },
+      undefined,
+      { budgetMs: 24000, now: () => clock },
+    ),
+  )
+  // Two attempts fit; the third has nothing usable left.
+  assert.deepEqual(tried, ['a', 'b'])
+})
+
+test('the whole chain stays inside the request budget', () => {
+  // Worst case: every model takes its full slice. The sum can never exceed the
+  // budget, which is what keeps the visitor's wait bounded.
+  let remaining = ORBI_ASK.serverTimeoutMs
+  let spent = 0
+  const models = [GEMINI_CONFIG.model, ...GEMINI_CONFIG.fallbackModels]
+  for (let i = 0; i < models.length; i++) {
+    const slice = attemptBudget(remaining, models.length - i)
+    if (slice === null) break
+    spent += slice
+    remaining -= slice
+  }
+  assert.ok(spent > 0, 'no attempt was budgeted at all')
+  assert.ok(spent <= ORBI_ASK.serverTimeoutMs, `chain could spend ${spent}ms`)
 })

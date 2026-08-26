@@ -63,6 +63,29 @@ export const GEMINI_CONFIG = {
   /** Hard ceiling on models tried per request, however the chain is built. */
   maxAttempts: 3,
   /**
+   * The most any single model may have.
+   *
+   * Phase 27. The chain used to share one deadline with the whole request, so
+   * a model that sat on a connection for the full budget before finally
+   * answering 503 took the fallback down with it — the abort fired first, and
+   * an abort is (correctly) not something another model can fix. The result
+   * was a fallback chain that could not fall back in the one situation it was
+   * built for.
+   *
+   * Each attempt now gets a slice of what is left rather than all of it. The
+   * visitor's total wait is unchanged: the route's timeout is still the only
+   * ceiling, and this only decides how that ceiling is divided.
+   */
+  attemptMaxMs: 18000,
+  /**
+   * Below this, do not start another model at all.
+   *
+   * A three-second window is not a fair attempt — it is a near-certain second
+   * timeout that spends the rest of the visitor's patience to tell them the
+   * same thing. Better to stop and answer with what we already know.
+   */
+  attemptMinMs: 4000,
+  /**
    * Enough for the three short paragraphs the instructions allow, plus the
    * JSON envelope. ORBI is a portfolio companion, not an essay writer.
    */
@@ -236,6 +259,18 @@ export function isGeminiCapacityError(error: unknown): boolean {
   const message = typeof e.message === 'string' ? e.message : ''
   if (!message) return false
 
+  // Phase 27. Quota is not capacity, and it is checked first because the two
+  // are worded almost identically: a quota refusal also ends with "please try
+  // again later", which the loose text match at the bottom of this function
+  // would otherwise read as an overloaded model. Trying a different model on
+  // an exhausted quota burns the remaining budget to be refused twice.
+  if (/RESOURCE_EXHAUSTED|quota|rate limit|\b429\b/i.test(message)) return false
+  // Nor are the request's own faults. Same reasoning: a different model gets
+  // the same bad request and gives the same answer.
+  if (/PERMISSION_DENIED|UNAUTHENTICATED|INVALID_ARGUMENT|\b40[0-3]\b/i.test(message)) {
+    return false
+  }
+
   // Google embeds `{"error":{"code":503,"status":"UNAVAILABLE",...}}`.
   try {
     const parsed = JSON.parse(message) as {
@@ -259,6 +294,85 @@ export function isGeminiCapacityError(error: unknown): boolean {
 }
 
 /**
+ * The per-attempt deadline, as its own error type.
+ *
+ * It has to be told apart from the caller's abort: the caller giving up means
+ * stop, but *this* model running out of its slice means try the next one. They
+ * are both aborts at the transport level, which is exactly why the distinction
+ * lives here rather than being inferred from a message.
+ */
+class GeminiAttemptTimeout extends Error {
+  constructor(model: string) {
+    super(`attempt budget exhausted: ${model}`)
+    this.name = 'GeminiAttemptTimeout'
+  }
+}
+
+/**
+ * One signal that fires when either the caller aborts or the slice runs out.
+ *
+ * Linked by hand rather than with `AbortSignal.any`, which is recent enough
+ * that not every runtime this might be deployed to has it. The listener and
+ * the timer are both cleaned up on the way out, whichever of them won.
+ */
+function attemptSignal(
+  outer: AbortSignal | undefined,
+  budgetMs: number,
+): { signal: AbortSignal; timedOut: () => boolean; done: () => void } {
+  const controller = new AbortController()
+  let expired = false
+
+  const timer = setTimeout(() => {
+    expired = true
+    controller.abort()
+  }, budgetMs)
+
+  const onOuterAbort = () => controller.abort()
+  if (outer) {
+    if (outer.aborted) controller.abort()
+    else outer.addEventListener('abort', onOuterAbort, { once: true })
+  }
+
+  return {
+    signal: controller.signal,
+    timedOut: () => expired,
+    done: () => {
+      clearTimeout(timer)
+      outer?.removeEventListener('abort', onOuterAbort)
+    },
+  }
+}
+
+/**
+ * How long the next model gets: what is left, capped.
+ *
+ * The cap is the whole mechanism. It is *not* an even split between the models
+ * still to try, and that was the first thing measured production traffic
+ * disproved: real successful answers from the preferred model came back in
+ * 4.4s, 15.0s, 16.4s and 21.5s, so dividing a 25s budget three ways would have
+ * given the primary 8.3s and killed most of the answers it was going to
+ * deliver. A fallback that fires on healthy traffic is worse than no fallback.
+ *
+ * So the preferred model gets a genuine attempt — up to the cap — and the cap
+ * exists only to guarantee that *something* is left for one more model. With
+ * an 18s cap inside a 25s request, a model that hangs and then fails still
+ * leaves 7s, which is a real attempt at Flash latency rather than a token one.
+ *
+ * `null` means the remainder is too small to be an attempt at all: starting a
+ * three-second call spends the rest of the visitor's patience to be told the
+ * same thing twice.
+ */
+export function attemptBudget(
+  remainingMs: number,
+  _modelsLeft: number,
+  max: number = GEMINI_CONFIG.attemptMaxMs,
+  min: number = GEMINI_CONFIG.attemptMinMs,
+): number | null {
+  if (remainingMs < min) return null
+  return Math.min(max, remainingMs)
+}
+
+/**
  * Walk the chain until one model answers.
  *
  * Takes the per-model call as an argument rather than making it, so the
@@ -268,18 +382,54 @@ export function isGeminiCapacityError(error: unknown): boolean {
  */
 export async function runGeminiChain(
   models: string[],
-  attempt: (model: string) => Promise<OrbiAskReply>,
+  attempt: (model: string, signal: AbortSignal) => Promise<OrbiAskReply>,
   signal?: AbortSignal,
+  options: {
+    budgetMs?: number
+    now?: () => number
+    /** Overridable so the slice arithmetic can be exercised without a 12s test. */
+    attemptMaxMs?: number
+    attemptMinMs?: number
+  } = {},
 ): Promise<OrbiAskReply> {
+  const now = options.now ?? (() => Date.now())
+  const started = now()
+  const budgetMs = options.budgetMs ?? ORBI_ASK.serverTimeoutMs
   let lastError: unknown = new Error('no model was attempted')
 
   for (let i = 0; i < models.length; i++) {
+    // The caller gave up. Not something a different model can fix.
     if (signal?.aborted) throw new Error('aborted')
     const model = models[i]
 
+    // Phase 27. Each model gets a share of what is left rather than all of it,
+    // so a slow first model cannot spend the budget the fallback needs.
+    const slice = attemptBudget(
+      budgetMs - (now() - started),
+      models.length - i,
+      options.attemptMaxMs,
+      options.attemptMinMs,
+    )
+    if (slice === null) {
+      console.warn('[orbi/chat] gemini budget exhausted before next attempt')
+      break
+    }
+
+    const attemptAbort = attemptSignal(signal, slice)
     try {
-      return await attempt(model)
+      return await attempt(model, attemptAbort.signal)
     } catch (error) {
+      // A slice running out is *this model* being too slow, which is exactly
+      // what the next model is for. Checked before the abort test, because at
+      // the transport level the two are the same kind of failure.
+      if (attemptAbort.timedOut() && !signal?.aborted) {
+        lastError = new GeminiAttemptTimeout(model)
+        console.warn(`[orbi/chat] gemini attempt timeout: ${model}`)
+        const next = models[i + 1]
+        if (next) console.warn(`[orbi/chat] gemini fallback: ${next}`)
+        continue
+      }
+
       lastError = error
       // The route gave up, or the request itself is wrong. Either way another
       // model cannot help.
@@ -290,6 +440,8 @@ export async function runGeminiChain(
       console.warn(`[orbi/chat] gemini unavailable: ${model}`)
       const next = models[i + 1]
       if (next) console.warn(`[orbi/chat] gemini fallback: ${next}`)
+    } finally {
+      attemptAbort.done()
     }
   }
 
@@ -335,15 +487,27 @@ async function ask(
      * uses its own default now. `maxOutputTokens` still caps what comes back,
      * which is where the real cost is.
      */
-    // The route's abort is the only clock. Gemini never outlives it.
+    /*
+     * The default only. Every attempt replaces this with its own signal, which
+     * aborts either when the route gives up or when that model has used its
+     * slice of the budget — see `runGeminiChain`. Kept here so a future caller
+     * that bypasses the chain still inherits the request's clock rather than
+     * running unbounded.
+     */
     abortSignal: signal,
   }
 
   try {
     return await runGeminiChain(
       geminiModelChain(),
-      async (model) => {
-        const response = await ai.models.generateContent({ model, contents, config })
+      async (model, attemptSig) => {
+        // The *attempt's* signal, not the request's: this is what bounds one
+        // model rather than the whole chain.
+        const response = await ai.models.generateContent({
+          model,
+          contents,
+          config: { ...config, abortSignal: attemptSig },
+        })
         return parseGeminiReply(response.text)
       },
       signal,

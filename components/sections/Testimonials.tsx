@@ -82,12 +82,11 @@ function FeedbackCard({
         minHeight: "300px",
         display: "flex",
         flexDirection: "column",
-        transform: hover ? "translateY(-6px)" : "translateY(0)",
         boxShadow: hover
           ? "0 24px 60px -20px rgba(0,183,255,0.35), inset 0 1px 0 rgba(255,255,255,0.08)"
           : "0 12px 40px -24px rgba(0,0,0,0.6)",
         transition:
-          "transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s ease, border-color 0.35s ease, background 0.35s ease",
+          "box-shadow 0.35s ease, border-color 0.35s ease, background 0.35s ease",
       }}
     >
       {/* Top accent line */}
