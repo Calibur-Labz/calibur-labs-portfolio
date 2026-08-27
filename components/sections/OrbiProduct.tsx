@@ -326,12 +326,15 @@ export default function OrbiProduct() {
             <motion.h1
               variants={fadeUp}
               style={{
-                fontSize: 'clamp(28px, 3.6vw, 44px)',
+                fontSize: 'clamp(28px, 5vw, 44px)',
                 fontWeight: 800,
                 fontFamily: SYNE,
                 letterSpacing: '-0.025em',
                 lineHeight: 1.1,
-                maxWidth: '640px',
+                // 94% ~= 1 / 1.06. The heading's scaleX widens the painted
+                // box past its layout box, which spilled off the right of the
+                // viewport on phones and small tablets.
+                maxWidth: 'min(640px, 94%)',
                 transform: 'scale(1.06, 1.25)',
                 transformOrigin: 'top left',
                 margin: 0,
@@ -433,11 +436,15 @@ export default function OrbiProduct() {
             <motion.h2
               variants={fadeUp}
               style={{
-                fontSize: 'clamp(28px, 3.6vw, 44px)',
+                fontSize: 'clamp(28px, 5vw, 44px)',
                 fontWeight: 800,
                 fontFamily: SYNE,
                 letterSpacing: '-0.025em',
                 lineHeight: 1.1,
+                // 94% ~= 1 / 1.06. The heading's scaleX widens the painted
+                // box past its layout box, which spilled off the right of the
+                // viewport on phones and small tablets.
+                maxWidth: '94%',
                 transform: 'scale(1.06, 1.25)',
                 transformOrigin: 'top left',
                 margin: 0,
@@ -613,11 +620,15 @@ export default function OrbiProduct() {
             <motion.h2
               variants={fadeUp}
               style={{
-                fontSize: 'clamp(28px, 3.6vw, 44px)',
+                fontSize: 'clamp(28px, 5vw, 44px)',
                 fontWeight: 800,
                 fontFamily: SYNE,
                 letterSpacing: '-0.025em',
                 lineHeight: 1.1,
+                // 94% ~= 1 / 1.06. The heading's scaleX widens the painted
+                // box past its layout box, which spilled off the right of the
+                // viewport on phones and small tablets.
+                maxWidth: '94%',
                 transform: 'scale(1.06, 1.25)',
                 transformOrigin: 'top left',
                 margin: 0,
@@ -696,7 +707,7 @@ export default function OrbiProduct() {
             <motion.h3
               variants={fadeUp}
               style={{
-                fontSize: 'clamp(22px, 3vw, 30px)',
+                fontSize: 'clamp(22px, 3.8vw, 30px)',
                 fontWeight: 800,
                 margin: '0 0 12px',
                 fontFamily: SYNE,
@@ -743,13 +754,15 @@ export default function OrbiProduct() {
       </section>
 
       <style>{`
+        /* Tablet — the hero stops being side-by-side and the priced cards
+           stack. The FAQ is the exception: two short cards still read fine at
+           this width, and one column left the page very sparse. */
         @media (max-width: 980px) {
           .orbi-hero {
             grid-template-columns: 1fr !important;
             gap: 36px !important;
           }
           .orbi-pricing,
-          .orbi-faq,
           .orbi-addons {
             grid-template-columns: 1fr !important;
           }
@@ -760,10 +773,22 @@ export default function OrbiProduct() {
             border-top: 1px solid rgba(255,255,255,0.06);
           }
         }
-        @media (max-width: 420px) {
+
+        /* Phone. The four figures were four columns all the way down to
+           420px, which gave each one ~86px on a 430px handset and broke
+           every label onto two lines. Same 640px step the homepage uses. */
+        @media (max-width: 640px) {
           .orbi-stats {
             grid-template-columns: repeat(2, 1fr) !important;
-            gap: 18px 16px !important;
+            gap: 24px 18px !important;
+          }
+          .orbi-faq {
+            grid-template-columns: 1fr !important;
+          }
+        }
+        @media (max-width: 420px) {
+          .orbi-stats {
+            gap: 18px 14px !important;
           }
         }
       `}</style>
@@ -781,7 +806,7 @@ export default function OrbiProduct() {
             id="orbi-package-form-title"
             style={{
               margin: '0 0 8px',
-              fontSize: 'clamp(20px, 3vw, 26px)',
+              fontSize: 'clamp(20px, 3.4vw, 26px)',
               fontWeight: 800,
               fontFamily: SYNE,
               letterSpacing: '-0.02em',

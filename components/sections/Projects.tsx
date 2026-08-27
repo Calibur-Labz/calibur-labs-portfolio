@@ -40,7 +40,11 @@ export default function Projects() {
                 lineHeight: 1.1,
                 transform: 'scale(1.25)',
                 transformOrigin: 'top center',
-                marginBottom: '0.3em',
+                // 80% = 1 / 1.25 — see the note in WhyChooseUs. The auto
+                // margins keep the narrower box centred, so `top center`
+                // still scales about the column's midline.
+                maxWidth: '80%',
+                margin: '0 auto 0.3em',
               }}
             >
               Selected Projects

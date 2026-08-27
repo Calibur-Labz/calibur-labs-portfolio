@@ -40,6 +40,11 @@ export default function About() {
                 fontWeight: 800,
                 letterSpacing: '-0.03em',
                 lineHeight: 1.05,
+                // 94% ~= 1 / 1.06. The heading's scaleX widens the painted
+                // box past its layout box, which spilled off the right of the
+                // viewport on phones and small tablets.
+                maxWidth: '94%',
+                marginInline: 'auto',
                 transform: 'scale(1.06, 1.25)',
                 transformOrigin: 'top center',
                 marginBottom: 'calc(28px + 0.55em)',
@@ -109,7 +114,7 @@ export default function About() {
                 </p>
                 <p style={{
                   fontSize: '13px',
-                  color: '#00b7ff', 
+                  color: '#93A6BC', 
                   margin: 0,
                   fontFamily: 'var(--font-poppins), system-ui, sans-serif',
                   fontWeight: 500,

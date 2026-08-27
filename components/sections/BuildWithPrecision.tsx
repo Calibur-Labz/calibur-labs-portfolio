@@ -41,6 +41,9 @@ export default function BuildWithPrecision() {
                   letterSpacing: '-0.03em',
                   lineHeight: 1.05,
                   marginTop: '20px',
+                  // 94% ~= 1 / 1.06 — the scaleX widens the painted box
+                  // past its layout box and off the right of the viewport.
+                  maxWidth: '94%',
                   transform: 'scale(1.06, 1.25)',
                   transformOrigin: 'top left',
                   marginBottom: '0.55em',

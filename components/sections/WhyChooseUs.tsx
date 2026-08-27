@@ -70,7 +70,11 @@ export default function WhyChooseUs() {
                 transform: 'scale(1.25)',
                 transformOrigin: 'top left',
                 marginBottom: '0.3em',
-                maxWidth: '640px',
+                // 80% = 1 / 1.25. The scale is uniform, so the painted box is
+                // 25% wider than the layout box; at full width that spilled
+                // past the viewport on a phone and gave the whole page a
+                // horizontal scrollbar.
+                maxWidth: 'min(640px, 80%)',
               }}
             >
               Why Choose Us

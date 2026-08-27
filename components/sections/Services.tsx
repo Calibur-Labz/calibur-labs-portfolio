@@ -37,7 +37,10 @@ export default function Services() {
                 fontWeight: 800,
                 letterSpacing: '-0.025em',
                 lineHeight: 1.1,
-                maxWidth: '640px',
+                // 94% ~= 1 / 1.06. The heading's scaleX widens the painted
+                // box past its layout box, which spilled off the right of the
+                // viewport on phones and small tablets.
+                maxWidth: 'min(640px, 94%)',
                 transform: 'scale(1.06, 1.25)',
                 transformOrigin: 'top left',
                 marginBottom: '28px',

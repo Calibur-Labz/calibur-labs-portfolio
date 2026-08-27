@@ -116,6 +116,11 @@ export default function Contact() {
                 fontWeight: 800,
                 letterSpacing: '-0.025em',
                 lineHeight: 1.1,
+                // 94% ~= 1 / 1.06. The heading's scaleX widens the painted
+                // box past its layout box, which spilled off the right of the
+                // viewport on phones and small tablets.
+                maxWidth: '94%',
+                marginInline: 'auto',
                 transform: 'scale(1.06, 1.25)',
                 transformOrigin: 'top center',
                 marginBottom: 'calc(20px + 0.55em)',

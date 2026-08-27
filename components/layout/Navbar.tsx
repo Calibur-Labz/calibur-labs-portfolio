@@ -211,11 +211,17 @@ export default function Navbar() {
       </AnimatePresence>
 
       <style>{`
-        @media (min-width: 768px) {
+        /*
+          900, not 768. Five links plus the "Start a Project" button need
+          about 860px of pill before the button's label wraps to two lines —
+          at 768 the desktop bar rendered but "Start a / Project" broke, which
+          is worse than the hamburger.
+        */
+        @media (min-width: 900px) {
           .hidden-mobile { display: flex !important; }
           .show-mobile { display: none !important; }
         }
-        @media (max-width: 767px) {
+        @media (max-width: 899px) {
           .hidden-mobile { display: none !important; }
           .show-mobile { display: flex !important; }
         }
