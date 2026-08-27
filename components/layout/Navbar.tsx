@@ -75,7 +75,7 @@ export default function Navbar() {
             12px of clearance either side.
 
             331x220 is the file's real aspect ratio — 140x70 claimed 2:1 and
-            made Next warn that one axis had been overridden without the other.
+            made Next warn that one axis had been overridden without the other..
           */}
           <Image
             src="/images/logoN.png"
