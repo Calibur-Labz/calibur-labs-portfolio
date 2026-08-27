@@ -51,7 +51,7 @@ export default function MaintenanceScreen({ phone }: { phone: string }) {
       <div style={{ position: 'relative', maxWidth: '620px', width: '100%' }}>
         {/* Company logo — same wordmark used on the homepage */}
         <Image
-          src="/images/logoo.png"
+          src="/images/logoN.png"
           alt="xCalibur Labz"
           width={260}
           height={130}

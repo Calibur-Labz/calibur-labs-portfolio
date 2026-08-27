@@ -69,13 +69,21 @@ export default function Navbar() {
           data-orbi-logo
           style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}
         >
+          {/*
+            48px, not 90px: the capsule around it is 72px tall, so a 90px mark
+            hung 9px out of the glass at the top and the bottom. 48 leaves
+            12px of clearance either side.
+
+            331x220 is the file's real aspect ratio — 140x70 claimed 2:1 and
+            made Next warn that one axis had been overridden without the other.
+          */}
           <Image
-            src="/images/logoo.png"
+            src="/images/logoN.png"
             alt="xCalibur Labz"
-            width={140}
-            height={70}
+            width={331}
+            height={220}
             priority
-            style={{ height: '90px', width: 'auto' }}
+            style={{ height: '48px', width: 'auto' }}
           />
         </Link>
 
