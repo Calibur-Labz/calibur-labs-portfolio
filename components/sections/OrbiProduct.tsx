@@ -18,10 +18,12 @@ import { motion } from 'framer-motion'
 import { fadeUp, slideInLeft, stagger, staggerFast } from '@/lib/motion'
 import {
   groupsForTier,
+  monthlyPriceUsd,
   orbiAddOns,
   orbiFaq,
   orbiPackages,
   orbiStats,
+  setupPriceUsd,
   type ProductPackage,
 } from '@/lib/data'
 import SectionLabel from '@/components/ui/SectionLabel'
@@ -59,6 +61,10 @@ function PackageCard({
   onGetStarted: () => void
 }) {
   const popular = Boolean(pkg.popular)
+  // The list figures, kept only where the offer actually replaces them.
+  const setupWas = pkg.discount?.setupUsd !== undefined ? pkg.setupUsd : undefined
+  const monthlyWas =
+    pkg.discount?.monthlyUsd !== undefined ? pkg.monthlyUsd : undefined
 
   return (
     <motion.div
@@ -137,8 +143,22 @@ function PackageCard({
         {pkg.name}
       </h3>
 
+      {/* The price, and the offer if one is running.
+
+          Only a fee the discount actually names is struck through: an offer on
+          the build fee leaves the retainer printed plainly, because striking a
+          number that has not moved would read as a saving nobody is getting.
+          The old figure is a <s>, so it is marked as no longer accurate rather
+          than merely drawn with a line across it. */}
       <div style={{ margin: '18px 0 22px' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: '8px',
+            flexWrap: 'wrap',
+          }}
+        >
           <span
             style={{
               fontSize: '32px',
@@ -149,11 +169,25 @@ function PackageCard({
               ...topicText,
             }}
           >
-            {usd(pkg.setupUsd)}
+            {usd(setupPriceUsd(pkg))}
           </span>
           <span style={{ fontSize: '13px', color: MUTED, fontFamily: POPPINS }}>
             one-time
           </span>
+          {setupWas !== undefined && (
+            <s
+              style={{
+                fontSize: '15px',
+                fontWeight: 600,
+                color: MUTED,
+                fontFamily: SYNE,
+                letterSpacing: '-0.02em',
+                textDecorationThickness: '1px',
+              }}
+            >
+              {usd(setupWas)}
+            </s>
+          )}
         </div>
         <div
           style={{
@@ -164,9 +198,41 @@ function PackageCard({
             fontWeight: 600,
           }}
         >
-          + {usd(pkg.monthlyUsd)}
+          + {usd(monthlyPriceUsd(pkg))}
           <span style={{ color: MUTED, fontWeight: 500 }}> / month</span>
+          {monthlyWas !== undefined && (
+            <s
+              style={{
+                marginLeft: '8px',
+                color: MUTED,
+                fontWeight: 500,
+                textDecorationThickness: '1px',
+              }}
+            >
+              {usd(monthlyWas)}
+            </s>
+          )}
         </div>
+        {pkg.discount && (
+          <span
+            style={{
+              display: 'inline-block',
+              marginTop: '12px',
+              padding: '4px 11px',
+              borderRadius: '99px',
+              border: '1px solid rgba(0,183,255,0.35)',
+              background: 'rgba(0,183,255,0.10)',
+              color: '#5EE9FF',
+              fontSize: '10px',
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              fontFamily: POPPINS,
+            }}
+          >
+            {pkg.discount.label}
+          </span>
+        )}
       </div>
 
       <p

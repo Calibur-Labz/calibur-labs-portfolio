@@ -80,7 +80,7 @@ export const projects: Project[] = [
     id: '2',
     title: 'SBB Oxygen House',
     category: 'Web',
-    image: '/images/projects/sbb.png',
+    image: '/images/projects/sbboxygenn.png',
     tags: ['Custom CMS', 'eCommerce Site', 'Online Product Ordering', 'Sales Analytics'],
     url: 'https://www.sbboxygen.com',
   },
@@ -293,6 +293,29 @@ function groupsAddedBy(tier: OrbiTier): ProductFeatureGroup[] {
 }
 
 /**
+ * A published reduction on a tier's price.
+ *
+ * The list figures stay where they are — a discount never overwrites
+ * `setupUsd` or `monthlyUsd`, because the card prints the old price struck
+ * through beside the new one, and a "was" figure the site holds nowhere else
+ * is a number nobody can check. Either field may be left out: an offer on the
+ * build fee alone is the common case, and the fee it says nothing about is
+ * charged at list.
+ *
+ * `label` is what the offer is called, on the card and in ORBI's answers. He
+ * is forbidden from inventing an offer, so this is the only way one can ever
+ * reach a visitor through him.
+ */
+export type PackageDiscount = {
+  /** What the offer is called, e.g. 'Launch offer'. */
+  label: string
+  /** The one-time fee actually charged. Absent means the list fee stands. */
+  setupUsd?: number
+  /** The monthly fee actually charged. Absent means the list fee stands. */
+  monthlyUsd?: number
+}
+
+/**
  * A licensable tier of ORBI. Prices are USD: a one-time build fee covering
  * integration and the brand pass, plus a monthly retainer covering hosting,
  * updates and support.
@@ -306,13 +329,27 @@ export type ProductPackage = {
   name: string
   tier: OrbiTier
   summary: string
+  /** The list one-time fee, before any discount. */
   setupUsd: number
+  /** The list monthly fee, before any discount. */
   monthlyUsd: number
+  /** The offer currently running on this tier, if there is one. */
+  discount?: PackageDiscount
   /** The tier this one builds on, absent for the entry tier. */
   builds?: OrbiTier
   /** The capabilities this tier adds over the one below it. */
   features: string[]
   popular?: boolean
+}
+
+/** The one-time fee a visitor pays today — the offer price while one runs. */
+export function setupPriceUsd(pkg: ProductPackage): number {
+  return pkg.discount?.setupUsd ?? pkg.setupUsd
+}
+
+/** The monthly fee a visitor pays today — the offer price while one runs. */
+export function monthlyPriceUsd(pkg: ProductPackage): number {
+  return pkg.discount?.monthlyUsd ?? pkg.monthlyUsd
 }
 
 const TIERS: {
@@ -322,6 +359,7 @@ const TIERS: {
   summary: string
   setupUsd: number
   monthlyUsd: number
+  discount?: PackageDiscount
   popular?: boolean
 }[] = [
   {
@@ -331,6 +369,7 @@ const TIERS: {
     summary: 'He arrives, notices people, and reacts to the page.',
     setupUsd: 490,
     monthlyUsd: 29,
+    discount: { label: 'Launch offer', setupUsd: 190, monthlyUsd: 10 },
   },
   {
     id: 'guide',
@@ -339,6 +378,7 @@ const TIERS: {
     summary: 'He stops being decoration and starts being useful.',
     setupUsd: 790,
     monthlyUsd: 49,
+    discount: { label: 'Launch offer', setupUsd: 290, monthlyUsd: 20 },
     popular: true,
   },
   {
@@ -348,14 +388,41 @@ const TIERS: {
     summary: 'He answers questions about your business.',
     setupUsd: 1290,
     monthlyUsd: 99,
+    discount: { label: 'Launch offer', setupUsd: 490, monthlyUsd: 40 },
   },
 ]
 
-export const orbiPackages: ProductPackage[] = TIERS.map((tier) => ({
-  ...tier,
-  builds: TIER_BELOW[tier.tier],
-  features: groupsAddedBy(tier.tier).flatMap((group) => group.items),
-}))
+/**
+ * Reject a "discount" that is not one.
+ *
+ * An offer price at or above the list price would print a struck-through
+ * figure next to an identical or smaller number — a fake saving, which is the
+ * one thing a price on a page must never be. This module is imported by every
+ * page that shows a price, so a typo here stops the build rather than shipping.
+ */
+function assertRealDiscount(
+  name: string,
+  field: 'setupUsd' | 'monthlyUsd',
+  list: number,
+  offer: number | undefined,
+): void {
+  if (offer === undefined) return
+  if (!Number.isFinite(offer) || offer <= 0 || offer >= list) {
+    throw new Error(
+      `${name}: discounted ${field} of ${offer} must be above 0 and below the list price of ${list}`,
+    )
+  }
+}
+
+export const orbiPackages: ProductPackage[] = TIERS.map((tier) => {
+  assertRealDiscount(tier.name, 'setupUsd', tier.setupUsd, tier.discount?.setupUsd)
+  assertRealDiscount(tier.name, 'monthlyUsd', tier.monthlyUsd, tier.discount?.monthlyUsd)
+  return {
+    ...tier,
+    builds: TIER_BELOW[tier.tier],
+    features: groupsAddedBy(tier.tier).flatMap((group) => group.items),
+  }
+})
 
 /** A paid extra that sits outside the tiers. */
 export type ProductAddOn = {

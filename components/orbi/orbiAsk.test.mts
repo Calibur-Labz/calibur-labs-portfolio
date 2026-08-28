@@ -30,7 +30,12 @@ import {
   normaliseOutcome,
 } from './orbiAsk.js'
 import { checkOrbiRate, resetOrbiRate } from '../../lib/orbi/orbiRateLimit.js'
-import { orbiAddOns, orbiPackages } from '../../lib/data.js'
+import {
+  monthlyPriceUsd,
+  orbiAddOns,
+  orbiPackages,
+  setupPriceUsd,
+} from '../../lib/data.js'
 import { ORBI_KNOWLEDGE, ORBI_SYSTEM_PROMPT } from '../../lib/orbi/orbiKnowledge.js'
 import {
   matchOrbiIntent,
@@ -773,9 +778,20 @@ test('the error offers the one thing that still works', () => {
 
 /* ── Product & package knowledge (Phase 21) ────────────────────────────── */
 
-/** Every figure the site publishes. Nothing outside this may ever be quoted. */
+/**
+ * Every figure the site publishes. Nothing outside this may ever be quoted.
+ *
+ * Both sides of a discount count as published: the card prints the list price
+ * struck through beside the offer price, so both are figures a visitor can
+ * read, and either one being quoted back is honest.
+ */
 const REAL_PRICES = [
-  ...orbiPackages.flatMap((p) => [p.setupUsd, p.monthlyUsd]),
+  ...orbiPackages.flatMap((p) => [
+    p.setupUsd,
+    p.monthlyUsd,
+    setupPriceUsd(p),
+    monthlyPriceUsd(p),
+  ]),
   ...orbiAddOns.map((a) => a.priceUsd),
 ]
 
@@ -819,10 +835,61 @@ test('the knowledge invents no price that the site does not publish', () => {
   }
 })
 
+test('a discount is a real saving, never a decoration', () => {
+  for (const pkg of orbiPackages) {
+    const offer = pkg.discount
+    if (!offer) continue
+    assert.ok(offer.label.length > 0, `${pkg.name} has an unnamed offer`)
+    if (offer.setupUsd !== undefined) {
+      assert.ok(
+        offer.setupUsd < pkg.setupUsd,
+        `${pkg.name} advertises a setup "discount" that is not below list`,
+      )
+    }
+    if (offer.monthlyUsd !== undefined) {
+      assert.ok(
+        offer.monthlyUsd < pkg.monthlyUsd,
+        `${pkg.name} advertises a monthly "discount" that is not below list`,
+      )
+    }
+    // A discount that changes neither figure is a badge over nothing.
+    assert.ok(
+      offer.setupUsd !== undefined || offer.monthlyUsd !== undefined,
+      `${pkg.name}'s offer moves no price`,
+    )
+  }
+})
+
+test('ORBI quotes the price being charged, and names the offer behind it', () => {
+  for (const pkg of orbiPackages.filter((p) => p.discount)) {
+    const offer = pkg.discount!
+    assert.ok(
+      ORBI_KNOWLEDGE.includes(
+        `Price: $${setupPriceUsd(pkg).toLocaleString('en-US')} one-time setup`,
+      ),
+      `${pkg.name} does not lead with the price it charges`,
+    )
+    assert.ok(
+      ORBI_KNOWLEDGE.includes(`current ${offer.label}`),
+      `${pkg.name}'s offer is never named, so ORBI cannot mention it`,
+    )
+    if (offer.setupUsd !== undefined) {
+      assert.ok(
+        ORBI_KNOWLEDGE.includes(
+          `the standard setup fee is $${pkg.setupUsd.toLocaleString('en-US')}`,
+        ),
+        `${pkg.name} never states the price the offer is measured against`,
+      )
+    }
+  }
+})
+
 test('the instructions forbid estimating, discounting and totalling', () => {
   const p = ORBI_SYSTEM_PROMPT
   assert.match(p, /only when that exact figure appears/i)
   assert.match(p, /never invent a discount/i)
+  assert.match(p, /An offer exists only where the reference names one/i)
+  assert.match(p, /never take a further amount off it/i)
   assert.match(p, /never (add two figures|price custom work)/i)
   assert.match(p, /SHOW_CONTACT/)
   assert.match(p, /starting prices/i)
@@ -885,10 +952,16 @@ test('no scripted answer quotes a price the site does not publish', () => {
 })
 
 test('the scripted prices are read from the data, not typed in', () => {
-  const cheapest = orbiPackages.reduce((a, b) => (a.setupUsd <= b.setupUsd ? a : b))
+  const cheapest = orbiPackages.reduce((a, b) =>
+    setupPriceUsd(a) <= setupPriceUsd(b) ? a : b,
+  )
   const hit = matchOrbiIntent('What is your cheapest package?')
   assert.ok(hit?.message.includes(cheapest.name))
-  assert.ok(hit?.message.includes(cheapest.setupUsd.toLocaleString('en-US')))
+  // The price charged, not the list price: quoting a figure the card has
+  // struck through is the discount equivalent of quoting a stale price.
+  assert.ok(
+    hit?.message.includes(setupPriceUsd(cheapest).toLocaleString('en-US')),
+  )
 
   const listing = matchOrbiIntent('What packages do you have?')
   for (const pkg of orbiPackages) {

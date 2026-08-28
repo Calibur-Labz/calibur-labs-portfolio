@@ -1,4 +1,10 @@
-import { orbiAddOns, orbiPackages, techStack } from '../../data'
+import {
+  monthlyPriceUsd,
+  orbiAddOns,
+  orbiPackages,
+  setupPriceUsd,
+  techStack,
+} from '../../data'
 import {
   normaliseAction,
   normaliseEmotion,
@@ -33,12 +39,17 @@ import type { OrbiProvider } from './types'
  */
 
 const usd = (amount: number) => `$${amount.toLocaleString('en-US')}`
-/** Lowest setup fee wins; ties keep document order. */
-const cheapest = () => orbiPackages.reduce((a, b) => (a.setupUsd <= b.setupUsd ? a : b))
+/**
+ * Lowest setup fee wins; ties keep document order. Ranked on what a visitor
+ * actually pays, so a tier running an offer is compared at its offer price
+ * rather than at a list price nobody is being charged.
+ */
+const cheapest = () =>
+  orbiPackages.reduce((a, b) => (setupPriceUsd(a) <= setupPriceUsd(b) ? a : b))
 /** The tier the page promotes, falling back to the dearest if none is flagged. */
 const popular = () =>
   orbiPackages.find((p) => p.popular) ??
-  orbiPackages.reduce((a, b) => (a.setupUsd >= b.setupUsd ? a : b))
+  orbiPackages.reduce((a, b) => (setupPriceUsd(a) >= setupPriceUsd(b) ? a : b))
 
 /**
  * Everything the mock is allowed to say. The prose is fixed; every figure and
@@ -67,18 +78,22 @@ const REPLIES = {
    */
   packages: `We license ORBI in three tiers: ${formatList(
     orbiPackages.map((p) => p.name),
-  )}. They start at ${usd(cheapest().setupUsd)} one-time plus ${usd(
-    cheapest().monthlyUsd,
+  )}. They start at ${usd(setupPriceUsd(cheapest()))} one-time plus ${usd(
+    monthlyPriceUsd(cheapest()),
   )} a month.`,
   pricing: `${orbiPackages
-    .map((p) => `${p.name} is ${usd(p.setupUsd)} one-time plus ${usd(p.monthlyUsd)} a month`)
+    .map(
+      (p) =>
+        `${p.name} is ${usd(setupPriceUsd(p))} one-time plus ${usd(monthlyPriceUsd(p))} a month` +
+        (p.discount ? ` (${p.discount.label})` : ''),
+    )
     .join('; ')}. Those are starting prices for a standard build — for anything custom the team can give you an accurate quote.`,
   cheapest: `${cheapest().name} is the most affordable tier, at ${usd(
-    cheapest().setupUsd,
-  )} one-time plus ${usd(cheapest().monthlyUsd)} a month.`,
+    setupPriceUsd(cheapest()),
+  )} one-time plus ${usd(monthlyPriceUsd(cheapest()))} a month.`,
   best: `${popular().name} is the one most people pick, at ${usd(
-    popular().setupUsd,
-  )} one-time plus ${usd(popular().monthlyUsd)} a month.`,
+    setupPriceUsd(popular()),
+  )} one-time plus ${usd(monthlyPriceUsd(popular()))} a month.`,
   /**
    * Anything the packages do not cover. Deliberately quotes no number at all —
    * a scripted assistant guessing at a custom price is the one failure mode

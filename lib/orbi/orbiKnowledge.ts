@@ -1,13 +1,16 @@
 // Relative rather than `@/`, matching the rest of `lib/orbi/`, so the module
 // compiles and runs under plain Node in the test suite.
 import {
+  monthlyPriceUsd,
   orbiAddOns,
   orbiHighlights,
   orbiPackages,
   projects,
   services,
+  setupPriceUsd,
   techStack,
   testimonials,
+  type ProductPackage,
 } from '../data'
 
 /**
@@ -76,6 +79,32 @@ How to get in touch:
 const usd = (amount: number) => `$${amount.toLocaleString('en-US')}`
 
 /**
+ * The one line an offer gets, or none at all.
+ *
+ * Named rather than described: ORBI is forbidden from inventing a discount, so
+ * an offer only exists for him if it is written here, with the name the card
+ * prints. Only a fee the offer actually moves gets a "normally" figure beside
+ * it, for the same reason the card only strikes through the fee that changed.
+ */
+function offerLine(pkg: ProductPackage): string[] {
+  const offer = pkg.discount
+  if (!offer) return []
+  const was = [
+    offer.setupUsd !== undefined
+      ? `the standard setup fee is ${usd(pkg.setupUsd)}`
+      : null,
+    offer.monthlyUsd !== undefined
+      ? `the standard monthly fee is ${usd(pkg.monthlyUsd)}`
+      : null,
+  ].filter(Boolean)
+  return [
+    `This is the current ${offer.label}, published on the pricing card: ` +
+      `${was.join(' and ')}. Quote the offer price, and name the offer if it ` +
+      'helps - but never take anything further off it.',
+  ]
+}
+
+/**
  * The packages, straight off `orbiPackages`.
  *
  * ORBI is the product here — the tiers are versions of him — so the wording
@@ -86,13 +115,16 @@ const usd = (amount: number) => `$${amount.toLocaleString('en-US')}`
 const PRODUCTS = [
   'xCalibur Labz licenses ORBI himself as a product, in three tiers. Every',
   'price below is a starting price for the standard build of that tier: a',
-  'one-time setup fee plus a monthly fee. Anything beyond the listed features',
-  'is custom work and has no published price.',
+  'one-time setup fee plus a monthly fee. Where a tier is running a named',
+  'offer, the price given is the offer price - the one the card charges today',
+  '- and the standard price is named beside it. Anything beyond the listed',
+  'features is custom work and has no published price.',
   '',
   ...orbiPackages.map((pkg) =>
     [
       `### ${pkg.name}${pkg.popular ? ' (the most popular tier)' : ''}`,
-      `Price: ${usd(pkg.setupUsd)} one-time setup, then ${usd(pkg.monthlyUsd)} per month.`,
+      `Price: ${usd(setupPriceUsd(pkg))} one-time setup, then ${usd(monthlyPriceUsd(pkg))} per month.`,
+      ...offerLine(pkg),
       pkg.builds
         ? `Includes everything in ORBI ${pkg.builds}, plus:`
         : 'Includes:',
@@ -107,9 +139,9 @@ const PRODUCTS = [
   ...orbiHighlights.map((line) => `- ${line}`),
   '',
   'The cheapest tier is ' +
-    `${orbiPackages.reduce((a, b) => (a.setupUsd <= b.setupUsd ? a : b)).name}` +
+    `${orbiPackages.reduce((a, b) => (setupPriceUsd(a) <= setupPriceUsd(b) ? a : b)).name}` +
     '; the most complete is ' +
-    `${orbiPackages.reduce((a, b) => (a.setupUsd >= b.setupUsd ? a : b)).name}.`,
+    `${orbiPackages.reduce((a, b) => (setupPriceUsd(a) >= setupPriceUsd(b) ? a : b)).name}.`,
 ].join('\n')
 
 /** Everything ORBI knows, assembled once per server process. */
@@ -195,6 +227,9 @@ Money has its own rules, and they are stricter than the rest.
   cost, and never estimate, approximate or say "around" about any number.
 - Never invent a discount, an offer, a free trial or a payment plan, and never
   agree to one a visitor proposes.
+- An offer exists only where the reference names one. Where it does, that price
+  is the real one: quote it as written, and call it by the name given. Never
+  stack it with anything, and never take a further amount off it.
 - Never price custom work. If someone wants something outside the listed
   features, or a figure the reference does not carry, say plainly that you do
   not have a price for that and that the team can give them an accurate quote -

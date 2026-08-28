@@ -5,22 +5,24 @@ import OrbiProduct from '@/components/sections/OrbiProduct'
 import MaintenanceScreen from '@/components/MaintenanceScreen'
 import OrbiGuide from '@/components/orbi/OrbiGuide'
 import { readSiteSettingsSafe } from '@/lib/settings'
-import { orbiFaq, orbiPackages } from '@/lib/data'
+import { orbiFaq, orbiPackages, setupPriceUsd } from '@/lib/data'
 
 // Same rule as the homepage: read the maintenance flag fresh on every request
 // so toggling it from the admin console takes effect immediately.
 export const dynamic = 'force-dynamic'
 
 /**
- * The cheapest published setup fee, read from the same table the page prints.
+ * The cheapest setup fee actually charged, read from the same table the page
+ * prints — the offer price on a tier that has one, the list price otherwise.
  *
  * The description used to say "$490" as a literal, which is a second copy of a
  * price — and the last time this price moved, every literal copy of it went
  * stale. A meta description promising a figure the page no longer charges is
  * the worst place for that to happen, because it is what someone reads before
- * they arrive.
+ * they arrive. That applies doubly to a discount: "from $490" beside a card
+ * charging $390 is a description that undersells its own offer.
  */
-const FROM_PRICE = Math.min(...orbiPackages.map((p) => p.setupUsd))
+const FROM_PRICE = Math.min(...orbiPackages.map(setupPriceUsd))
 
 export const metadata: Metadata = {
   /*
@@ -94,10 +96,13 @@ function orbiJsonLd(siteUrl: string) {
         offers: orbiPackages.map((pkg) => ({
           '@type': 'Offer',
           name: pkg.name,
-          // The setup fee, which is the figure the page leads with. The monthly
-          // component is described in the page copy rather than encoded as a
-          // second price, because one Offer cannot honestly carry both.
-          price: String(pkg.setupUsd),
+          // The setup fee, which is the figure the page leads with, at the
+          // price actually charged — the offer price while one runs, since an
+          // Offer must carry what a buyer pays, not a list price beside it.
+          // The monthly component is described in the page copy rather than
+          // encoded as a second price, because one Offer cannot honestly
+          // carry both.
+          price: String(setupPriceUsd(pkg)),
           priceCurrency: 'USD',
           category: 'Setup',
           url: `${siteUrl}/orbi`,
