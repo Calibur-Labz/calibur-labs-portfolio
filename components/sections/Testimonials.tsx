@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import Slider from "react-slick";
@@ -12,6 +12,46 @@ import GradientText from "@/components/ui/GradientText";
 
 /** Quotes run to different lengths; every card shows this many lines, then "…". */
 const QUOTE_LINES = 5;
+
+/**
+ * The rail's breakpoints, widest-first, resolved here rather than through
+ * slick's own `responsive` option: that option registers a matchMedia
+ * *change* listener and never reads the initial match, so a page opened
+ * straight at phone width rendered the three-up desktop rail until something
+ * resized it — three unreadable slivers on every real phone.
+ */
+const RAIL_DESKTOP = { slidesToShow: 3, centerMode: true };
+const RAIL_BREAKPOINTS = [
+  { query: "(max-width: 720px)", slidesToShow: 1, centerMode: false },
+  { query: "(max-width: 1100px)", slidesToShow: 2, centerMode: true },
+];
+
+function useRailLayout() {
+  /* Matches the server render; corrected on mount, before the section is
+     anywhere near the viewport. */
+  const [layout, setLayout] = useState(RAIL_DESKTOP);
+
+  useEffect(() => {
+    const mqls = RAIL_BREAKPOINTS.map((b) => window.matchMedia(b.query));
+
+    const apply = () => {
+      const hit = mqls.findIndex((m) => m.matches);
+      const next = hit === -1 ? RAIL_DESKTOP : RAIL_BREAKPOINTS[hit];
+      setLayout((prev) =>
+        prev.slidesToShow === next.slidesToShow &&
+        prev.centerMode === next.centerMode
+          ? prev
+          : { slidesToShow: next.slidesToShow, centerMode: next.centerMode },
+      );
+    };
+
+    apply();
+    mqls.forEach((m) => m.addEventListener("change", apply));
+    return () => mqls.forEach((m) => m.removeEventListener("change", apply));
+  }, []);
+
+  return layout;
+}
 
 /**
  * The pointer position is written to CSS custom properties on the card, which
@@ -158,6 +198,7 @@ function SlideCard({ t }: { t: Testimonial }) {
 
 export default function Testimonials() {
   const sliderRef = useRef<Slider>(null);
+  const { slidesToShow, centerMode } = useRailLayout();
 
   return (
     <section id="testimonials" className="tst-section">
@@ -430,7 +471,22 @@ export default function Testimonials() {
         /* One card per view below this width, and centerMode is off there,
            so nothing is tagged as centred — the blur has to come off too. */
         @media (max-width: 720px) {
-          .tst-slide { filter: none; opacity: 1; transform: none; }
+          .tst-section { padding: 44px 0 52px; }
+          .tst-wrap { padding: 0 18px; }
+          .tst-slider { margin: 0 -6px; }
+          .tst-slide {
+            padding: 0 6px;
+            filter: none;
+            opacity: 1;
+            transform: none;
+          }
+          .tst-card { padding: 22px 20px; }
+          .tst-quote { font-size: 14.5px; margin-bottom: 20px; }
+          .tst-card-foot { padding-top: 18px; gap: 12px; }
+          /* Long names broke a character per line once the card narrowed; they
+             only need to break mid-word when a single word cannot fit. */
+          .tst-name, .tst-role { overflow-wrap: break-word; }
+          .tst-slider .slick-dots { gap: 12px; margin-top: 26px; }
         }
         @media (prefers-reduced-motion: reduce) {
           .tst-card, .tst-slide, .tst-arrow, .tst-dots button,
@@ -498,24 +554,17 @@ export default function Testimonials() {
             dots
             arrows={false}
             infinite
-            speed={600}
+            speed={500}
             cssEase="cubic-bezier(0.16, 1, 0.3, 1)"
-            slidesToShow={3}
+            slidesToShow={slidesToShow}
             slidesToScroll={1}
             /* centerMode is what tags the middle card, which the blur reads. */
-            centerMode
+            centerMode={centerMode}
             centerPadding="0px"
             autoplay
-            autoplaySpeed={5000}
+            autoplaySpeed={3200}
             pauseOnHover
             swipeToSlide
-            responsive={[
-              { breakpoint: 1100, settings: { slidesToShow: 2 } },
-              {
-                breakpoint: 720,
-                settings: { slidesToShow: 1, centerMode: false },
-              },
-            ]}
             /* The dots are lifted out and set between the arrows so the whole
                control row reads as one unit. */
             appendDots={(dots) => (
