@@ -574,14 +574,29 @@ html {
  * Scoped to the form's own class instead, so both mount points are styled by
  * one definition rather than the homepage's copy and a duplicate.
  */
+/* The controls' base background and border are inline styles, which beat any
+ * plain rule here — so the state overrides below need !important to show. */
+.contact-form input:hover,
+.contact-form textarea:hover {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
 .contact-form input:focus-visible,
 .contact-form textarea:focus-visible {
-  border-color: rgba(0, 183, 255, 0.55);
-  box-shadow: 0 0 0 3px rgba(0, 183, 255, 0.12);
+  background-color: #0c1118 !important;
+  border-color: rgba(0, 183, 255, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(0, 183, 255, 0.12) !important;
   outline: none;
 }
 .contact-form [aria-invalid='true'] {
-  border-color: rgba(248, 113, 113, 0.6);
+  border-color: rgba(248, 113, 113, 0.6) !important;
+}
+/* Chrome paints autofilled fields pale blue; keep them on the navy ground. */
+.contact-form input:-webkit-autofill,
+.contact-form input:-webkit-autofill:hover,
+.contact-form input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #e9f1f8;
+  -webkit-box-shadow: 0 0 0 1000px #0c1118 inset !important;
+  caret-color: #e9f1f8;
 }
 .contact-form input::placeholder,
 .contact-form textarea::placeholder {

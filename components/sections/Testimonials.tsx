@@ -341,7 +341,7 @@ export default function Testimonials() {
         .tst-quote {
           margin: 0 0 24px;
           font-family: var(--font-poppins), system-ui, sans-serif;
-          font-size: 15px;
+          font-size: 14px;
           line-height: 1.7;
           letter-spacing: -0.003em;
           color: #A9BCD0;
@@ -471,22 +471,7 @@ export default function Testimonials() {
         /* One card per view below this width, and centerMode is off there,
            so nothing is tagged as centred — the blur has to come off too. */
         @media (max-width: 720px) {
-          .tst-section { padding: 44px 0 52px; }
-          .tst-wrap { padding: 0 18px; }
-          .tst-slider { margin: 0 -6px; }
-          .tst-slide {
-            padding: 0 6px;
-            filter: none;
-            opacity: 1;
-            transform: none;
-          }
-          .tst-card { padding: 22px 20px; }
-          .tst-quote { font-size: 14.5px; margin-bottom: 20px; }
-          .tst-card-foot { padding-top: 18px; gap: 12px; }
-          /* Long names broke a character per line once the card narrowed; they
-             only need to break mid-word when a single word cannot fit. */
-          .tst-name, .tst-role { overflow-wrap: break-word; }
-          .tst-slider .slick-dots { gap: 12px; margin-top: 26px; }
+          .tst-slide { filter: none; opacity: 1; transform: none; }
         }
         @media (prefers-reduced-motion: reduce) {
           .tst-card, .tst-slide, .tst-arrow, .tst-dots button,

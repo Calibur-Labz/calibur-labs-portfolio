@@ -28,6 +28,7 @@ const socialLinks = [
     href: LINKEDIN_URL,
     path: 'M4.98 3.5C4.98 4.88 3.87 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM.24 8h4.52v14H.24V8zm7.5 0h4.33v1.92h.06c.6-1.14 2.07-2.34 4.26-2.34 4.56 0 5.4 3 5.4 6.9V22h-4.52v-6.6c0-1.57-.03-3.6-2.19-3.6-2.2 0-2.53 1.72-2.53 3.49V22H7.74V8z',
   },
+  /* Hidden until the accounts exist — both still point at '#'.
   {
     label: 'GitHub',
     href: '#',
@@ -38,6 +39,7 @@ const socialLinks = [
     href: '#',
     path: 'M18.9 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.153h7.594l5.243 6.932 6.063-6.932zm-1.29 19.5h2.039L6.486 3.24H4.298l13.312 17.414z',
   },
+  */
 ]
 
 export default function Footer() {

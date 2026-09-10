@@ -293,8 +293,12 @@ const controlStyle: React.CSSProperties = {
   width: '100%',
   padding: '13px 15px',
   borderRadius: '12px',
-  background: 'rgba(255,255,255,0.02)',
+  // Darker than the card, in the page's own near-black, so each field reads
+  // as a recessed well rather than a raised grey (or tinted navy) panel.
+  background: '#0A0E14',
   border: '1px solid rgba(255,255,255,0.08)',
+  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.35)',
+  transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
   color: '#E9F1F8',
   // 16px, not 15: iOS Safari zooms the page on focus for anything smaller,
   // which is jarring inside the ORBI page's fixed modal.
