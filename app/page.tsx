@@ -6,6 +6,7 @@ import About from '@/components/sections/About'
 import BuildWithPrecision from '@/components/sections/BuildWithPrecision'
 import WhyChooseUs from '@/components/sections/WhyChooseUs'
 import Projects from '@/components/sections/Projects'
+import GlobalReach from '@/components/sections/GlobalReach'
 import Testimonials from '@/components/sections/Testimonials'
 import Contact from '@/components/sections/Contact'
 import MaintenanceScreen from '@/components/MaintenanceScreen'
@@ -88,6 +89,7 @@ export default async function Home() {
         <BuildWithPrecision />
         <WhyChooseUs />
         <Projects />
+        <GlobalReach />
         <Testimonials />
         <Contact />
       </main>
