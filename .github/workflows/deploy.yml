@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 # One deploy at a time. A push during a deploy queues behind it instead of
-# cancelling it halfway through a release swap.
+# cancelling it halfway through a sync or release swap.
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -14,16 +14,65 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  REPO_DIR: /var/www/calibur-portfolio/repo
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # The VPS has no GitHub access (deploy keys are disabled by org policy),
+      # so the runner checks out the source and pushes it over SSH.
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Record revision
+        run: echo "${GITHUB_SHA::7} $(git log -1 --pretty=%s)" > .deploy-revision
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -T 15 -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync source to the VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        # --delete removes files dropped from the repo; excluded paths are
+        # neither sent nor deleted, so the server's .env symlink and
+        # node_modules survive.
+        run: |
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='.next/' \
+            --exclude='.env*' \
+            --exclude='.vercel/' \
+            --exclude='.claude/' \
+            --exclude='out/' \
+            --exclude='build/' \
+            --exclude='coverage/' \
+            --exclude='*.tsbuildinfo' \
+            --exclude='next-env.d.ts' \
+            --exclude='.DS_Store' \
+            --exclude='npm-debug.log*' \
+            -e "ssh -i ~/.ssh/vps_key -o BatchMode=yes" \
+            ./ "$VPS_USER@$VPS_HOST:$REPO_DIR/"
+
       - name: Build and release on the VPS
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 25m
-          script: bash /var/www/calibur-portfolio/repo/deploy/deploy.sh
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o BatchMode=yes -o ServerAliveInterval=30 \
+            "$VPS_USER@$VPS_HOST" "bash $REPO_DIR/deploy/deploy.sh"
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/vps_key

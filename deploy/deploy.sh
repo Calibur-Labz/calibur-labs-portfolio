@@ -3,7 +3,8 @@
 # Build and release calibur-portfolio on the VPS.
 #
 # Layout under /var/www/calibur-portfolio:
-#   repo/       git checkout; builds happen here, never served from
+#   repo/       source rsynced here by GitHub Actions (no git on the server);
+#               builds happen here, never served from
 #   shared/.env secrets (chmod 600), loaded at build and at runtime
 #   releases/   one timestamped, self-contained standalone build per deploy
 #   current ->  symlink to the live release (PM2 runs from here)
@@ -11,14 +12,14 @@
 # The live site keeps running from its release while repo/ is rebuilt, so a
 # build never takes it down. Only the final PM2 reload briefly restarts it.
 #
-# Run by GitHub Actions over SSH, or by hand: bash repo/deploy/deploy.sh
+# Run by GitHub Actions over SSH after it copies the source, or by hand to
+# rebuild whatever is in repo/: bash repo/deploy/deploy.sh
 
 set -euo pipefail
 
 # Everything runs inside main(), which bash parses in full before starting.
-# `git reset` below rewrites this very file, and bash otherwise reads scripts
-# as it goes — a changed file mid-run could execute half of each version.
-# (An edit to this script therefore takes effect from the following deploy.)
+# Bash otherwise reads scripts as it goes, so a sync landing mid-run could
+# execute half of each version of this file.
 main() {
 
 APP_NAME="calibur-portfolio"
@@ -56,11 +57,14 @@ node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(
 
 [ -f "$SHARED_ENV" ] || { echo "Missing $SHARED_ENV" >&2; exit 1; }
 
-log "Updating source from origin/main"
 cd "$REPO_DIR"
-git fetch --prune origin main
-git reset --hard origin/main
-echo "Commit: $(git rev-parse --short HEAD) $(git log -1 --pretty=%s)"
+[ -f package-lock.json ] || { echo "No source in $REPO_DIR — has GitHub Actions synced it?" >&2; exit 1; }
+# Written by the workflow before the sync; absent on a hand-copied tree.
+if [ -f .deploy-revision ]; then
+  log "Building $(cat .deploy-revision)"
+else
+  log "Building source in $REPO_DIR (no .deploy-revision)"
+fi
 
 # next build reads .env from the project root. NEXT_PUBLIC_SITE_URL is
 # inlined into the bundle here, so it has to be present at build time.
