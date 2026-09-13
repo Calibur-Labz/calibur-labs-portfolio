@@ -36,8 +36,15 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps_key
+          # Final newline is required by OpenSSH; carriage returns from a
+          # copy-paste also make it fail with "error in libcrypto".
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
+          # Fail here with a clear message instead of deep inside rsync.
+          if ! ssh-keygen -y -P '' -f ~/.ssh/vps_key > /dev/null; then
+            echo "::error::VPS_SSH_KEY is not a valid unencrypted private key. Paste the whole private key file, from -----BEGIN OPENSSH PRIVATE KEY----- to -----END OPENSSH PRIVATE KEY-----."
+            exit 1
+          fi
           ssh-keyscan -T 15 -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
       - name: Sync source to the VPS
