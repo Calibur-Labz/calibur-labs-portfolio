@@ -6,10 +6,7 @@ import MaintenanceScreen from '@/components/MaintenanceScreen'
 import OrbiGuide from '@/components/orbi/OrbiGuide'
 import { readSiteSettingsSafe } from '@/lib/settings'
 import { orbiFaq, orbiPackages, setupPriceUsd } from '@/lib/data'
-
-// Same rule as the homepage: read the maintenance flag fresh on every request
-// so toggling it from the admin console takes effect immediately.
-export const dynamic = 'force-dynamic'
+import { SITE_URL, jsonLdScript, sharedOpenGraph, sharedTwitter } from '../shared-metadata'
 
 /**
  * The cheapest setup fee actually charged, read from the same table the page
@@ -46,20 +43,27 @@ export const metadata: Metadata = {
     'intelligent website assistant',
   ],
   alternates: { canonical: '/orbi' },
+  /*
+   * Spread rather than declared outright: metadata merges shallowly, so writing
+   * a bare `openGraph` object here would drop the root's `siteName` and `locale`
+   * instead of adding to them.
+   *
+   * No `images` — `app/orbi/opengraph-image.tsx` generates the card. It used to
+   * point at `/images/orbi.png`, a 1254x1254 square handed to a card declared
+   * `summary_large_image`, which every platform then cropped or letterboxed.
+   */
   openGraph: {
-    type: 'website',
+    ...sharedOpenGraph,
     url: '/orbi',
     title: 'ORBI — an AI website companion with a personality',
     description:
       `An interactive AI assistant that guides visitors through your site and answers questions about your business. From $${FROM_PRICE}.`,
-    images: [{ url: '/images/orbi.png', width: 1254, height: 1254, alt: 'ORBI, a site companion robot' }],
   },
   twitter: {
-    card: 'summary_large_image',
+    ...sharedTwitter,
     title: 'ORBI — an AI website companion with a personality',
     description:
       'An interactive AI assistant that guides visitors through your site and answers questions about your business.',
-    images: ['/images/orbi.png'],
   },
 }
 
@@ -136,9 +140,6 @@ function orbiJsonLd(siteUrl: string) {
   }
 }
 
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.caliburlabz.com'
-
 export default async function OrbiPage() {
   const { maintenance, emergencyPhone } = await readSiteSettingsSafe()
 
@@ -152,12 +153,13 @@ export default async function OrbiPage() {
       {/*
         Emitted server-side, so it is in the HTML a crawler receives rather than
         something that appears after hydration. `JSON.stringify` of an object we
-        built ourselves — no visitor input reaches this, and nothing here is
-        interpolated from a string.
+        built ourselves. `jsonLdScript` escapes `<` anyway: the FAQ and offer
+        text is generated from `lib/data.ts`, and an escape is cheaper than
+        auditing every future edit to that file for a stray tag.
       */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(orbiJsonLd(SITE_URL)) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(orbiJsonLd(SITE_URL)) }}
       />
       <main>
         <OrbiProduct />

@@ -200,6 +200,18 @@ export default function Testimonials() {
   const sliderRef = useRef<Slider>(null);
   const { slidesToShow, centerMode } = useRailLayout();
 
+  /*
+   * A rail needs more cards than it shows, or slick fills the gap with clones.
+   * With a single real testimonial it was rendering thirteen copies of the same
+   * quote sliding past each other — which reads as padding, and undoes the
+   * point of having removed the duplicate entries from `lib/data.ts`.
+   *
+   * Below the rail's capacity we show the cards as they are: no cloning, no
+   * autoplay, no dots to page through a single item. Add a fourth testimonial
+   * and the rail comes back on its own.
+   */
+  const isRail = testimonials.length > slidesToShow;
+
   return (
     <section id="testimonials" className="tst-section">
       <style>{`
@@ -234,6 +246,24 @@ export default function Testimonials() {
           filter: none;
           opacity: 1;
           transform: scale(1);
+        }
+
+        /* Off-rail, nothing is centred, so the dimming above would apply to
+           every card with nothing ever clearing it — a single testimonial
+           would sit there permanently blurred at two-thirds opacity. */
+        .tst-slider-static .tst-slide {
+          filter: none;
+          opacity: 1;
+          transform: scale(1);
+        }
+        /* One card should read as a card, not stretch across the full rail. */
+        .tst-slider-static .slick-track {
+          display: flex;
+          justify-content: center;
+        }
+        .tst-slider-static .tst-slide {
+          max-width: 520px;
+          margin: 0 auto;
         }
 
         /* ── Card ─────────────────────────────────────────────────────
@@ -535,21 +565,22 @@ export default function Testimonials() {
         >
           <Slider
             ref={sliderRef}
-            className="tst-slider"
-            dots
+            className={`tst-slider${isRail ? '' : ' tst-slider-static'}`}
+            dots={isRail}
             arrows={false}
-            infinite
+            infinite={isRail}
             speed={500}
             cssEase="cubic-bezier(0.16, 1, 0.3, 1)"
-            slidesToShow={slidesToShow}
+            slidesToShow={isRail ? slidesToShow : testimonials.length}
             slidesToScroll={1}
-            /* centerMode is what tags the middle card, which the blur reads. */
-            centerMode={centerMode}
+            /* centerMode is what tags the middle card, which the blur reads.
+               Off when there is nothing to centre against. */
+            centerMode={isRail && centerMode}
             centerPadding="0px"
-            autoplay
+            autoplay={isRail}
             autoplaySpeed={3200}
             pauseOnHover
-            swipeToSlide
+            swipeToSlide={isRail}
             /* The dots are lifted out and set between the arrows so the whole
                control row reads as one unit. */
             appendDots={(dots) => (
@@ -577,9 +608,8 @@ export default function Testimonials() {
               <button type="button" aria-label={`Go to testimonial ${i + 1}`} />
             )}
           >
-            {/* Authors repeat in the data, so the index carries the key. */}
-            {testimonials.map((t, i) => (
-              <SlideCard key={`${t.author}-${i}`} t={t} />
+            {testimonials.map((t) => (
+              <SlideCard key={t.author} t={t} />
             ))}
           </Slider>
         </motion.div>

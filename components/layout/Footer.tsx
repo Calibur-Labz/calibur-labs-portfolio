@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { MailIcon, PhoneIcon, MapPinIcon } from '@/components/ui/icons'
+import { services } from '@/lib/data'
 
 const LINKEDIN_URL = 'https://www.linkedin.com/company/calibur-labs'
 
@@ -14,13 +15,16 @@ const navLinks = [
   { label: 'Contact', href: '/#contact' },
 ]
 
-const serviceLinks = [
-  { label: 'Web Development', href: '/#services' },
-  { label: 'Mobile Apps', href: '/#services' },
-  { label: 'UI/UX Design', href: '/#services' },
-  { label: 'Cloud & DevOps', href: '/#services' },
-  { label: 'AI Integration', href: '/#services' },
-]
+/*
+ * Derived from the service list rather than written out, so a service added to
+ * `lib/data.ts` appears here automatically. These all used to point at
+ * `/#services` — five links to the same anchor, which gave crawlers no route to
+ * anything and gave a visitor no more than scrolling would.
+ */
+const serviceLinks = services.map((service) => ({
+  label: service.title,
+  href: `/services/${service.slug}`,
+}))
 
 const socialLinks = [
   {

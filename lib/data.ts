@@ -2,7 +2,42 @@ export type Service = {
   id: string
   icon: string
   title: string
+  /** The one-liner on the homepage card. */
   description: string
+
+  /*
+   * Everything below exists so each service can be its own page at
+   * `/services/<slug>`.
+   *
+   * The six services used to live only as anchors on the homepage, which meant
+   * one URL competing for six different searches and winning none of them. A
+   * page per service gives each one a title, a description, a canonical and its
+   * own `Service` + `FAQPage` schema.
+   *
+   * Written here rather than in the route so the card, the page, the meta tags,
+   * the sitemap and the JSON-LD all read from one array — a new service cannot
+   * be added to the site and forgotten by the sitemap.
+   */
+
+  /** URL segment. Changing one breaks an indexed URL, so treat these as fixed. */
+  slug: string
+  /**
+   * The `<title>`. The root layout appends " | xCalibur Labz", so this must not
+   * repeat the brand. Kept under ~60 characters so Google does not truncate it.
+   */
+  metaTitle: string
+  /** The `<meta name="description">`. ~150-160 characters. */
+  metaDescription: string
+  /** The page's single `<h1>`. Says the thing a person would search for. */
+  h1: string
+  /** The opening paragraph, directly under the h1. */
+  intro: string
+  /** Concrete deliverables. What the client actually receives. */
+  whatYouGet: string[]
+  /** How the work runs, start to finish. */
+  process: { step: string; detail: string }[]
+  /** Renders on the page AND generates the FAQPage schema. */
+  faq: { q: string; a: string }[]
 }
 
 export type Project = {
@@ -34,36 +69,189 @@ export const services: Service[] = [
     icon: '⬡',
     title: 'Web Development',
     description: 'Scalable, performant web applications built with modern frameworks, from MVPs to enterprise grade platforms.',
+    slug: 'web-development',
+    metaTitle: 'Custom Web Application Development',
+    metaDescription:
+      'We build custom web applications and business websites — booking systems, e-commerce, dashboards and internal tools. Based in Galle, working with clients in Sri Lanka and Australia.',
+    h1: 'Custom web application development',
+    intro:
+      'Most business problems that look like a website are really a web application: something has to be booked, ordered, tracked or approved, and a page of text cannot do it. We build the application underneath, and the site around it, so the two are one product rather than a brochure bolted to a form.',
+    whatYouGet: [
+      'A web application built on a modern framework — React and Next.js, typed end to end, server-rendered where it matters for speed and search.',
+      'A database and API designed around how your business actually works, not a template bent into shape.',
+      'An admin area your team can use without calling us: the content, the prices and the records are yours to change.',
+      'Responsive layouts tested on real phones, because most of your visitors will never open the site on a desktop.',
+      'Deployment, a domain, SSL and monitoring set up and handed over documented.',
+    ],
+    process: [
+      { step: 'Scope', detail: 'We map what the application has to do before writing code — the screens, the records, the rules. You get a written scope and a fixed quote against it.' },
+      { step: 'Design', detail: 'Interface first, in Figma, so you see and change the product while changing it is still cheap.' },
+      { step: 'Build', detail: 'Short cycles with a live staging URL from week one. You watch it come together rather than waiting for a reveal.' },
+      { step: 'Launch and support', detail: 'We deploy, monitor and stay reachable afterwards. Software that nobody maintains stops working.' },
+    ],
+    faq: [
+      { q: 'How long does a web application take?', a: 'A focused first version is typically four to eight weeks. A booking platform or an e-commerce build with custom admin runs longer. We give you a written timeline with the quote, and we tell you if a date is unrealistic before you commit to it.' },
+      { q: 'What does it cost?', a: 'It depends entirely on scope, so we do not publish a number that would be wrong for most projects. We scope first and quote a fixed price against that scope, so you are not signing a blank cheque.' },
+      { q: 'Do you work with clients outside Sri Lanka?', a: 'Yes. We are based in Galle and work with clients in Sri Lanka and Australia, remotely and on overlapping hours.' },
+      { q: 'Do I own the code?', a: 'Yes. The repository, the domain and the hosting accounts are yours. We hand over credentials and documentation at launch — you are not locked into us to keep your own product running.' },
+    ],
   },
   {
     id: 'mobile',
     icon: '◈',
     title: 'Mobile Apps',
     description: 'Native and cross-platform iOS & Android apps that deliver seamless user experiences across devices.',
+    slug: 'mobile-app-development',
+    metaTitle: 'iOS & Android App Development',
+    metaDescription:
+      'Cross-platform and native mobile app development for iOS and Android — from first build to App Store and Google Play release. Sri Lanka and Australia.',
+    h1: 'iOS and Android app development',
+    intro:
+      'An app is a bigger commitment than a website: it has to be released, reviewed, updated and supported on two platforms at once. We build cross-platform where that saves you money and native where it does not, and we are honest with you about which one your product actually needs.',
+    whatYouGet: [
+      'One codebase shipping to both iOS and Android where the product allows it, which roughly halves what a two-platform build costs.',
+      'Native modules where cross-platform falls short — camera, payments, background location, offline storage.',
+      'An API and backend designed for mobile: small payloads, offline tolerance, and sensible behaviour on a bad connection.',
+      'Store submission handled — listings, screenshots, privacy declarations and the review process on both App Store and Google Play.',
+      'Crash reporting and analytics wired in from the first release, so a bug reaches you before it reaches your reviews.',
+    ],
+    process: [
+      { step: 'Decide the platform', detail: 'Cross-platform or native is a cost decision, not a taste one. We work it out against your feature list before quoting.' },
+      { step: 'Design', detail: 'Screens designed to each platform’s conventions, so the app feels native rather than like a website in a frame.' },
+      { step: 'Build and test', detail: 'Builds distributed to your devices throughout, via TestFlight and internal testing tracks. You use the app long before anyone else does.' },
+      { step: 'Release', detail: 'We submit, handle review feedback and ship the updates after launch.' },
+    ],
+    faq: [
+      { q: 'Cross-platform or native — which do I need?', a: 'Most business apps are well served by cross-platform: one codebase, both stores, substantially lower cost. Native earns its price when you depend heavily on device hardware or need the very best animation performance. We will tell you which one your feature list points to.' },
+      { q: 'Can you publish under my developer account?', a: 'Yes, and we recommend it. Your company should own the App Store and Google Play listings, not your agency. We will walk you through setting the accounts up if you do not have them.' },
+      { q: 'How long does store review take?', a: 'Google Play is usually a day or two. Apple is typically one to three days, but a first submission can take longer if the reviewer asks for changes. We build that into the timeline rather than promising a launch date we do not control.' },
+    ],
   },
   {
     id: 'design',
     icon: '◉',
     title: 'UI/UX Design',
     description: 'Research-driven design systems and interfaces that convert. Beautiful, functional, and accessible.',
+    slug: 'ui-ux-design',
+    metaTitle: 'UI/UX Design & Design Systems',
+    metaDescription:
+      'Interface and experience design for web and mobile products — user flows, design systems and accessible, high-converting screens, built to be handed straight to developers.',
+    h1: 'UI/UX design for products people finish using',
+    intro:
+      'A good interface is not the one that looks best in a portfolio; it is the one where people get to the end of what they came to do. We design flows first and surfaces second, and because we build software too, what we hand over is buildable rather than a beautiful picture a developer has to argue with.',
+    whatYouGet: [
+      'User flows and wireframes for every path through the product, agreed before anything is styled.',
+      'High-fidelity screens in Figma, responsive from phone to desktop, with real content rather than lorem ipsum.',
+      'A design system — type scale, colour tokens, spacing, components — so the product stays consistent as it grows.',
+      'Accessible contrast, focus states and tap targets checked against WCAG, not added at the end.',
+      'A developer handoff with specs and exportable assets, whether we build it or your team does.',
+    ],
+    process: [
+      { step: 'Understand', detail: 'Who uses this, what they are trying to do, and where the current version loses them.' },
+      { step: 'Structure', detail: 'Flows and wireframes. Cheap to change, and where most of the real decisions get made.' },
+      { step: 'Design', detail: 'Visual design and a component library, reviewed with you at each pass.' },
+      { step: 'Hand off', detail: 'Specs, tokens and assets in a form a developer can build from directly.' },
+    ],
+    faq: [
+      { q: 'Can you design without building it?', a: 'Yes. Design is a standalone engagement and plenty of clients take the files to their own team. The handoff is built for that.' },
+      { q: 'Do you redesign existing products?', a: 'Yes, and it is often the better spend. We start from where your current product loses people rather than restyling screens that already work.' },
+      { q: 'Will I get the Figma file?', a: 'Yes — the working file, the components and the tokens, on your own Figma account.' },
+    ],
   },
   {
     id: 'cloud',
     icon: '◬',
     title: 'Cloud & DevOps',
     description: 'Reliable cloud infrastructure, CI/CD pipelines, and deployment automation that keeps your product running smoothly.',
+    slug: 'cloud-devops',
+    metaTitle: 'Cloud Infrastructure, CI/CD & DevOps',
+    metaDescription:
+      'Cloud hosting, deployment pipelines, backups and monitoring set up so releases are routine and your product stays up. AWS, Vercel and self-hosted VPS.',
+    h1: 'Cloud infrastructure and deployment that stays boring',
+    intro:
+      'Infrastructure is working when nobody thinks about it. We set up hosting, automated deployments, backups and monitoring so releasing a change is a routine event rather than an evening of everyone watching a terminal — and so that when something does break, you find out before your customers tell you.',
+    whatYouGet: [
+      'Hosting chosen for your actual traffic and budget — managed platforms, AWS, or a plain VPS where that is genuinely cheaper.',
+      'CI/CD pipelines: push to a branch, tests run, the deploy happens without anyone SSH-ing anywhere.',
+      'A staging environment that matches production, so changes are seen before customers see them.',
+      'Automated backups that have been restored at least once, because an untested backup is not a backup.',
+      'Uptime monitoring and alerting, plus SSL and security headers configured properly.',
+    ],
+    process: [
+      { step: 'Audit', detail: 'What you run now, what it costs, and where it will fail first.' },
+      { step: 'Plan', detail: 'A target setup with the monthly cost written down before anything is migrated.' },
+      { step: 'Migrate', detail: 'Moved in stages with a rollback at each one. Planned cutover, minimal downtime.' },
+      { step: 'Hand over', detail: 'Documented runbooks and access, so your team can operate it without us.' },
+    ],
+    faq: [
+      { q: 'Do I need AWS?', a: 'Often not. A managed platform or a single well-configured VPS runs most business applications for a fraction of the cost and the complexity. We size the infrastructure to your traffic, and we will say so when the cheaper option is the right one.' },
+      { q: 'Can you take over infrastructure someone else built?', a: 'Yes. We start with an audit of what exists, document it, and fix the parts most likely to fail before changing anything else.' },
+      { q: 'What happens if the site goes down at 2am?', a: 'Monitoring alerts us and you. What we commit to beyond that depends on the support arrangement we agree — we would rather set a response time we can actually meet than advertise one we cannot.' },
+    ],
   },
   {
     id: 'ai',
     icon: '◎',
     title: 'AI Integration',
     description: 'Embed intelligent features into your product from LLM-powered workflows to custom ML model deployment.',
+    slug: 'ai-integration',
+    metaTitle: 'AI & LLM Integration for Business Software',
+    metaDescription:
+      'Practical AI features built into your product — assistants grounded in your own content, document extraction and workflow automation, with costs and limits made clear up front.',
+    h1: 'AI features that earn their place in your product',
+    intro:
+      'Most products do not need an AI strategy; they need one or two places where a model removes real work. We build those — an assistant that answers from your own content, extraction that reads documents your staff currently retype, automation that drafts what a person then approves — and we tell you plainly where a model is the wrong tool.',
+    whatYouGet: [
+      'Assistants grounded in your own content, so answers come from your documentation rather than being invented.',
+      'Document and form extraction that turns PDFs, invoices and scans into structured records.',
+      'A running cost estimate before we build, and caching and limits in the design so a bill cannot run away.',
+      'A human approval step wherever a wrong answer would be expensive.',
+      'ORBI, our own site companion, if what you want is an assistant on your website — built, priced and supported as a product.',
+    ],
+    process: [
+      { step: 'Find the case', detail: 'We look for the specific task worth automating. If nothing qualifies, we say so rather than inventing a feature.' },
+      { step: 'Prototype', detail: 'A working version against your real data, so quality is judged on your content and not a demo.' },
+      { step: 'Ground and constrain', detail: 'Retrieval over your sources, guardrails, and a fallback for when the model has no good answer.' },
+      { step: 'Ship and watch', detail: 'Released with logging and cost monitoring, so accuracy and spend stay visible.' },
+    ],
+    faq: [
+      { q: 'Will it make things up?', a: 'That is the risk worth taking seriously. We reduce it by grounding answers in your own content, constraining what the model is allowed to answer, and having it say it does not know rather than guess. Where a wrong answer would be costly, we keep a person in the loop by design.' },
+      { q: 'What does it cost to run?', a: 'Model usage is billed per request, so the running cost depends on volume. We estimate it before building and design caching and limits in from the start, so you get a predictable monthly figure rather than a surprise.' },
+      { q: 'Do you train custom models?', a: 'Rarely, because it is rarely the right answer. Retrieval over your own content usually beats fine-tuning for business use, at a fraction of the cost. When a custom model genuinely is warranted, we will tell you.' },
+      { q: 'Is my data used to train anyone’s model?', a: 'Not by us, and we configure provider settings to opt out of training where that option exists. We will tell you exactly which provider processes your data before you commit.' },
+    ],
   },
   {
     id: 'business-systems',
     icon: '▦',
     title: 'CMS, ERP & POS Solutions',
     description: 'End-to-end business systems including CMS, ERP, and POS solutions that streamline content management, operations, inventory, sales, and financial workflows in one integrated ecosystem.',
+    slug: 'cms-erp-pos',
+    metaTitle: 'Custom CMS, ERP & POS Systems',
+    metaDescription:
+      'Custom content, inventory, point-of-sale and operations systems built around how your business actually runs — replacing the spreadsheets and off-the-shelf tools you have outgrown.',
+    h1: 'CMS, ERP and POS systems built around your operation',
+    intro:
+      'Most growing businesses run on a spreadsheet, an off-the-shelf tool that nearly fits, and somebody who remembers how it all connects. We replace that with one system that matches how you already work — stock, sales, content and reporting in one place, instead of four places that disagree with each other.',
+    whatYouGet: [
+      'A content management system your team can actually use, without a developer needed to change a price or a page.',
+      'Inventory and stock tracking that reconciles against sales rather than being counted twice.',
+      'Point of sale that works at the counter and reports into the same system as everything else.',
+      'Reporting built on your real numbers — sales, margin, movement — instead of exports stitched together by hand.',
+      'Role-based access, so staff see what they need and not the payroll.',
+    ],
+    process: [
+      { step: 'Map the operation', detail: 'We sit with how you work now, including the informal parts. Systems fail when they are designed for the process on paper.' },
+      { step: 'Design the data', detail: 'Products, stock, orders and customers modelled properly up front — this is what everything else depends on.' },
+      { step: 'Build in stages', detail: 'The most painful part first, live and in use, before the rest is built around it.' },
+      { step: 'Migrate and train', detail: 'Existing data brought across and checked, and your staff trained on the system before you depend on it.' },
+    ],
+    faq: [
+      { q: 'Why not use an off-the-shelf ERP?', a: 'If one fits, use it — we will say so. Custom earns its cost when your operation does something the packaged tools do not model, or when licence fees per user per month outgrow the build over a few years.' },
+      { q: 'Can you migrate our existing data?', a: 'Yes. Spreadsheets, an old system’s database, or an export — we map it, import it and reconcile the result against your own records before go-live.' },
+      { q: 'Does the POS work without internet?', a: 'It can be built to. Offline-capable point of sale that queues transactions and syncs when the connection returns costs more to build, so we scope it as a deliberate decision rather than an assumption.' },
+      { q: 'Have you built this before?', a: 'Yes — SBB Oxygen House runs on a custom CMS with online ordering and sales analytics that we built and continue to support.' },
+    ],
   },
 ]
 
@@ -138,48 +326,30 @@ export const techStack: TechItem[] = [
   { name: 'Supabase', icon: '/icons/supabase.svg' },
 ]
 
+/**
+ * Real client testimonials. One entry, because there is one client who has
+ * given us a quote on the record.
+ *
+ * This array used to hold six: three testimonials duplicated verbatim to fill
+ * the carousel rail, two of which named clients and companies that do not
+ * appear anywhere else on the site and pointed at avatar files that were never
+ * committed. A studio founded this year with three projects listed cannot also
+ * have a testimonial from a head of product at a company it has not worked
+ * with, and the gap between those two claims is exactly what a prospective
+ * client checks.
+ *
+ * Add to this as clients give quotes. Do not pad it — the carousel handles a
+ * short list, and one quote that can be verified is worth more than five that
+ * cannot.
+ */
 export const testimonials: Testimonial[] = [
-{
-    quote:"xCalibur Labz strengthened our brand identity and digital presence with thoughtful design and valuable technical insights tailored to our unique business needs. Their professionalism and fair pricing made continuing with them an easy choice.",
+  {
+    quote:
+      'xCalibur Labz strengthened our brand identity and digital presence with thoughtful design and valuable technical insights tailored to our unique business needs. Their professionalism and fair pricing made continuing with them an easy choice.',
     author: 'Preminda Kalansooriya',
     title: 'Founder',
     company: 'Premo Heritage Villa',
     avatar: '/images/premo.png',
-  },
-  {
-    quote: "From design to deployment, the Calibur Labz team delivered beyond our expectations. Our app launch was the smoothest we've ever had.",
-    author: 'Sarah Chen',
-    title: 'Founder',
-    company: 'Bloom Health',
-    avatar: '/images/avatars/client-2.jpg',
-  },
-  {
-    quote: "Working with Calibur Labz felt like having a world-class engineering team in-house. They understood our business goals and built accordingly.",
-    author: 'Marcus Williams',
-    title: 'Head of Product',
-    company: 'Forge Analytics',
-    avatar: '/images/avatars/client-3.jpg',
-  },
-  {
-    quote:"xCalibur Labz strengthened our brand identity and digital presence with thoughtful design and valuable technical insights tailored to our unique business needs. Their professionalism and fair pricing made continuing with them an easy choice.",
-    author: 'Preminda Kalansooriya',
-    title: 'Founder',
-    company: 'Premo Heritage Villa',
-    avatar: '/images/premo.png',
-  },
-  {
-    quote: "From design to deployment, the Calibur Labz team delivered beyond our expectations. Our app launch was the smoothest we've ever had.",
-    author: 'Sarah Chen',
-    title: 'Founder',
-    company: 'Bloom Health',
-    avatar: '/images/avatars/client-2.jpg',
-  },
-  {
-    quote: "Working with Calibur Labz felt like having a world-class engineering team in-house. They understood our business goals and built accordingly.",
-    author: 'Marcus Williams',
-    title: 'Head of Product',
-    company: 'Forge Analytics',
-    avatar: '/images/avatars/client-3.jpg',
   },
 ]
 

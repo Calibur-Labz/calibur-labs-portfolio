@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 import Hero from '@/components/sections/Hero'
@@ -13,58 +14,91 @@ import MaintenanceScreen from '@/components/MaintenanceScreen'
 import HashScroll from '@/components/HashScroll'
 import OrbiGuide from '@/components/orbi/OrbiGuide'
 import { readSiteSettingsSafe } from '@/lib/settings'
+import { services } from '@/lib/data'
+import { BRAND, SITE_URL, jsonLdScript, sharedOpenGraph } from './shared-metadata'
+
+/**
+ * The homepage canonical.
+ *
+ * Declared here rather than on the root layout: `alternates` merges shallowly,
+ * so a canonical on the layout is inherited verbatim by every page that forgets
+ * to override it, pointing the whole site at `/`.
+ */
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+  openGraph: { ...sharedOpenGraph, url: '/' },
+}
 
 /**
  * Who runs this site, in the form a search engine reads.
  *
- * Every field below is already printed in the footer for a human to read — the
- * email, the phone, the city, the LinkedIn page. Nothing here is asserted that
- * a visitor cannot verify by scrolling to the bottom of the page, which is the
- * line between describing a business and inventing one.
+ * Every field below is already printed on the page for a human to read — the
+ * email, the phone, the city, the LinkedIn page, the founding year in the hero
+ * stats, the two client countries on the Global Reach map. Nothing here is
+ * asserted that a visitor cannot verify by scrolling, which is the line between
+ * describing a business and inventing one.
  *
- * Deliberately absent: `aggregateRating`, `review`, `award`, `foundingDate`,
- * `numberOfEmployees`, and any `Offer` — the homepage sells services with no
- * published price, and a schema that claims otherwise is a fabrication that
- * happens to be machine-readable.
+ * `ProfessionalService` rather than plain `Organization`: it is a LocalBusiness
+ * subtype, so it carries `areaServed` and the address as local-business signals
+ * instead of generic company metadata. The `@id` is unchanged, so every node
+ * that already references `#organization` still resolves.
+ *
+ * Deliberately absent: `aggregateRating`, `review`, `award` and any `Offer` —
+ * the homepage sells services with no published price, and there is no verified
+ * review corpus. A schema that claims otherwise is a fabrication that happens to
+ * be machine-readable.
  *
  * `WebSite` carries no `SearchAction`: there is no site search, and describing
  * one that does not exist would send crawlers to a URL that 404s.
  */
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.caliburlabz.com'
-
 const siteJsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
     {
-      '@type': 'Organization',
+      '@type': 'ProfessionalService',
       '@id': `${SITE_URL}/#organization`,
-      name: 'xCalibur Labz',
+      name: BRAND,
       url: SITE_URL,
-      logo: `${SITE_URL}/images/logo.png`,
+      // The wordmark that actually ships. This previously pointed at
+      // `/images/logo.png`, which does not exist in `public/` and 404'd.
+      logo: `${SITE_URL}/images/logoN.png`,
+      image: `${SITE_URL}/images/logoN.png`,
+      description:
+        'xCalibur Labz builds custom software, web apps and e-commerce platforms for growing businesses — from first idea to launch.',
       email: 'caliburlabz@gmail.com',
       telephone: '+94765831021',
+      foundingDate: '2026',
       address: {
         '@type': 'PostalAddress',
         addressLocality: 'Galle',
         addressCountry: 'LK',
+      },
+      // The two countries the Global Reach map marks, and only those.
+      areaServed: [
+        { '@type': 'Country', name: 'Sri Lanka' },
+        { '@type': 'Country', name: 'Australia' },
+      ],
+      knowsAbout: services.map((service) => service.title),
+      contactPoint: {
+        '@type': 'ContactPoint',
+        contactType: 'sales',
+        email: 'caliburlabz@gmail.com',
+        telephone: '+94765831021',
+        areaServed: ['LK', 'AU'],
+        availableLanguage: ['en', 'si'],
       },
       sameAs: ['https://www.linkedin.com/company/calibur-labs'],
     },
     {
       '@type': 'WebSite',
       '@id': `${SITE_URL}/#website`,
-      name: 'xCalibur Labz',
+      name: BRAND,
       url: SITE_URL,
       publisher: { '@id': `${SITE_URL}/#organization` },
       inLanguage: 'en',
     },
   ],
 }
-
-// Read the maintenance flag fresh on every request so toggling it from the
-// admin console takes effect immediately.
-export const dynamic = 'force-dynamic'
 
 export default async function Home() {
   const { maintenance, emergencyPhone } = await readSiteSettingsSafe()
@@ -80,7 +114,7 @@ export default async function Home() {
       {/* Server-rendered, so it is in the HTML a crawler receives. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(siteJsonLd) }}
       />
       <main>
         <Hero />

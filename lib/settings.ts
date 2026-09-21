@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import { ensureSchema, sql } from './db'
 
 /**
@@ -43,6 +44,28 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   }
 }
 
+/** The cache tag the admin console busts when it writes a setting. */
+export const SETTINGS_CACHE_TAG = 'site-settings'
+
+/**
+ * The cached read behind the public pages.
+ *
+ * Both public routes used to be `force-dynamic` purely so this boolean was
+ * fresh, which cost a Postgres round-trip on every request — including every
+ * crawl — and made the HTML uncacheable end to end. Caching it lets those pages
+ * prerender; `revalidateTag(SETTINGS_CACHE_TAG)` in the settings API route keeps
+ * the maintenance toggle instant, so nothing about the admin experience changes.
+ *
+ * `unstable_cache` is marked deprecated in Next 16 in favour of the `use cache`
+ * directive. That directive requires `cacheComponents: true`, which changes
+ * rendering semantics for the whole app — the ORBI page and the admin console
+ * included — and is not worth that regression surface for one flag. Revisit
+ * when there is a reason to enable Cache Components on its own merits.
+ */
+const readSettingsCached = unstable_cache(getSiteSettings, ['site-settings'], {
+  tags: [SETTINGS_CACHE_TAG],
+})
+
 /**
  * Read settings without ever throwing — used by the public homepage, where a
  * missing/unreachable database must not take the whole site down. On any error
@@ -50,7 +73,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
  */
 export async function readSiteSettingsSafe(): Promise<SiteSettings> {
   try {
-    return await getSiteSettings()
+    return await readSettingsCached()
   } catch (error) {
     console.error('[settings] read failed, defaulting to live site:', error)
     return { maintenance: false, emergencyPhone: DEFAULT_EMERGENCY_PHONE }

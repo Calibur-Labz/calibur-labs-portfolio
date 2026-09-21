@@ -1,24 +1,8 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { syne, poppins } from './fonts'
+import { BRAND, SITE_URL, sharedOpenGraph, sharedTwitter } from './shared-metadata'
 import MotionProvider from '@/components/MotionProvider'
 import './globals.css'
-
-/**
- * The production origin, and the reason `metadataBase` exists.
- *
- * Next resolves every relative URL in this file — Open Graph images, canonical
- * links, the Twitter card — against this. Without it, Next warns at build time
- * and falls back to `localhost:3000`, which means a share card in production
- * points at a machine nobody else can reach.
- *
- * The apex 307-redirects to `www`, so `www` is the canonical origin: pointing
- * canonicals at the apex would send crawlers through a redirect on every page.
- *
- * Overridable so a preview deployment can describe itself honestly rather than
- * claiming to be production. Not a secret — it is the address of a public
- * website — which is why `NEXT_PUBLIC_` is correct here and never for a key.
- */
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.caliburlabz.com'
 
 /**
  * Brand second, what we do first.
@@ -29,16 +13,25 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.calibu
  * closes the title, so the brand is present without leading with it.
  */
 const TITLE = 'Custom Software & Web Development'
-const BRAND = 'xCalibur Labz'
 /**
  * Written to be read, not to be counted. Each phrase we want to be found for
  * appears once, in a sentence that describes the business honestly — the copy
  * on the page already says the same thing.
  */
 const DESCRIPTION =
-  'xCalibur Labz builds custom software, web apps and e-commerce platforms for growing businesses — from first idea to launch. Based in Galle, Sri Lanka.'
+  'xCalibur Labz builds custom software, web apps and e-commerce platforms for growing businesses — from first idea to launch. Based in Galle, Sri Lanka, working with clients across Sri Lanka and Australia.'
 
 export const metadata: Metadata = {
+  /**
+   * Next resolves every relative URL in this file — Open Graph images, canonical
+   * links, the Twitter card — against this. Without it, Next warns at build time
+   * and falls back to `localhost:3000`, which means a share card in production
+   * points at a machine nobody else can reach.
+   *
+   * The apex 301-redirects to `www` (see `deploy/nginx-calibur-portfolio.conf`),
+   * so `www` is the canonical origin: pointing canonicals at the apex would send
+   * crawlers through a redirect on every page.
+   */
   metadataBase: new URL(SITE_URL),
   title: {
     default: `${TITLE} | ${BRAND}`,
@@ -47,6 +40,10 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   applicationName: BRAND,
+  /**
+   * Google has ignored this since 2009. Kept only because Bing and a handful of
+   * smaller crawlers still read it, and it costs one line.
+   */
   keywords: [
     'software development',
     'web development',
@@ -55,26 +52,46 @@ export const metadata: Metadata = {
     'digital products',
     'Sri Lanka',
   ],
-  alternates: { canonical: '/' },
+  /**
+   * Deliberately NOT set on the layout.
+   *
+   * `alternates` is merged shallowly, so a canonical declared here is inherited
+   * verbatim by every child that does not override it — which would point every
+   * service page at the homepage and drop it from the index. Each page declares
+   * its own; the homepage's lives in `app/page.tsx`.
+   */
   openGraph: {
-    type: 'website',
-    siteName: BRAND,
+    ...sharedOpenGraph,
     url: '/',
     title: `${TITLE} | ${BRAND}`,
     description: DESCRIPTION,
-    images: [{ url: '/images/og-image.png', width: 1200, height: 630, alt: BRAND }],
   },
   twitter: {
-    card: 'summary_large_image',
+    ...sharedTwitter,
     title: `${TITLE} | ${BRAND}`,
     description: DESCRIPTION,
-    images: ['/images/og-image.png'],
   },
+  /**
+   * No `openGraph.images` / `twitter.images` here on purpose. `app/opengraph-image.tsx`
+   * generates the card, and file-based metadata takes priority over this object —
+   * so there is no path to keep in sync and nothing to 404. The previous
+   * `/images/og-image.png` did exactly that: it was referenced here and never
+   * existed, so every share rendered blank.
+   */
   robots: {
     index: true,
     follow: true,
     googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
   },
+}
+
+/**
+ * Separate from `metadata` since Next 14 — `metadata.themeColor` is deprecated
+ * and silently ignored. This tints the browser chrome on mobile to match
+ * `--color-void`, so the page does not sit inside a white frame.
+ */
+export const viewport: Viewport = {
+  themeColor: '#05070C',
 }
 
 export default function RootLayout({

@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { fadeUp, stagger } from '@/lib/motion'
 import { services } from '@/lib/data'
@@ -103,7 +104,7 @@ export default function Services() {
                 borderRadius: '16px',
                 padding: '32px',
                 overflow: 'hidden',
-                cursor: 'default',
+                cursor: 'pointer',
                 transition: 'border-color 0.3s',
               }}
               onMouseEnter={(e) => {
@@ -156,7 +157,20 @@ export default function Services() {
                   letterSpacing: '-0.01em',
                 }}
               >
-                {service.title}
+                {/*
+                  The link lives on the title so its anchor text is the service
+                  name — which is the phrase the destination page is trying to
+                  rank for — while `.service-card-link::after` stretches the hit
+                  area over the whole card. A bare absolutely-positioned overlay
+                  would have made the card clickable with no anchor text at all.
+                */}
+                <Link
+                  href={`/services/${service.slug}`}
+                  className="service-card-link"
+                  style={{ color: 'inherit', textDecoration: 'none' }}
+                >
+                  {service.title}
+                </Link>
               </h3>
               <p
                 style={{
@@ -169,12 +183,30 @@ export default function Services() {
               >
                 {service.description}
               </p>
+              <span
+                aria-hidden="true"
+                style={{
+                  display: 'inline-block',
+                  marginTop: '18px',
+                  color: '#00B7FF',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  fontFamily: 'var(--font-poppins), system-ui, sans-serif',
+                }}
+              >
+                Read more →
+              </span>
             </motion.div>
           ))}
         </motion.div>
       </div>
 
       <style>{`
+        .service-card-link::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+        }
         @media (max-width: 900px) {
           .services-grid {
             grid-template-columns: repeat(2, 1fr) !important;

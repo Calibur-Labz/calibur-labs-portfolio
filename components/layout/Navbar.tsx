@@ -8,7 +8,7 @@ import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-
 // Root-relative so every link also works from a page that is not the
 // homepage — `/orbi` has no #services of its own to jump to.
 const links = [
-  { label: 'Services', href: '/#services' },
+  { label: 'Services', href: '/services' },
   { label: 'Work', href: '/#work' },
   { label: 'ORBI', href: '/orbi' },
   { label: 'About', href: '/#about' },

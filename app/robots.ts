@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next'
+import { SITE_URL } from './shared-metadata'
 
 /**
  * What crawlers may look at.
@@ -9,8 +10,6 @@ import type { MetadataRoute } from 'next'
  * results. Everything else is open — this is a portfolio, and being found is
  * the entire point.
  */
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.caliburlabz.com'
 
 export default function robots(): MetadataRoute.Robots {
   return {

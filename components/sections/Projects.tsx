@@ -105,7 +105,13 @@ export default function Projects() {
                 >
                   <Image
                     src={project.image}
-                    alt={project.title}
+                    /*
+                      Says what the image shows, not just whose project it is.
+                      "Premo Heritage Villa" alone repeats the heading directly
+                      above it and tells someone using a screen reader nothing
+                      they did not already have.
+                    */
+                    alt={`Screenshot of the ${project.title} ${project.category.toLowerCase()} project`}
                     fill
                     /*
                       Without this, `fill` means "assume 100vw", so a 1440px
