@@ -70,7 +70,7 @@ const siteJsonLd = {
       foundingDate: '2026',
       address: {
         '@type': 'PostalAddress',
-        addressLocality: 'Galle',
+        addressLocality: 'Colombo',
         addressCountry: 'LK',
       },
       // The two countries the Global Reach map marks, and only those.

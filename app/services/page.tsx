@@ -20,7 +20,7 @@ import { BRAND, SITE_URL, jsonLdScript, sharedOpenGraph, sharedTwitter } from '.
 
 const TITLE = 'Software Development Services'
 const DESCRIPTION =
-  'Web and mobile development, UI/UX design, cloud and DevOps, AI integration and custom CMS, ERP and POS systems — built by xCalibur Labz in Galle, Sri Lanka.'
+  'Web and mobile development, UI/UX design, cloud and DevOps, AI integration and custom CMS, ERP and POS systems — built by xCalibur Labz in Colombo, Sri Lanka.'
 
 export const metadata: Metadata = {
   title: TITLE,

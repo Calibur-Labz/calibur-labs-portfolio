@@ -193,7 +193,7 @@ export default function Footer() {
             </a>
             <div className="contact-row" style={{ cursor: 'default' }}>
               <span className="contact-ico"><MapPinIcon size={16} /></span>
-              Galle, Sri Lanka
+              Colombo, Sri Lanka
             </div>
 
             <Link

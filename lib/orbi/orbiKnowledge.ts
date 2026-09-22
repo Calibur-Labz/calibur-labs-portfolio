@@ -45,7 +45,7 @@ import {
 /** Facts that live in the page copy rather than in `lib/data.ts`. */
 const COMPANY = `
 xCalibur Labz is a software startup founded in 2026 by a group of undergraduate
-engineers, based in Galle, Sri Lanka. The team builds clean, scalable digital
+engineers, based in Colombo, Sri Lanka. The team builds clean, scalable digital
 products and describes itself as young and hungry, caring about every line of
 code. The site says great software starts with a deep understanding of the
 business behind it.
@@ -71,7 +71,7 @@ How to get in touch:
 - Contact form on this website (the "Let's Talk" / Contact section) - the preferred route.
 - Email: caliburlabz@gmail.com
 - Phone: +94 76 58 31021
-- Location: Galle, Sri Lanka
+- Location: Colombo, Sri Lanka
 - The site states responses typically come within 24 hours.
 `.trim()
 

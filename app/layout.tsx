@@ -11,15 +11,20 @@ import './globals.css'
  * and a person scanning results only slightly more. Nobody searches for a
  * studio they have not heard of — they search for the work. The name still
  * closes the title, so the brand is present without leading with it.
+ *
+ * The country is in the title because the searches worth winning are local:
+ * "software company Sri Lanka" is reachable in a way that "best web
+ * development companies" — a phrase whose results page is entirely
+ * directories and listicles — is not.
  */
-const TITLE = 'Custom Software & Web Development'
+const TITLE = 'Software Development Company in Sri Lanka'
 /**
  * Written to be read, not to be counted. Each phrase we want to be found for
  * appears once, in a sentence that describes the business honestly — the copy
  * on the page already says the same thing.
  */
 const DESCRIPTION =
-  'xCalibur Labz builds custom software, web apps and e-commerce platforms for growing businesses — from first idea to launch. Based in Galle, Sri Lanka, working with clients across Sri Lanka and Australia.'
+  'xCalibur Labz is a software development company in Colombo, Sri Lanka. We build custom software, web applications, mobile apps and e-commerce platforms for businesses across Sri Lanka and Australia.'
 
 export const metadata: Metadata = {
   /**
@@ -45,12 +50,20 @@ export const metadata: Metadata = {
    * smaller crawlers still read it, and it costs one line.
    */
   keywords: [
-    'software development',
-    'web development',
-    'custom software',
-    'e-commerce development',
-    'digital products',
-    'Sri Lanka',
+    /* Long-tail first: these describe work already shown in `projects`, and
+       almost nobody in this market is competing for them. */
+    'villa booking system Sri Lanka',
+    'hotel booking website development Sri Lanka',
+    'online product ordering system Sri Lanka',
+    'custom CMS development Sri Lanka',
+    'POS system development Sri Lanka',
+    'ERP system development Sri Lanka',
+    'AI website assistant',
+    'AI chatbot for website Sri Lanka',
+    /* The head terms. Kept because they are what the business is, not
+       because this tag will win them. */
+    'software company Colombo',
+    'web development company Sri Lanka',
   ],
   /**
    * Deliberately NOT set on the layout.

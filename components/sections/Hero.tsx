@@ -293,7 +293,7 @@ export default function Hero() {
                 maxWidth: '560px',
               }}
             >
-              xCalibur Labz is a team of engineers who turn business challenges into clean, scalable digital products. We&apos;re young, sharp, and we ship software that works.
+              xCalibur Labz is a software development company in Colombo, Sri Lanka — a team of engineers who turn business challenges into clean, scalable digital products. We&apos;re young, sharp, and we ship software that works.
             </motion.p>
 
             <motion.div variants={fadeUp} className="hero-cta">

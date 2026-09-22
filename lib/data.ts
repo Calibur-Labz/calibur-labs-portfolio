@@ -70,9 +70,9 @@ export const services: Service[] = [
     title: 'Web Development',
     description: 'Scalable, performant web applications built with modern frameworks, from MVPs to enterprise grade platforms.',
     slug: 'web-development',
-    metaTitle: 'Custom Web Application Development',
+    metaTitle: 'Web Application Development Sri Lanka',
     metaDescription:
-      'We build custom web applications and business websites — booking systems, e-commerce, dashboards and internal tools. Based in Galle, working with clients in Sri Lanka and Australia.',
+      'We build custom web applications and business websites — booking systems, e-commerce, dashboards and internal tools. Based in Colombo, working with clients in Sri Lanka and Australia.',
     h1: 'Custom web application development',
     intro:
       'Most business problems that look like a website are really a web application: something has to be booked, ordered, tracked or approved, and a page of text cannot do it. We build the application underneath, and the site around it, so the two are one product rather than a brochure bolted to a form.',
@@ -92,7 +92,7 @@ export const services: Service[] = [
     faq: [
       { q: 'How long does a web application take?', a: 'A focused first version is typically four to eight weeks. A booking platform or an e-commerce build with custom admin runs longer. We give you a written timeline with the quote, and we tell you if a date is unrealistic before you commit to it.' },
       { q: 'What does it cost?', a: 'It depends entirely on scope, so we do not publish a number that would be wrong for most projects. We scope first and quote a fixed price against that scope, so you are not signing a blank cheque.' },
-      { q: 'Do you work with clients outside Sri Lanka?', a: 'Yes. We are based in Galle and work with clients in Sri Lanka and Australia, remotely and on overlapping hours.' },
+      { q: 'Do you work with clients outside Sri Lanka?', a: 'Yes. We are based in Colombo and work with clients in Sri Lanka and Australia, remotely and on overlapping hours.' },
       { q: 'Do I own the code?', a: 'Yes. The repository, the domain and the hosting accounts are yours. We hand over credentials and documentation at launch — you are not locked into us to keep your own product running.' },
     ],
   },
@@ -102,7 +102,7 @@ export const services: Service[] = [
     title: 'Mobile Apps',
     description: 'Native and cross-platform iOS & Android apps that deliver seamless user experiences across devices.',
     slug: 'mobile-app-development',
-    metaTitle: 'iOS & Android App Development',
+    metaTitle: 'iOS & Android App Development Sri Lanka',
     metaDescription:
       'Cross-platform and native mobile app development for iOS and Android — from first build to App Store and Google Play release. Sri Lanka and Australia.',
     h1: 'iOS and Android app development',
@@ -133,7 +133,7 @@ export const services: Service[] = [
     title: 'UI/UX Design',
     description: 'Research-driven design systems and interfaces that convert. Beautiful, functional, and accessible.',
     slug: 'ui-ux-design',
-    metaTitle: 'UI/UX Design & Design Systems',
+    metaTitle: 'UI/UX Design Services Sri Lanka',
     metaDescription:
       'Interface and experience design for web and mobile products — user flows, design systems and accessible, high-converting screens, built to be handed straight to developers.',
     h1: 'UI/UX design for products people finish using',
@@ -164,7 +164,7 @@ export const services: Service[] = [
     title: 'Cloud & DevOps',
     description: 'Reliable cloud infrastructure, CI/CD pipelines, and deployment automation that keeps your product running smoothly.',
     slug: 'cloud-devops',
-    metaTitle: 'Cloud Infrastructure, CI/CD & DevOps',
+    metaTitle: 'Cloud, CI/CD & DevOps Services Sri Lanka',
     metaDescription:
       'Cloud hosting, deployment pipelines, backups and monitoring set up so releases are routine and your product stays up. AWS, Vercel and self-hosted VPS.',
     h1: 'Cloud infrastructure and deployment that stays boring',
@@ -195,7 +195,7 @@ export const services: Service[] = [
     title: 'AI Integration',
     description: 'Embed intelligent features into your product from LLM-powered workflows to custom ML model deployment.',
     slug: 'ai-integration',
-    metaTitle: 'AI & LLM Integration for Business Software',
+    metaTitle: 'AI & LLM Integration Services Sri Lanka',
     metaDescription:
       'Practical AI features built into your product — assistants grounded in your own content, document extraction and workflow automation, with costs and limits made clear up front.',
     h1: 'AI features that earn their place in your product',
@@ -227,7 +227,7 @@ export const services: Service[] = [
     title: 'CMS, ERP & POS Solutions',
     description: 'End-to-end business systems including CMS, ERP, and POS solutions that streamline content management, operations, inventory, sales, and financial workflows in one integrated ecosystem.',
     slug: 'cms-erp-pos',
-    metaTitle: 'Custom CMS, ERP & POS Systems',
+    metaTitle: 'Custom CMS, ERP & POS Systems Sri Lanka',
     metaDescription:
       'Custom content, inventory, point-of-sale and operations systems built around how your business actually runs — replacing the spreadsheets and off-the-shelf tools you have outgrown.',
     h1: 'CMS, ERP and POS systems built around your operation',
@@ -327,8 +327,8 @@ export const techStack: TechItem[] = [
 ]
 
 /**
- * Real client testimonials. One entry, because there is one client who has
- * given us a quote on the record.
+ * Real client testimonials. Only clients who have given us a quote on the
+ * record appear here.
  *
  * This array used to hold six: three testimonials duplicated verbatim to fill
  * the carousel rail, two of which named clients and companies that do not
@@ -350,6 +350,14 @@ export const testimonials: Testimonial[] = [
     title: 'Founder',
     company: 'Premo Heritage Villa',
     avatar: '/images/premo.png',
+  },
+  {
+    quote:
+      'xCalibur Labz designed our project quickly and in a very attractive and professional manner. Not only did they build the website for us, but even after two months, whenever we need to make any changes or updates, they take action promptly and provide us with excellent support. Thank you very much, xCalibur Labz, for your great work and continued support!',
+    author: 'Binool Ekanayake',
+    title: 'CEO',
+    company: 'SBB Industrial Trading',
+    avatar: '/images/projects/feedbacks/binool.png',
   },
 ]
 
