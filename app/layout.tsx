@@ -64,6 +64,15 @@ export const metadata: Metadata = {
        because this tag will win them. */
     'software company Colombo',
     'web development company Sri Lanka',
+    /* Brand variants. The canonical spelling is the one in `BRAND`; these
+       are how the name gets typed by someone who has only heard it. The
+       authoritative list lives in the organisation schema's
+       `alternateName` — this is the same set for the crawlers that still
+       read this tag. */
+    'xCalibur Labz',
+    'Calibur Labz',
+    'Calibur Labs',
+    'Caliber Labs',
   ],
   /**
    * Deliberately NOT set on the layout.

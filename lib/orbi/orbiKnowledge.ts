@@ -45,7 +45,10 @@ import {
 /** Facts that live in the page copy rather than in `lib/data.ts`. */
 const COMPANY = `
 xCalibur Labz is a software startup founded in 2026 by a group of undergraduate
-engineers, based in Colombo, Sri Lanka. The team builds clean, scalable digital
+engineers, based in Colombo, Sri Lanka. The name is often written Calibur Labs,
+Calibur Labz, Caliber Labs or just Calibur — all of these mean this company, and
+a visitor who uses one of them is asking about us. The correct spelling is
+xCalibur Labz. The team builds clean, scalable digital
 products and describes itself as young and hungry, caring about every line of
 code. The site says great software starts with a deep understanding of the
 business behind it.

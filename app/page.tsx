@@ -58,6 +58,28 @@ const siteJsonLd = {
       '@type': 'ProfessionalService',
       '@id': `${SITE_URL}/#organization`,
       name: BRAND,
+      /**
+       * The spellings people actually type.
+       *
+       * The brand has a lowercase x, a z where an s is expected, and a word
+       * ("Calibur") that autocorrect pulls toward "Caliber" — so someone who
+       * has heard the name once will as often as not search for something
+       * that is not it. `alternateName` is the supported way to tell a search
+       * engine these all denote one entity, and it does that without putting
+       * a single misspelling in front of a human reader.
+       *
+       * Every entry is a real variant of the name, not a keyword: the domain
+       * is caliburlabz.com and the LinkedIn page is /calibur-labs, so the
+       * shorter forms are already how this company gets addressed.
+       */
+      alternateName: [
+        'Calibur Labz',
+        'Calibur Labs',
+        'xCalibur Labs',
+        'Caliber Labs',
+        'Calibur Lab',
+        'Calibur',
+      ],
       url: SITE_URL,
       // The wordmark that actually ships. This previously pointed at
       // `/images/logo.png`, which does not exist in `public/` and 404'd.
