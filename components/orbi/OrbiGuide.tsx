@@ -47,7 +47,7 @@ import OrbiGuideControl from './OrbiGuideControl'
 import OrbiGuideMenu from './OrbiGuideMenu'
 import OrbiAskPanel from './OrbiAskPanel'
 import { useOrbiAsk } from './useOrbiAsk'
-import { ORBI_ACTION_TARGETS, type OrbiAskAction } from './orbiAsk'
+import { ORBI_ACTION_TARGETS, ORBI_ACTIONS, type OrbiAskAction } from './orbiAsk'
 import { useOrbiGuideMode, type OrbiGuideApi } from './useOrbiGuideMode'
 import {
   ORBI_GUIDE,
@@ -216,6 +216,38 @@ const LOOK_GAZE: Partial<Record<OrbiAnimation, { x: number; y: number }>> = {
 }
 
 /**
+ * ORBI inside the `/orbi/frame` iframe, on someone else's website.
+ *
+ * Absent everywhere on this site, which is what keeps the homepage and `/orbi`
+ * exactly as they were. Present, it changes three things and nothing else:
+ * the breakpoint comes from the host page, the frame hears when a panel
+ * opens or closes so it can resize the iframe, and destinations — which do not
+ * exist on the host page — are handed out instead of scrolled to.
+ *
+ * The guide control stays: it is the only way into Ask ORBI. Its menu's
+ * destinations go out through `onAction` like an answer's do.
+ */
+export interface OrbiEmbedOptions {
+  breakpoint: OrbiBreakpoint
+  /** True while the Ask panel or the guide menu is showing. */
+  onSurfaceChange: (open: boolean) => void
+  /** Called in place of guide-mode navigation, inside the visitor's click. */
+  onAction: (action: Exclude<OrbiAskAction, 'NO_ACTION'>) => void
+}
+
+/** Guide destination → the action that names it, for the embed's menu. */
+function actionForTarget(
+  target: string,
+): Exclude<OrbiAskAction, 'NO_ACTION'> | null {
+  for (const action of ORBI_ACTIONS) {
+    if (action !== 'NO_ACTION' && ORBI_ACTION_TARGETS[action] === target) {
+      return action
+    }
+  }
+  return null
+}
+
+/**
  * ORBI — the website companion.
  *
  * The only component the rest of the site mounts. It owns the state machine,
@@ -243,7 +275,13 @@ const LOOK_GAZE: Partial<Record<OrbiAnimation, { x: number; y: number }>> = {
  * costs no renders; the body tilt has exactly one writer that sums every
  * contribution; and every new reaction claims priority like any other.
  */
-export default function OrbiGuide({ children }: { children?: ReactNode }) {
+export default function OrbiGuide({
+  children,
+  embed,
+}: {
+  children?: ReactNode
+  embed?: OrbiEmbedOptions
+}) {
   const [state, setState] = useState<OrbiState>(ORBI_INITIAL_STATE)
   /** Eyes are dark until the entrance timeline switches them on. */
   const [awake, setAwake] = useState(false)
@@ -270,7 +308,15 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const [successRun, setSuccessRun] = useState(0)
 
   const reducedMotion = useReducedMotion()
-  const breakpoint = useOrbiBreakpoint()
+  // Inside the embed frame the viewport is the iframe, not the visitor's
+  // window, so the host page's breakpoint is handed in instead of measured.
+  const viewportBreakpoint = useOrbiBreakpoint()
+  const breakpoint = embed?.breakpoint ?? viewportBreakpoint
+  /** Mirror, so the embed callbacks never re-bind anything. */
+  const embedRef = useRef(embed)
+  useEffect(() => {
+    embedRef.current = embed
+  })
   const finePointer = useFinePointer()
   const debugEnabled = useOrbiDebugEnabled()
   /** `?orbi-freeze=1` — hold still for deterministic screenshots. Dev only. */
@@ -2349,6 +2395,13 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   const runAskAction = useCallback(
     (action: OrbiAskAction) => {
       if (action === 'NO_ACTION') return
+      // Embedded, the destination is not on this page. The frame opens it,
+      // and the conversation stays exactly where it was.
+      if (embedRef.current) {
+        note(`ask:${action}`)
+        embedRef.current.onAction(action)
+        return
+      }
       const target = ORBI_ACTION_TARGETS[action]
       const item = ORBI_GUIDE_ITEMS.find((entry) => entry.target === target)
       if (!item) return
@@ -2374,6 +2427,22 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
   )
 
   const { open: guideOpen, remeasure: guideRemeasure } = guide
+
+  /** Embedded: the frame sizes the iframe to whatever is showing. */
+  const surfaceOpen = askOpen || guideOpen
+  useEffect(() => {
+    embedRef.current?.onSurfaceChange(surfaceOpen)
+  }, [surfaceOpen])
+
+  /**
+   * The menu, embedded. Its destinations are sections of the Calibur Labs
+   * homepage, so a choice goes out the same door an Ask action does.
+   */
+  const chooseEmbeddedItem = useCallback((item: OrbiGuideItem) => {
+    const action = actionForTarget(item.target)
+    guideRef.current?.close('embed-action')
+    if (action) embedRef.current?.onAction(action)
+  }, [])
 
   /**
    * The panel is anchored to ORBI's box, so it travels with him for free — but
@@ -4618,7 +4687,7 @@ export default function OrbiGuide({ children }: { children?: ReactNode }) {
             placementMetrics={placement}
             theme={environment.theme}
             reducedMotion={reducedMotion}
-            onSelect={guide.choose}
+            onSelect={embed ? chooseEmbeddedItem : guide.choose}
             onAsk={openAsk}
             onClose={() => guide.close('dismissed')}
             controlRef={guideButtonRef}
