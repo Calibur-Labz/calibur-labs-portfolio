@@ -100,6 +100,11 @@ export interface OrbiGuideOptions {
   onArrive: (item: OrbiGuideItem) => void
   /** Ended early. Put back anything the acknowledgement left behind. */
   onCancel: (reason: string, item: OrbiGuideItem | null) => void
+  /**
+   * What the menu offers. The site's own five unless an embed supplies the
+   * customer's — the panel is sized from this, so it has to be the real list.
+   */
+  items?: readonly OrbiGuideItem[]
 }
 
 export interface OrbiGuideApi extends OrbiGuideSnapshot {
@@ -137,6 +142,7 @@ export function useOrbiGuideMode({
   onChoose,
   onArrive,
   onCancel,
+  items = ORBI_GUIDE_ITEMS,
 }: OrbiGuideOptions): OrbiGuideApi {
   const [snapshot, setSnapshot] = useState<OrbiGuideSnapshot>(IDLE)
 
@@ -163,6 +169,7 @@ export function useOrbiGuideMode({
     onChoose,
     onArrive,
     onCancel,
+    items,
   })
   useEffect(() => {
     optionsRef.current = {
@@ -177,6 +184,7 @@ export function useOrbiGuideMode({
       onChoose,
       onArrive,
       onCancel,
+      items,
     }
   })
 
@@ -226,7 +234,7 @@ export function useOrbiGuideMode({
     const opts = optionsRef.current
     const env = opts.readEnvironment()
     const orbi = opts.orbiRect
-    const size = guidePanelSize(opts.breakpoint)
+    const size = guidePanelSize(opts.breakpoint, opts.items.length)
     const { gap, margin, unsafeOverlap, sheetMaxWidth, sheetMinHeight } =
       ORBI_GUIDE.panel
 
@@ -578,7 +586,7 @@ export function useOrbiGuideMode({
 
   return {
     ...snapshot,
-    items: ORBI_GUIDE_ITEMS,
+    items,
     toggle,
     openMenu,
     close,

@@ -1,10 +1,14 @@
 /**
- * ORBI — embed script (demo).
+ * ORBI — embed script.
  *
- *   <script src="https://www.caliburlabz.com/orbi/embed.js" defer></script>
+ *   <script src="https://www.caliburlabz.com/orbi/embed.js"
+ *     data-orbi-sections='{"services":{"label":"What We Do","selector":"#services"}}'
+ *     defer></script>
  *
  * Adds one transparent iframe to the bottom-right corner of the page and
- * nothing else: no global styles, no reads of the page, no secrets. Everything
+ * nothing else: no global styles, no secrets. The only part of the page it
+ * ever reads is the sections the site named on this tag, and only to scroll
+ * to one when a visitor asks ORBI to go there. Everything
  * ORBI does happens inside the iframe, on ORBI's own origin, which is also
  * where his questions go.
  *
@@ -29,6 +33,75 @@
   // Loaded twice, installed once.
   if (window.__orbiEmbed) return
   window.__orbiEmbed = true
+
+  /* ── The site's sections ── */
+
+  /**
+   * `data-orbi-sections`, as data: parsed, never evaluated. Keys are the five
+   * destinations ORBI knows; each needs a short text label and a CSS selector
+   * the browser accepts. Anything else is dropped on its own, and a broken
+   * attribute simply means ORBI offers no sections. The same limits as
+   * `components/orbi/orbiEmbedSections.ts`, which re-checks the labels.
+   */
+  var SECTION_KEYS = ['services', 'work', 'testimonials', 'about', 'contact']
+  var CONTROL = new RegExp('[\\u0000-\\u001F\\u007F]', 'g')
+  var HAS_CONTROL = new RegExp('[\\u0000-\\u001F\\u007F]')
+
+  function readSections() {
+    var found = {}
+    var raw = script.getAttribute('data-orbi-sections')
+    if (!raw) return found
+    var config
+    try {
+      config = JSON.parse(raw)
+    } catch {
+      return found
+    }
+    if (!config || typeof config !== 'object' || Array.isArray(config)) return found
+    for (var i = 0; i < SECTION_KEYS.length; i++) {
+      var key = SECTION_KEYS[i]
+      if (!Object.prototype.hasOwnProperty.call(config, key)) continue
+      var entry = config[key]
+      if (!entry || typeof entry !== 'object') continue
+      if (typeof entry.label !== 'string' || typeof entry.selector !== 'string') continue
+      var label = entry.label.replace(CONTROL, '').trim()
+      var selector = entry.selector.trim()
+      if (!label || label.length > 40) continue
+      if (!selector || selector.length > 200 || HAS_CONTROL.test(selector)) continue
+      try {
+        document.querySelector(selector) // throws on anything that is not a selector
+      } catch {
+        continue
+      }
+      found[key] = { label: label, selector: selector }
+    }
+    return found
+  }
+
+  var sections = readSections()
+
+  /** Only the names cross into the frame. The selectors stay here. */
+  function sectionLabels() {
+    var list = []
+    for (var i = 0; i < SECTION_KEYS.length; i++) {
+      var key = SECTION_KEYS[i]
+      if (sections[key]) list.push({ key: key, label: sections[key].label })
+    }
+    return list
+  }
+
+  function navigate(key) {
+    if (typeof key !== 'string' || !Object.prototype.hasOwnProperty.call(sections, key)) return
+    var target = null
+    try {
+      target = document.querySelector(sections[key].selector)
+    } catch {
+      return
+    }
+    if (!target) return
+    var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    target.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' })
+  }
 
   /** Same thresholds as ORBI's own `ORBI_MEDIA`. */
   function breakpoint() {
@@ -88,7 +161,9 @@
     if (event.source !== frame.contentWindow) return
     if (event.origin !== origin) return
     var data = event.data
-    if (!data || data.type !== 'orbi:resize') return
+    if (!data) return
+    if (data.type === 'orbi:navigate') return navigate(data.section)
+    if (data.type !== 'orbi:resize') return
     introduced = true
     if (helloTimer) {
       clearInterval(helloTimer)
@@ -104,7 +179,7 @@
    */
   function hello() {
     if (introduced || !frame.contentWindow) return
-    frame.contentWindow.postMessage({ type: 'orbi:hello' }, origin)
+    frame.contentWindow.postMessage({ type: 'orbi:hello', sections: sectionLabels() }, origin)
   }
 
   frame.addEventListener('load', function () {

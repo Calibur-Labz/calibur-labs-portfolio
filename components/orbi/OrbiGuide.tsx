@@ -50,6 +50,11 @@ import { useOrbiAsk } from './useOrbiAsk'
 import { ORBI_ACTION_TARGETS, ORBI_ACTIONS, type OrbiAskAction } from './orbiAsk'
 import { useOrbiGuideMode, type OrbiGuideApi } from './useOrbiGuideMode'
 import {
+  embedActionLabels,
+  embedGuideItems,
+  type OrbiEmbedSection,
+} from './orbiEmbedSections'
+import {
   ORBI_GUIDE,
   ORBI_GUIDE_ITEMS,
   ORBI_GUIDE_MESSAGES,
@@ -219,13 +224,13 @@ const LOOK_GAZE: Partial<Record<OrbiAnimation, { x: number; y: number }>> = {
  * ORBI inside the `/orbi/frame` iframe, on someone else's website.
  *
  * Absent everywhere on this site, which is what keeps the homepage and `/orbi`
- * exactly as they were. Present, it changes three things and nothing else:
+ * exactly as they were. Present, it changes four things and nothing else:
  * the breakpoint comes from the host page, the frame hears when a panel
- * opens or closes so it can resize the iframe, and destinations — which do not
- * exist on the host page — are handed out instead of scrolled to.
+ * opens or closes so it can resize the iframe, the menu and answer buttons
+ * offer the customer's own sections under their own names, and choosing one
+ * is handed out — the frame cannot scroll the page it sits in.
  *
- * The guide control stays: it is the only way into Ask ORBI. Its menu's
- * destinations go out through `onAction` like an answer's do.
+ * The guide control stays: it is the only way into Ask ORBI.
  */
 export interface OrbiEmbedOptions {
   breakpoint: OrbiBreakpoint
@@ -233,6 +238,8 @@ export interface OrbiEmbedOptions {
   onSurfaceChange: (open: boolean) => void
   /** Called in place of guide-mode navigation, inside the visitor's click. */
   onAction: (action: Exclude<OrbiAskAction, 'NO_ACTION'>) => void
+  /** The customer's sections, already sanitised. Empty offers only Ask ORBI. */
+  sections: readonly OrbiEmbedSection[]
 }
 
 /** Guide destination → the action that names it, for the embed's menu. */
@@ -317,6 +324,16 @@ export default function OrbiGuide({
   useEffect(() => {
     embedRef.current = embed
   })
+  /** Embedded: the customer's sections. Undefined here means the site's own. */
+  const embedSections = embed?.sections
+  const embedItems = useMemo(
+    () => (embedSections ? embedGuideItems(embedSections) : undefined),
+    [embedSections],
+  )
+  const embedLabels = useMemo(
+    () => (embedSections ? embedActionLabels(embedSections) : undefined),
+    [embedSections],
+  )
   const finePointer = useFinePointer()
   const debugEnabled = useOrbiDebugEnabled()
   /** `?orbi-freeze=1` — hold still for deterministic screenshots. Dev only. */
@@ -2217,6 +2234,7 @@ export default function OrbiGuide({
     onChoose: handleGuideChoose,
     onArrive: handleGuideArrive,
     onCancel: handleGuideCancel,
+    items: embedItems,
   })
 
   useEffect(() => {
@@ -4791,6 +4809,7 @@ export default function OrbiGuide({
         }}
         onClose={closeAsk}
         onComposing={handleComposing}
+        actionLabels={embedLabels}
       />
       {debugEnabled && (
         <OrbiDebug

@@ -40,6 +40,7 @@ export default function OrbiAskPanel({
   onClose,
   onComposing,
   reducedMotion,
+  actionLabels,
 }: {
   open: boolean
   entries: OrbiAskEntry[]
@@ -63,7 +64,18 @@ export default function OrbiAskPanel({
    */
   onComposing?: (hasText: boolean) => void
   reducedMotion: boolean
+  /**
+   * Embedded: the customer's names for the destinations. An action with no
+   * entry gets no button. Absent, every action uses `ORBI_ACTION_LABELS`.
+   */
+  actionLabels?: Partial<Record<Exclude<OrbiAskAction, 'NO_ACTION'>, string>>
 }) {
+  const labelFor = (action: OrbiAskAction) =>
+    action === 'NO_ACTION'
+      ? undefined
+      : actionLabels
+        ? actionLabels[action]
+        : ORBI_ACTION_LABELS[action]
   const [draft, setDraft] = useState('')
   const panelRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -336,10 +348,8 @@ export default function OrbiAskPanel({
               {entry.role === 'user' ? `You: ${entry.text}` : entry.text}
             </div>
 
-            {entry.action && (
-              <CtaButton onClick={() => onAction(entry)}>
-                {ORBI_ACTION_LABELS[entry.action as Exclude<OrbiAskAction, 'NO_ACTION'>]}
-              </CtaButton>
+            {entry.action && labelFor(entry.action) && (
+              <CtaButton onClick={() => onAction(entry)}>{labelFor(entry.action)}</CtaButton>
             )}
 
             {/*
