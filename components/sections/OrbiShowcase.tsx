@@ -236,9 +236,16 @@ const HOLD_MS = 2800
 const GAZE_X = 5
 const GAZE_Y = 3.5
 
-export default function OrbiShowcase() {
+/**
+ * `showThemes` adds a Dark / Light switch under the reactions: the same
+ * robot, in the palette he takes on over a light page (`ORBI_THEME_COLORS`).
+ * Off by default, so the homepage's product overview looks exactly as it did.
+ */
+export default function OrbiShowcase({ showThemes = false }: { showThemes?: boolean } = {}) {
   const reducedMotion = useReducedMotion()
   const [index, setIndex] = useState(0)
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const light = showThemes && theme === 'light'
 
   /**
    * The robot's rendered width in px. `OrbiSleepParticles` places its glyphs
@@ -432,6 +439,7 @@ export default function OrbiShowcase() {
             >
             <OrbiRobot
               expression={reaction.expression}
+              theme={light ? 'light' : 'dark'}
               awake
               bright={reaction.bright}
               dozing={reaction.dozing}
@@ -471,6 +479,7 @@ export default function OrbiShowcase() {
             active={reaction.asleep === true}
             side="right"
             size={robotSize}
+            theme={light ? 'light' : 'dark'}
             reducedMotion={reducedMotion}
           />
         </div>
@@ -569,6 +578,45 @@ export default function OrbiShowcase() {
           </button>
         ))}
       </motion.div>
+
+      {showThemes && (
+        <motion.div
+          variants={fadeUp}
+          role="group"
+          aria-label="ORBI colour theme"
+          style={{
+            display: 'inline-flex',
+            marginTop: '14px',
+            padding: '3px',
+            borderRadius: '999px',
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'rgba(255,255,255,0.03)',
+          }}
+        >
+          {(['dark', 'light'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setTheme(option)}
+              aria-pressed={theme === option}
+              style={{
+                padding: '7px 16px',
+                borderRadius: '999px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 600,
+                fontFamily: POPPINS,
+                color: theme === option ? '#04121B' : MUTED,
+                background: theme === option ? ACCENT : 'transparent',
+                transition: 'background 0.25s ease, color 0.25s ease',
+              }}
+            >
+              {option === 'dark' ? 'Dark sites' : 'Light sites'}
+            </button>
+          ))}
+        </motion.div>
+      )}
 
       <style>{`
         .orbi-float {
