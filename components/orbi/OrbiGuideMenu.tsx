@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { gsap } from 'gsap'
 import {
-  ORBI_COLORS,
+  ORBI_THEME_COLORS,
   type OrbiBreakpoint,
   type OrbiPlacement,
   type OrbiRegionTheme,
@@ -194,6 +194,8 @@ export default function OrbiGuideMenu({
     buttons[next]?.focus({ preventScroll: true })
   }
 
+  const c = ORBI_THEME_COLORS[theme]
+
   return (
     <div
       ref={panelRef}
@@ -207,15 +209,12 @@ export default function OrbiGuideMenu({
         flexDirection: 'column',
         padding: `${ORBI_GUIDE.panel.padding}px`,
         borderRadius: `${ORBI_GUIDE.panel.radius}px`,
-        background: ORBI_COLORS.guideBg,
+        background: c.panelBg,
         backdropFilter: 'blur(14px) saturate(140%)',
         WebkitBackdropFilter: 'blur(14px) saturate(140%)',
-        border: `1px solid ${ORBI_COLORS.speechBorder}`,
-        boxShadow:
-          theme === 'light'
-            ? '0 18px 38px rgba(6,12,20,0.36), 0 2px 6px rgba(6,12,20,0.3), inset 0 1px 0 rgba(255,255,255,0.06)'
-            : '0 20px 44px rgba(0,0,0,0.5), 0 0 24px rgba(0,183,255,0.14), inset 0 1px 0 rgba(255,255,255,0.06)',
-        color: ORBI_COLORS.speechText,
+        border: `1px solid ${c.border}`,
+        boxShadow: c.panelShadow,
+        color: c.text,
         fontFamily: 'var(--font-poppins), system-ui, sans-serif',
         transformOrigin: origin,
         pointerEvents: 'auto',
@@ -243,7 +242,7 @@ export default function OrbiGuideMenu({
           fontSize: `${Math.round(m.font * 0.86)}px`,
           fontWeight: 500,
           letterSpacing: '0.02em',
-          color: '#6E8399',
+          color: c.textMuted,
           whiteSpace: 'nowrap',
         }}
       >
@@ -266,6 +265,7 @@ export default function OrbiGuideMenu({
       >
         {items.map((item) => (
           <MenuButton
+            theme={theme}
             key={item.id}
             height={m.item}
             font={m.font}
@@ -282,7 +282,7 @@ export default function OrbiGuideMenu({
       <div
         style={{
           marginTop: `${ORBI_GUIDE.panel.padding}px`,
-          borderTop: '1px solid rgba(255,255,255,0.06)',
+          borderTop: `1px solid ${c.hairline}`,
           flex: '0 0 auto',
         }}
       >
@@ -298,6 +298,7 @@ export default function OrbiGuideMenu({
         */}
         {onAsk && (
           <MenuButton
+            theme={theme}
             height={m.item}
             font={m.font}
             label={ORBI_GUIDE_MESSAGES.askLabel}
@@ -306,7 +307,7 @@ export default function OrbiGuideMenu({
             {ORBI_GUIDE_MESSAGES.ask}
           </MenuButton>
         )}
-        <MenuButton height={m.item} font={m.font * 0.92} muted onClick={onClose}>
+        <MenuButton theme={theme} height={m.item} font={m.font * 0.92} muted onClick={onClose}>
           {ORBI_GUIDE_MESSAGES.close}
         </MenuButton>
       </div>
@@ -320,9 +321,9 @@ export default function OrbiGuideMenu({
             position: 'absolute',
             width: '11px',
             height: '11px',
-            background: ORBI_COLORS.guideBg,
-            borderRight: `1px solid ${ORBI_COLORS.speechBorder}`,
-            borderBottom: `1px solid ${ORBI_COLORS.speechBorder}`,
+            background: c.panelBg,
+            borderRight: `1px solid ${c.border}`,
+            borderBottom: `1px solid ${c.border}`,
             borderBottomRightRadius: '3px',
             ...tailFor(placement, placementMetrics),
           }}
@@ -344,7 +345,9 @@ function MenuButton({
   label,
   muted = false,
   onClick,
+  theme,
 }: {
+  theme: OrbiRegionTheme
   children: React.ReactNode
   height: number
   font: number
@@ -354,6 +357,7 @@ function MenuButton({
   onClick: () => void
 }) {
   const [hot, setHot] = useState(false)
+  const c = ORBI_THEME_COLORS[theme]
 
   return (
     <button
@@ -377,9 +381,9 @@ function MenuButton({
         padding: '0 8px 0 10px',
         borderRadius: '10px',
         border: '1px solid transparent',
-        background: hot ? 'rgba(0,183,255,0.10)' : 'transparent',
-        borderColor: hot ? 'rgba(0,183,255,0.24)' : 'transparent',
-        color: hot ? '#E9F1F8' : muted ? '#6E8399' : '#93A6BC',
+        background: hot ? c.hotBg : 'transparent',
+        borderColor: hot ? c.hotBorder : 'transparent',
+        color: hot ? c.textHot : muted ? c.textMuted : c.textSoft,
         fontFamily: 'inherit',
         fontSize: `${font}px`,
         fontWeight: muted ? 500 : 600,

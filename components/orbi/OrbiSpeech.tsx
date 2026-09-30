@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { gsap } from 'gsap'
 import {
-  ORBI_COLORS,
+  ORBI_THEME_COLORS,
   ORBI_EASE,
   ORBI_TIMING,
   type OrbiBubblePlacement,
@@ -173,18 +173,15 @@ export default function OrbiSpeech({
         width: 'max-content',
         padding: placement.speechPadding,
         borderRadius: '16px',
-        background: ORBI_COLORS.speechBg,
+        background: ORBI_THEME_COLORS[theme].bubbleBg,
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        border: `1px solid ${ORBI_COLORS.speechBorder}`,
-        // Over a light region the cyan bloom disappears; a real shadow keeps
-        // the panel separated from the page instead.
-        boxShadow:
-          theme === 'light'
-            ? '0 16px 34px rgba(6,12,20,0.34), 0 2px 6px rgba(6,12,20,0.28), inset 0 1px 0 rgba(255,255,255,0.06)'
-            : '0 18px 40px rgba(0,0,0,0.45), 0 0 22px rgba(0,183,255,0.14), inset 0 1px 0 rgba(255,255,255,0.06)',
-        transition: 'box-shadow 420ms ease',
-        color: ORBI_COLORS.speechText,
+        border: `1px solid ${ORBI_THEME_COLORS[theme].border}`,
+        // Dark: a cyan bloom. Light: a white panel with dark text and a real
+        // shadow to lift it off the page.
+        boxShadow: ORBI_THEME_COLORS[theme].bubbleShadow,
+        transition: 'box-shadow 420ms ease, background 420ms ease, color 420ms ease, border-color 420ms ease',
+        color: ORBI_THEME_COLORS[theme].text,
         fontFamily: 'var(--font-poppins), system-ui, sans-serif',
         fontSize: `${placement.speechFontSize}px`,
         fontWeight: 500,
@@ -208,9 +205,9 @@ export default function OrbiSpeech({
           position: 'absolute',
           width: '11px',
           height: '11px',
-          background: ORBI_COLORS.speechBg,
-          borderRight: `1px solid ${ORBI_COLORS.speechBorder}`,
-          borderBottom: `1px solid ${ORBI_COLORS.speechBorder}`,
+          background: ORBI_THEME_COLORS[theme].bubbleBg,
+          borderRight: `1px solid ${ORBI_THEME_COLORS[theme].border}`,
+          borderBottom: `1px solid ${ORBI_THEME_COLORS[theme].border}`,
           borderBottomRightRadius: '3px',
           ...tailFor(side, align),
         }}

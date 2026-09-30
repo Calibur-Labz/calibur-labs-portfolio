@@ -451,6 +451,79 @@ export const ORBI_COLORS = {
   guideBg: 'rgba(10, 15, 24, 0.97)',
 } as const
 
+/**
+ * ORBI's surfaces, per theme. Dark is the original look; light is the same
+ * character in white — pearl shell, white panels, dark text — for pages where
+ * a dark robot reads as a hole in the layout. The visor stays black in both:
+ * it is where his eyes live, and cyan only glows against dark.
+ *
+ * On a light surface the bright cyan is too pale to read as text, so `ink`
+ * is a deeper blue of the same hue; decoration (dots, antenna) keeps `accent`.
+ */
+export const ORBI_THEME_COLORS = {
+  dark: {
+    shellTop: ORBI_COLORS.shellTop,
+    shellBottom: ORBI_COLORS.shellBottom,
+    limbTop: '#16202E',
+    limbBottom: '#0A0F16',
+    rim: ORBI_COLORS.rim,
+    outline: 'rgba(5, 9, 15, 0.55)',
+    antenna: '#2A3A4F',
+    sheen: 'rgba(255,255,255,0.09)',
+    robotShadow: 'none',
+    bubbleBg: ORBI_COLORS.speechBg,
+    panelBg: ORBI_COLORS.guideBg,
+    border: ORBI_COLORS.speechBorder,
+    text: ORBI_COLORS.speechText,
+    textSoft: '#93A6BC',
+    textMuted: '#6E8399',
+    textUser: '#8FA2B7',
+    textHot: '#E9F1F8',
+    ink: ORBI_COLORS.accent,
+    hairline: 'rgba(255,255,255,0.06)',
+    fieldBorder: 'rgba(255,255,255,0.10)',
+    fieldBg: 'rgba(255,255,255,0.03)',
+    hotBg: 'rgba(0,183,255,0.10)',
+    hotBorder: 'rgba(0,183,255,0.24)',
+    buttonBg: 'rgba(0,183,255,0.10)',
+    buttonBorder: 'rgba(0,183,255,0.34)',
+    bubbleShadow:
+      '0 18px 40px rgba(0,0,0,0.45), 0 0 22px rgba(0,183,255,0.14), inset 0 1px 0 rgba(255,255,255,0.06)',
+    panelShadow:
+      '0 20px 44px rgba(0,0,0,0.5), 0 0 24px rgba(0,183,255,0.14), inset 0 1px 0 rgba(255,255,255,0.06)',
+  },
+  light: {
+    shellTop: '#FFFFFF',
+    shellBottom: '#D9E2EC',
+    limbTop: '#F4F7FA',
+    limbBottom: '#C3CEDB',
+    rim: 'rgba(20, 38, 60, 0.14)',
+    outline: 'rgba(20, 38, 60, 0.16)',
+    antenna: '#A9B6C5',
+    sheen: 'rgba(255,255,255,0.7)',
+    robotShadow:
+      'drop-shadow(0 10px 16px rgba(20, 38, 60, 0.20)) drop-shadow(0 2px 4px rgba(20, 38, 60, 0.16))',
+    bubbleBg: 'rgba(255, 255, 255, 0.96)',
+    panelBg: 'rgba(255, 255, 255, 0.98)',
+    border: 'rgba(20, 38, 60, 0.12)',
+    text: '#0F1C2B',
+    textSoft: '#3D4F63',
+    textMuted: '#607387',
+    textUser: '#4A5C70',
+    textHot: '#0F1C2B',
+    ink: '#0077B6',
+    hairline: 'rgba(20, 38, 60, 0.08)',
+    fieldBorder: 'rgba(20, 38, 60, 0.16)',
+    fieldBg: '#F5F8FB',
+    hotBg: 'rgba(0,140,210,0.08)',
+    hotBorder: 'rgba(0,140,210,0.22)',
+    buttonBg: 'rgba(0,140,210,0.08)',
+    buttonBorder: 'rgba(0,119,182,0.34)',
+    bubbleShadow: '0 12px 30px rgba(20,38,60,0.16), 0 2px 6px rgba(20,38,60,0.10)',
+    panelShadow: '0 18px 40px rgba(20,38,60,0.18), 0 2px 6px rgba(20,38,60,0.10)',
+  },
+} as const
+
 /* ── Copy ──────────────────────────────────────────────────────────────── */
 
 export const ORBI_MESSAGES = {

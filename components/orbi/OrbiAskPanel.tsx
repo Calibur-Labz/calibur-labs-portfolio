@@ -8,7 +8,13 @@ import {
   ORBI_ASK_STARTERS,
   type OrbiAskAction,
 } from './orbiAsk'
-import { ORBI_COLORS, type OrbiBreakpoint, type OrbiPlacement } from './orbiConfig'
+import {
+  ORBI_COLORS,
+  ORBI_THEME_COLORS,
+  type OrbiBreakpoint,
+  type OrbiPlacement,
+  type OrbiRegionTheme,
+} from './orbiConfig'
 import type { OrbiAskEntry } from './useOrbiAsk'
 
 /**
@@ -43,6 +49,7 @@ export default function OrbiAskPanel({
   actionLabels,
   intro = ORBI_ASK_MESSAGES.intro,
   starters = ORBI_ASK_STARTERS,
+  theme = 'dark',
 }: {
   open: boolean
   entries: OrbiAskEntry[]
@@ -74,7 +81,10 @@ export default function OrbiAskPanel({
   /** Embedded on a customer's site: their own opening line and questions. */
   intro?: string
   starters?: readonly string[]
+  /** White panel and dark text on a light page; the original glass on dark. */
+  theme?: OrbiRegionTheme
 }) {
+  const c = ORBI_THEME_COLORS[theme]
   const labelFor = (action: OrbiAskAction) =>
     action === 'NO_ACTION'
       ? undefined
@@ -191,13 +201,12 @@ export default function OrbiAskPanel({
         minHeight: 0,
         padding: '12px',
         borderRadius: '16px',
-        background: ORBI_COLORS.guideBg,
+        background: c.panelBg,
         backdropFilter: 'blur(14px) saturate(140%)',
         WebkitBackdropFilter: 'blur(14px) saturate(140%)',
-        border: `1px solid ${ORBI_COLORS.speechBorder}`,
-        boxShadow:
-          '0 20px 44px rgba(0,0,0,0.5), 0 0 24px rgba(0,183,255,0.14), inset 0 1px 0 rgba(255,255,255,0.06)',
-        color: ORBI_COLORS.speechText,
+        border: `1px solid ${c.border}`,
+        boxShadow: c.panelShadow,
+        color: c.text,
         fontFamily: 'var(--font-poppins), system-ui, sans-serif',
         pointerEvents: 'auto',
         animation: reducedMotion ? undefined : 'orbiAskIn 180ms ease-out',
@@ -220,7 +229,7 @@ export default function OrbiAskPanel({
             fontWeight: 600,
             letterSpacing: '0.04em',
             textTransform: 'uppercase',
-            color: ORBI_COLORS.accent,
+            color: c.ink,
           }}
         >
           {ORBI_ASK_MESSAGES.title}
@@ -247,7 +256,7 @@ export default function OrbiAskPanel({
             border: 'none',
             borderRadius: '50%',
             background: 'transparent',
-            color: '#6E8399',
+            color: c.textMuted,
             cursor: 'pointer',
             fontSize: '15px',
             lineHeight: 1,
@@ -281,7 +290,7 @@ export default function OrbiAskPanel({
         */}
         {entries.length === 0 && !pending && (
           <>
-            <p style={{ margin: 0, color: '#6E8399' }}>{intro}</p>
+            <p style={{ margin: 0, color: c.textMuted }}>{intro}</p>
             <div
               style={{
                 display: 'flex',
@@ -298,9 +307,9 @@ export default function OrbiAskPanel({
                   style={{
                     padding: '6px 10px',
                     borderRadius: '999px',
-                    border: '1px solid rgba(255,255,255,0.10)',
-                    background: 'rgba(255,255,255,0.03)',
-                    color: '#93A6BC',
+                    border: `1px solid ${c.fieldBorder}`,
+                    background: c.fieldBg,
+                    color: c.textSoft,
                     fontFamily: 'inherit',
                     fontSize: '12px',
                     fontWeight: 500,
@@ -342,7 +351,7 @@ export default function OrbiAskPanel({
           >
             <div
               style={{
-                color: entry.role === 'user' ? '#8FA2B7' : ORBI_COLORS.speechText,
+                color: entry.role === 'user' ? c.textUser : c.text,
                 fontWeight: entry.role === 'user' ? 500 : 400,
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
@@ -354,7 +363,7 @@ export default function OrbiAskPanel({
             </div>
 
             {entry.action && labelFor(entry.action) && (
-              <CtaButton onClick={() => onAction(entry)}>{labelFor(entry.action)}</CtaButton>
+              <CtaButton theme={theme} onClick={() => onAction(entry)}>{labelFor(entry.action)}</CtaButton>
             )}
 
             {/*
@@ -363,12 +372,12 @@ export default function OrbiAskPanel({
               offer reads as a companion having an off moment.
             */}
             {entry.failed && (
-              <CtaButton onClick={onExplore}>{ORBI_ASK_MESSAGES.explore}</CtaButton>
+              <CtaButton theme={theme} onClick={onExplore}>{ORBI_ASK_MESSAGES.explore}</CtaButton>
             )}
           </div>
         ))}
 
-        {pending && <Thinking reducedMotion={reducedMotion} />}
+        {pending && <Thinking theme={theme} reducedMotion={reducedMotion} />}
         </div>
       </div>
 
@@ -383,7 +392,7 @@ export default function OrbiAskPanel({
           gap: '8px',
           marginTop: '10px',
           paddingTop: '10px',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
+          borderTop: `1px solid ${c.hairline}`,
           flex: '0 0 auto',
         }}
       >
@@ -409,9 +418,9 @@ export default function OrbiAskPanel({
             minWidth: 0,
             padding: '9px 11px',
             borderRadius: '10px',
-            border: '1px solid rgba(255,255,255,0.10)',
-            background: 'rgba(255,255,255,0.03)',
-            color: ORBI_COLORS.speechText,
+            border: `1px solid ${c.fieldBorder}`,
+            background: c.fieldBg,
+            color: c.text,
             fontFamily: 'inherit',
             /*
               Phase 27 §17. 16px on a phone, and not for looks.
@@ -434,9 +443,9 @@ export default function OrbiAskPanel({
             flex: '0 0 auto',
             padding: '0 14px',
             borderRadius: '10px',
-            border: '1px solid rgba(0,183,255,0.34)',
-            background: 'rgba(0,183,255,0.10)',
-            color: ORBI_COLORS.accent,
+            border: `1px solid ${c.buttonBorder}`,
+            background: c.buttonBg,
+            color: c.ink,
             fontFamily: 'inherit',
             fontSize: '13px',
             fontWeight: 600,
@@ -469,10 +478,13 @@ export default function OrbiAskPanel({
 function CtaButton({
   children,
   onClick,
+  theme,
 }: {
   children: React.ReactNode
   onClick: () => void
+  theme: OrbiRegionTheme
 }) {
+  const c = ORBI_THEME_COLORS[theme]
   return (
     <button
       type="button"
@@ -481,9 +493,9 @@ function CtaButton({
         marginTop: '8px',
         padding: '7px 12px',
         borderRadius: '10px',
-        border: '1px solid rgba(0,183,255,0.34)',
-        background: 'rgba(0,183,255,0.10)',
-        color: ORBI_COLORS.accent,
+        border: `1px solid ${c.buttonBorder}`,
+        background: c.buttonBg,
+        color: c.ink,
         fontFamily: 'inherit',
         fontSize: '12.5px',
         fontWeight: 600,
@@ -508,9 +520,9 @@ function CtaButton({
  * reduced motion it is *all* there is, because a pulse conveys nothing that
  * the word does not.
  */
-function Thinking({ reducedMotion }: { reducedMotion: boolean }) {
+function Thinking({ reducedMotion, theme }: { reducedMotion: boolean; theme: OrbiRegionTheme }) {
   return (
-    <p style={{ margin: 0, color: '#6E8399', display: 'flex', alignItems: 'center', gap: '6px' }}>
+    <p style={{ margin: 0, color: ORBI_THEME_COLORS[theme].textMuted, display: 'flex', alignItems: 'center', gap: '6px' }}>
       <span>{ORBI_ASK_MESSAGES.thinking}</span>
       {!reducedMotion && (
         <span aria-hidden="true" style={{ display: 'inline-flex', gap: '3px' }}>

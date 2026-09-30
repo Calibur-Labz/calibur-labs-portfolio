@@ -5,6 +5,7 @@ import OrbiEmotionAccents from './OrbiEmotionAccents'
 import OrbiFace from './OrbiFace'
 import {
   ORBI_COLORS,
+  ORBI_THEME_COLORS,
   ORBI_VIEWBOX,
   type OrbiExpression,
   type OrbiRegionTheme,
@@ -76,11 +77,14 @@ export default function OrbiRobot({
   const [keyboardFocus, setKeyboardFocus] = useState(false)
 
   /**
-   * Over a light region the cyan halo stops doing any work, so it is traded
-   * for a real shadow and a faint dark rim. ORBI's own colours never change —
-   * he is the same character, just lit differently.
+   * Over a light region ORBI turns white: a pearl shell and limbs, a soft
+   * grounded shadow in place of the cyan halo. The visor, eyes and antenna
+   * light stay exactly as they are, so he is still unmistakably himself.
    */
   const light = theme === 'light'
+  const c = ORBI_THEME_COLORS[theme]
+  /** Gradient stops fade between themes instead of snapping. */
+  const stop = (color: string) => ({ stopColor: color, transition: 'stop-color 420ms ease' })
   return (
     <svg
       viewBox={`0 0 ${ORBI_VIEWBOX.width} ${ORBI_VIEWBOX.height}`}
@@ -121,9 +125,7 @@ export default function OrbiRobot({
       style={{
         overflow: 'visible',
         display: 'block',
-        filter: light
-          ? 'drop-shadow(0 10px 18px rgba(6, 12, 20, 0.42)) drop-shadow(0 2px 4px rgba(6, 12, 20, 0.3))'
-          : 'none',
+        filter: c.robotShadow,
         transition: 'filter 420ms ease',
         // `auto` here means SVG hit-testing applies: only the painted robot is
         // clickable, never the transparent box around it.
@@ -145,12 +147,12 @@ export default function OrbiRobot({
     >
       <defs>
         <linearGradient id="orbi-shell" x1="0" y1="0" x2="0.25" y2="1">
-          <stop offset="0%" stopColor={ORBI_COLORS.shellTop} />
-          <stop offset="100%" stopColor={ORBI_COLORS.shellBottom} />
+          <stop offset="0%" style={stop(c.shellTop)} />
+          <stop offset="100%" style={stop(c.shellBottom)} />
         </linearGradient>
         <linearGradient id="orbi-limb" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#16202E" />
-          <stop offset="100%" stopColor="#0A0F16" />
+          <stop offset="0%" style={stop(c.limbTop)} />
+          <stop offset="100%" style={stop(c.limbBottom)} />
         </linearGradient>
         <linearGradient id="orbi-crest" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="rgba(255,255,255,0)" />
@@ -158,7 +160,7 @@ export default function OrbiRobot({
           <stop offset="100%" stopColor="rgba(255,255,255,0)" />
         </linearGradient>
         <linearGradient id="orbi-sheen" x1="0" y1="0" x2="0.7" y2="1">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.09)" />
+          <stop offset="0%" style={stop(c.sheen)} />
           <stop offset="55%" stopColor="rgba(255,255,255,0)" />
         </linearGradient>
         <radialGradient id="orbi-pad" cx="0.5" cy="0.5" r="0.5">
@@ -219,7 +221,7 @@ export default function OrbiRobot({
       {/* Antenna */}
       <path
         d="M 85 32 L 85 18"
-        stroke="#2A3A4F"
+        stroke={c.antenna}
         strokeWidth={3}
         strokeLinecap="round"
       />
@@ -234,11 +236,11 @@ export default function OrbiRobot({
       {/* Arms sit behind the shell so the shoulder joint is never visible. */}
       <g ref={leftArmRef}>
         <rect x={20} y={74} width={13} height={24} rx={6.5} fill="url(#orbi-limb)" />
-        <circle cx={26.5} cy={98} r={7} fill="url(#orbi-limb)" stroke={ORBI_COLORS.rim} strokeWidth={1} />
+        <circle cx={26.5} cy={98} r={7} fill="url(#orbi-limb)" stroke={c.rim} strokeWidth={1} />
       </g>
       <g ref={armRef}>
         <rect x={137} y={74} width={13} height={24} rx={6.5} fill="url(#orbi-limb)" />
-        <circle cx={143.5} cy={98} r={7} fill="url(#orbi-limb)" stroke={ORBI_COLORS.rim} strokeWidth={1} />
+        <circle cx={143.5} cy={98} r={7} fill="url(#orbi-limb)" stroke={c.rim} strokeWidth={1} />
       </g>
 
       {/* Shell */}
@@ -249,7 +251,7 @@ export default function OrbiRobot({
         height={90}
         rx={34}
         fill="url(#orbi-shell)"
-        stroke={ORBI_COLORS.rim}
+        stroke={c.rim}
         strokeWidth={1.4}
       />
       <rect x={33} y={28} width={104} height={90} rx={34} fill="url(#orbi-sheen)" />
@@ -260,7 +262,7 @@ export default function OrbiRobot({
         height={90}
         rx={34}
         fill="none"
-        stroke="rgba(5, 9, 15, 0.55)"
+        stroke={c.outline}
         strokeWidth={1.6}
         style={{ opacity: light ? 1 : 0, transition: 'opacity 420ms ease' }}
       />

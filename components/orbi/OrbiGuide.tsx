@@ -4828,6 +4828,7 @@ export default function OrbiGuide({
         onClose={closeAsk}
         onComposing={handleComposing}
         actionLabels={embedLabels}
+        theme={theme}
         intro={embed?.ask?.intro}
         starters={embed?.ask?.starters}
       />
