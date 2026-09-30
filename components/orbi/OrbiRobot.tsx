@@ -282,12 +282,14 @@ export default function OrbiRobot({
         width={78}
         height={54}
         rx={27}
-        fill={ORBI_COLORS.visor}
-        stroke={ORBI_COLORS.rimStrong}
+        fill={c.visor}
+        stroke={c.visorRim}
         strokeWidth={1.2}
+        style={{ transition: 'fill 420ms ease, stroke 420ms ease' }}
       />
 
       <OrbiFace
+        theme={theme}
         expression={expression}
         awake={awake}
         bright={bright}

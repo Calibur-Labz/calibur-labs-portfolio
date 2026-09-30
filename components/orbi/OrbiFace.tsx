@@ -1,7 +1,13 @@
 'use client'
 
 import type { RefObject } from 'react'
-import { ORBI_ART, ORBI_COLORS, type OrbiExpression } from './orbiConfig'
+import {
+  ORBI_ART,
+  ORBI_COLORS,
+  ORBI_THEME_COLORS,
+  type OrbiExpression,
+  type OrbiRegionTheme,
+} from './orbiConfig'
 
 /**
  * ORBI's face — everything that lives inside the visor, and where most of the
@@ -229,7 +235,10 @@ export default function OrbiFace({
   dozing = false,
   asleep = false,
   gazeRef,
+  theme = 'dark',
 }: {
+  /** Light: a pale face screen with deeper blue eyes and mouth. */
+  theme?: OrbiRegionTheme
   expression: OrbiExpression
   /** Eyes are dark until the entrance timeline switches them on. */
   awake: boolean
@@ -272,6 +281,7 @@ export default function OrbiFace({
   // which is the one where the blush *is* the emotion.
   const blush = isShy ? 0.62 : isExcited ? 0.5 : expression === 'happy' && up ? 0.4 : 0
   const { eyeLeft, eyeRight, mouth } = ORBI_ART
+  const c = ORBI_THEME_COLORS[theme]
 
   return (
     <g
@@ -282,8 +292,8 @@ export default function OrbiFace({
     >
       <defs>
         <linearGradient id="orbi-eye" x1="0" y1="-1" x2="0" y2="1">
-          <stop offset="0%" stopColor={ORBI_COLORS.accentSoft} />
-          <stop offset="100%" stopColor={ORBI_COLORS.accent} />
+          <stop offset="0%" stopColor={c.eyeTop} />
+          <stop offset="100%" stopColor={c.eyeBottom} />
         </linearGradient>
         <filter id="orbi-eye-glow" x="-120%" y="-120%" width="340%" height="340%">
           <feGaussianBlur stdDeviation="2.4" result="blur" />
@@ -419,7 +429,7 @@ export default function OrbiFace({
       </g>
 
       {/* Mouth — fixed shapes cross-faded, so no path morphing is needed. */}
-      <g fill="none" stroke={ORBI_COLORS.accentSoft} strokeLinecap="round">
+      <g fill="none" stroke={c.mouth} strokeLinecap="round">
         <path
           d={`M ${mouth.x - 8} ${mouth.y} Q ${mouth.x} ${mouth.y + 3.5} ${mouth.x + 8} ${mouth.y}`}
           strokeWidth={2.2}
@@ -574,7 +584,7 @@ export default function OrbiFace({
           cy={mouth.y + 1}
           rx={ORBI_ART.sleepMouthRx}
           ry={ORBI_ART.sleepMouthRy}
-          fill={ORBI_COLORS.accentSoft}
+          fill={c.mouth}
           stroke="none"
           style={{
             opacity: asleep ? 0.82 : 0,

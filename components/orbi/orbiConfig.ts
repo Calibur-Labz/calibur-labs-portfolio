@@ -470,6 +470,11 @@ export const ORBI_THEME_COLORS = {
     outline: 'rgba(5, 9, 15, 0.55)',
     antenna: '#2A3A4F',
     sheen: 'rgba(255,255,255,0.09)',
+    visor: ORBI_COLORS.visor,
+    visorRim: ORBI_COLORS.rimStrong,
+    eyeTop: ORBI_COLORS.accentSoft,
+    eyeBottom: ORBI_COLORS.accent,
+    mouth: ORBI_COLORS.accentSoft,
     robotShadow: 'none',
     bubbleBg: ORBI_COLORS.speechBg,
     panelBg: ORBI_COLORS.guideBg,
@@ -503,6 +508,13 @@ export const ORBI_THEME_COLORS = {
     outline: 'rgba(20, 38, 60, 0.18)',
     antenna: '#A9B6C5',
     sheen: 'rgba(255,255,255,0.35)',
+    // The face screen goes light too. Bright cyan disappears on it, so the
+    // eyes and mouth take a deeper blue of the same hue.
+    visor: '#F8FAFC',
+    visorRim: 'rgba(20, 38, 60, 0.22)',
+    eyeTop: '#2BA8E8',
+    eyeBottom: '#0077B6',
+    mouth: '#0077B6',
     robotShadow:
       'drop-shadow(0 10px 16px rgba(20, 38, 60, 0.20)) drop-shadow(0 2px 4px rgba(20, 38, 60, 0.16))',
     bubbleBg: 'rgba(255, 255, 255, 0.96)',
