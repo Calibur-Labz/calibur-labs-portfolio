@@ -39,6 +39,25 @@ const BREAKPOINTS: readonly OrbiBreakpoint[] = ['desktop', 'tablet', 'mobile']
 
 type SurfaceMode = 'idle' | 'open'
 
+type EmbedAsk = OrbiEmbedOptions['ask']
+
+/**
+ * The verify answer's Ask settings → what the panel may show. Plain text in
+ * bounded amounts; anything else means no Ask ORBI.
+ */
+function readAsk(raw: unknown, token: string): EmbedAsk {
+  if (!raw || typeof raw !== 'object') return null
+  const { intro, starters } = raw as { intro?: unknown; starters?: unknown }
+  if (typeof intro !== 'string' || !intro.trim()) return null
+  return {
+    token,
+    intro: intro.trim().slice(0, 200),
+    starters: Array.isArray(starters)
+      ? starters.filter((q): q is string => typeof q === 'string' && q.trim() !== '').slice(0, 4).map((q) => q.trim().slice(0, 80))
+      : [],
+  }
+}
+
 export default function OrbiFramePage({
   searchParams,
 }: {
@@ -71,6 +90,8 @@ export default function OrbiFramePage({
 
   /** Only after the server has vouched for this host does ORBI appear at all. */
   const [authorized, setAuthorized] = useState(false)
+  /** Ask ORBI for this site, if its plan includes it. */
+  const [ask, setAsk] = useState<EmbedAsk>(null)
   /** One hello is checked; the host's retries while that happens are ignored. */
   const checkingRef = useRef(false)
 
@@ -88,6 +109,7 @@ export default function OrbiFramePage({
       if (typeof data.token !== 'string') return
 
       const framedBy = event.origin
+      const token = data.token
       const sections = sanitizeEmbedSections(data.sections)
       checkingRef.current = true
 
@@ -98,7 +120,7 @@ export default function OrbiFramePage({
       })
         .then((response) => (response.ok ? response.json() : null))
         .catch(() => null)
-        .then((answer: { authorized?: unknown; origin?: unknown } | null) => {
+        .then((answer: { authorized?: unknown; origin?: unknown; ask?: unknown } | null) => {
           // The token must be good *and* have been issued to the very origin
           // that framed us — a token lifted from an authorized site names the
           // wrong origin everywhere else.
@@ -109,6 +131,7 @@ export default function OrbiFramePage({
           }
           hostOriginRef.current = framedBy
           setSections(sections)
+          setAsk(readAsk(answer.ask, token))
           setAuthorized(true)
           report()
         })
@@ -122,6 +145,7 @@ export default function OrbiFramePage({
     () => ({
       breakpoint,
       sections,
+      ask,
       onSurfaceChange: (open) => {
         modeRef.current = open ? 'open' : 'idle'
         report()
@@ -133,7 +157,7 @@ export default function OrbiFramePage({
         post({ type: 'orbi:navigate', section: key })
       },
     }),
-    [breakpoint, sections, report, post],
+    [breakpoint, sections, ask, report, post],
   )
 
   return authorized ? <OrbiGuide embed={embed} /> : null

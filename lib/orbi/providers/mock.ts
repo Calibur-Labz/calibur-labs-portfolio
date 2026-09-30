@@ -14,7 +14,7 @@ import {
   type OrbiAskReply,
   type OrbiAskTurn,
 } from '../../../components/orbi/orbiAsk'
-import type { OrbiProvider } from './types'
+import type { OrbiAskOptions, OrbiProvider } from './types'
 
 /**
  * Ask ORBI, without an AI.
@@ -564,12 +564,18 @@ export function mockEmotionFor(question: string, intentId: string | null): OrbiA
   return INTENT_EMOTION[intentId] ?? 'normal'
 }
 
+/** The mock, on a customer's site: honest that no real model is answering. */
+export const MOCK_CUSTOMER_REPLY =
+  'I’m running in demo mode, so I can’t answer questions about this business yet.'
+
 export const mockProvider: OrbiProvider = {
   name: 'mock',
   ready: () => true,
-  async ask(turns: OrbiAskTurn[], signal?: AbortSignal): Promise<OrbiAskReply> {
+  async ask(turns: OrbiAskTurn[], signal?: AbortSignal, options?: OrbiAskOptions): Promise<OrbiAskReply> {
     const question = [...turns].reverse().find((t) => t.role === 'user')?.content ?? ''
-    const hit = matchOrbiIntent(question)
+    // The scripted answers are all about xCalibur Labz. Speaking for a
+    // customer's site, the mock must not borrow them — it says what it is.
+    const hit = options?.system ? null : matchOrbiIntent(question)
 
     await new Promise<void>((resolve, reject) => {
       if (signal?.aborted) return reject(new Error('aborted'))
@@ -590,7 +596,7 @@ export const mockProvider: OrbiProvider = {
       !hit || UNSURE_INTENTS.has(hit.id) ? 'unsure' : 'answered'
 
     return {
-      message: hit?.message ?? REPLIES.fallback,
+      message: hit?.message ?? (options?.system ? MOCK_CUSTOMER_REPLY : REPLIES.fallback),
       // Normalised here as well as in the route. The mock's actions are
       // literals today, but a provider is not trusted to police itself.
       action: normaliseAction(hit?.action),

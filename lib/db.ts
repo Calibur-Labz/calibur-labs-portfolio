@@ -199,6 +199,10 @@ export function ensureSchema(): Promise<void> {
           updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // Migration: what Ask ORBI knows about an Intelligence customer.
+      await sql`ALTER TABLE orbi_sites ADD COLUMN IF NOT EXISTS knowledge TEXT`
+      await sql`ALTER TABLE orbi_sites ADD COLUMN IF NOT EXISTS ask_intro TEXT`
+      await sql`ALTER TABLE orbi_sites ADD COLUMN IF NOT EXISTS ask_starters TEXT`
     })().catch((err) => {
       // Reset so a later request can retry after a transient failure.
       schemaReady = null

@@ -151,7 +151,7 @@ export default function MessagesSection({
   }
 
   return (
-    <section style={{ display: 'grid', gap: '20px' }}>
+    <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '20px' }}>
       {error && <div style={errorBox}>{error}</div>}
 
       <div style={panel}>

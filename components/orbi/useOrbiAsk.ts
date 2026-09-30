@@ -58,7 +58,11 @@ export interface OrbiAskApi {
   lastError: string | null
 }
 
-export function useOrbiAsk(): OrbiAskApi {
+/**
+ * `embedToken` is set only inside the embed frame on a customer's
+ * Intelligence site: the server then answers from that customer's knowledge.
+ */
+export function useOrbiAsk({ embedToken }: { embedToken?: string | null } = {}): OrbiAskApi {
   const [entries, setEntries] = useState<OrbiAskEntry[]>([])
   const [pending, setPending] = useState(false)
   const [lastAction, setLastAction] = useState<OrbiAskAction | null>(null)
@@ -72,6 +76,10 @@ export function useOrbiAsk(): OrbiAskApi {
   const lastSentRef = useRef<{ text: string; at: number }>({ text: '', at: 0 })
   /** History as the server wants it, kept beside the display list. */
   const turnsRef = useRef<OrbiAskTurn[]>([])
+  const tokenRef = useRef(embedToken)
+  useEffect(() => {
+    tokenRef.current = embedToken
+  })
 
   useEffect(
     () => () => {
@@ -130,7 +138,9 @@ export function useOrbiAsk(): OrbiAskApi {
       fetch(ORBI_ASK.endpoint, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify(
+          tokenRef.current ? { messages: history, embedToken: tokenRef.current } : { messages: history },
+        ),
         signal: abort.signal,
       })
         .then(async (response) => {

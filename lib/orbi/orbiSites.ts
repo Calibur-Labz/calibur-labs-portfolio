@@ -1,7 +1,8 @@
 // Relative rather than `@/`, matching the rest of `lib/orbi/`, so the module
 // compiles and runs under plain Node in the test suite.
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto'
-import { ORBI_EMBED_SECTION_KEYS } from '../../components/orbi/orbiEmbedSections'
+import { ORBI_EMBED_LIMITS, ORBI_EMBED_SECTION_KEYS, isCustomSectionKey } from '../../components/orbi/orbiEmbedSections'
+import { buildOrbiSystemPrompt } from './orbiKnowledge'
 
 /**
  * ORBI sites — who may run the embed, and where.
@@ -42,6 +43,12 @@ export interface OrbiSite {
   status: string
   /** The customer's `data-orbi-sections` JSON, for their snippet. Never used to authorize. */
   sections_config: string | null
+  /** What Ask ORBI may say about this business. Intelligence plan only. */
+  knowledge: string | null
+  /** The line at the top of the Ask panel. Defaults to the customer's name. */
+  ask_intro: string | null
+  /** Up to four suggested questions, one per line. */
+  ask_starters: string | null
   /** `YYYY-MM-DD`. ORBI runs through the end of this day (UTC), not after. */
   expires_on: string | null
   created_at: string
@@ -55,6 +62,10 @@ export const ORBI_SITE_LIMITS = {
   sectionsConfig: 4000,
   labelMax: 40,
   selectorMax: 200,
+  knowledge: 12000,
+  askIntro: 200,
+  askStarters: 4,
+  askStarter: 80,
 } as const
 
 /* ── Site IDs ─────────────────────────────────────────────────────────── */
@@ -191,7 +202,11 @@ export function isSiteAuthorized(
  * for this purpose alone, so it can never be mistaken for, or used as, the
  * admin session token that shares the server secret.
  */
-export const ORBI_EMBED_TOKEN_TTL_SECONDS = 10 * 60
+//
+// Twelve hours: long enough for a visitor to keep chatting on an open page.
+// It grants little on its own — every use re-checks the site, so disabling a
+// customer stops the frame on its next load and Ask ORBI on its next question.
+export const ORBI_EMBED_TOKEN_TTL_SECONDS = 12 * 60 * 60
 
 function embedKey(secret: string): Buffer {
   return createHmac('sha256', secret).update('orbi-embed-token-v1').digest()
@@ -237,10 +252,40 @@ export function verifyEmbedToken(
   }
 }
 
-/* ── The two public questions ─────────────────────────────────────────── */
+/* ── Ask ORBI on a customer's site ─────────────────────────────────────── */
+
+type AskSource = Pick<OrbiSite, 'plan' | 'customer_name' | 'knowledge' | 'ask_intro' | 'ask_starters'>
+
+/** What the Ask panel shows on a customer's site. Public text, nothing else. */
+export interface OrbiEmbedAsk {
+  intro: string
+  starters: string[]
+}
+
+/**
+ * Ask ORBI runs on a customer's site only on the Intelligence plan — it is
+ * what that plan sells — and only once there is something for him to know.
+ * Anywhere else the panel is not offered at all: a customer's visitors are
+ * never answered about xCalibur Labz.
+ */
+export function embedAskConfig(site: AskSource | null | undefined): OrbiEmbedAsk | null {
+  if (!site || site.plan !== 'intelligence' || !site.knowledge?.trim()) return null
+  return {
+    intro: site.ask_intro?.trim() || `Ask me anything about ${site.customer_name}.`,
+    starters: (site.ask_starters ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, ORBI_SITE_LIMITS.askStarters),
+  }
+}
+
+/* ── The public questions ─────────────────────────────────────────────── */
+
+type SiteRecord = Authorizable & AskSource
 
 export interface AuthorizeDeps {
-  findSite: (siteId: string) => Promise<Authorizable | null>
+  findSite: (siteId: string) => Promise<SiteRecord | null>
   /** The server secret, or null when unconfigured — which authorizes nothing. */
   secret: string | null
   now?: Date
@@ -248,7 +293,10 @@ export interface AuthorizeDeps {
 
 /** Only ever one of these two shapes leaves the server. */
 export type AuthorizeResult = { authorized: false } | { authorized: true; token: string }
-export type VerifyResult = { authorized: false } | { authorized: true; origin: string }
+export type VerifyResult =
+  | { authorized: false }
+  | { authorized: true; origin: string; ask: OrbiEmbedAsk | null }
+export type EmbedChatResult = { ok: false } | { ok: true; system: string }
 
 const DENIED = { authorized: false } as const
 
@@ -283,7 +331,27 @@ export async function verifyEmbed(token: unknown, deps: AuthorizeDeps): Promise<
   if (!claim) return DENIED
   const site = await deps.findSite(claim.siteId)
   if (!isSiteAuthorized(site, claim.origin, deps.now)) return DENIED
-  return { authorized: true, origin: claim.origin }
+  return { authorized: true, origin: claim.origin, ask: embedAskConfig(site) }
+}
+
+/**
+ * A chat question from a customer's frame → the prompt to answer it with, or
+ * a refusal. The token is checked, the site re-read and re-authorized, and the
+ * plan checked, on every question. A refusal never falls back to this site's
+ * own prompt: without a valid Intelligence site there is no answer at all.
+ */
+export async function resolveEmbedChat(token: unknown, deps: AuthorizeDeps): Promise<EmbedChatResult> {
+  if (!deps.secret) return { ok: false }
+  const claim = verifyEmbedToken(token, deps.secret, deps.now)
+  if (!claim) return { ok: false }
+  const site = await deps.findSite(claim.siteId)
+  if (!site || !isSiteAuthorized(site, claim.origin, deps.now) || !embedAskConfig(site)) {
+    return { ok: false }
+  }
+  return {
+    ok: true,
+    system: buildOrbiSystemPrompt({ company: site.customer_name, reference: site.knowledge!.trim() }),
+  }
 }
 
 /* ── Admin input ──────────────────────────────────────────────────────── */
@@ -312,9 +380,15 @@ export function validateSectionsConfig(
     return { ok: false, error: 'Sections config must be a JSON object' }
   }
   const clean: Record<string, { label: string; selector: string }> = {}
+  let custom = 0
   for (const [key, entry] of Object.entries(parsed as Record<string, unknown>)) {
     if (!ORBI_EMBED_SECTION_KEYS.includes(key)) {
-      return { ok: false, error: `Unknown section "${key}" — use ${ORBI_EMBED_SECTION_KEYS.join(', ')}` }
+      if (!isCustomSectionKey(key)) {
+        return { ok: false, error: `Unknown section "${key}" — use ${ORBI_EMBED_SECTION_KEYS.join(', ')} or custom-<name>` }
+      }
+      if (++custom > ORBI_EMBED_LIMITS.customMax) {
+        return { ok: false, error: `At most ${ORBI_EMBED_LIMITS.customMax} custom sections` }
+      }
     }
     const { label, selector } = (entry ?? {}) as { label?: unknown; selector?: unknown }
     if (typeof label !== 'string' || !label.trim() || label.trim().length > ORBI_SITE_LIMITS.labelMax || CONTROL.test(label)) {
@@ -334,8 +408,15 @@ export interface OrbiSiteInput {
   plan: OrbiSitePlan
   status: OrbiSiteStatus
   sections_config: string | null
+  knowledge: string | null
+  ask_intro: string | null
+  ask_starters: string | null
   expires_on: string | null
 }
+
+// Line breaks and tabs are how knowledge is written; every other control
+// character is noise at best.
+const CONTROL_BUT_LAYOUT = new RegExp('[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]', 'g')
 
 type Validated<T> = { ok: true; value: T } | { ok: false; error: string }
 
@@ -378,6 +459,37 @@ export function validateSiteInput(body: unknown, partial = false): Validated<Par
     const sections = validateSectionsConfig(b.sections_config)
     if (!sections.ok) return sections
     out.sections_config = sections.value
+  }
+  if (has('knowledge')) {
+    const raw = b.knowledge
+    if (raw != null && typeof raw !== 'string') return { ok: false, error: 'Business knowledge must be text' }
+    const text = (raw ?? '').replace(CONTROL_BUT_LAYOUT, '').replace(/\r\n?/g, '\n').trim()
+    if (text.length > ORBI_SITE_LIMITS.knowledge) {
+      return { ok: false, error: `Business knowledge is limited to ${ORBI_SITE_LIMITS.knowledge} characters` }
+    }
+    out.knowledge = text || null
+  }
+  if (has('ask_intro')) {
+    const raw = b.ask_intro
+    if (raw != null && typeof raw !== 'string') return { ok: false, error: 'Ask intro must be text' }
+    const text = (raw ?? '').replace(new RegExp(CONTROL, 'g'), ' ').trim()
+    if (text.length > ORBI_SITE_LIMITS.askIntro) return { ok: false, error: 'Ask intro is too long' }
+    out.ask_intro = text || null
+  }
+  if (has('ask_starters')) {
+    const raw = b.ask_starters
+    const lines = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split(/\r?\n/) : raw == null ? [] : null
+    if (!lines || lines.some((line) => typeof line !== 'string')) {
+      return { ok: false, error: 'Starter questions must be text, one per line' }
+    }
+    const starters = (lines as string[]).map((line) => line.replace(new RegExp(CONTROL, 'g'), ' ').trim()).filter(Boolean)
+    if (starters.length > ORBI_SITE_LIMITS.askStarters) {
+      return { ok: false, error: `At most ${ORBI_SITE_LIMITS.askStarters} starter questions` }
+    }
+    if (starters.some((line) => line.length > ORBI_SITE_LIMITS.askStarter)) {
+      return { ok: false, error: `Each starter question is limited to ${ORBI_SITE_LIMITS.askStarter} characters` }
+    }
+    out.ask_starters = starters.length ? starters.join('\n') : null
   }
   if (has('expires_on')) {
     const raw = b.expires_on

@@ -10,7 +10,7 @@ import {
   type OrbiAskTurn,
 } from '../../../components/orbi/orbiAsk'
 import { ORBI_SYSTEM_PROMPT } from '../orbiKnowledge'
-import type { OrbiProvider } from './types'
+import type { OrbiAskOptions, OrbiProvider } from './types'
 
 /**
  * The Gemini provider.
@@ -455,6 +455,7 @@ function configured(): boolean {
 async function ask(
   turns: OrbiAskTurn[],
   signal?: AbortSignal,
+  options?: OrbiAskOptions,
 ): Promise<OrbiAskReply> {
   if (!configured()) throw new Error('GEMINI_API_KEY is not set')
 
@@ -469,7 +470,7 @@ async function ask(
   const contents = toGeminiContents(turns)
   const config = {
     // The instruction channel, kept separate from anything a visitor typed.
-    systemInstruction: ORBI_SYSTEM_PROMPT,
+    systemInstruction: options?.system ?? ORBI_SYSTEM_PROMPT,
     responseMimeType: 'application/json',
     responseSchema: REPLY_SCHEMA as never,
     temperature: GEMINI_CONFIG.temperature,

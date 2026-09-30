@@ -238,8 +238,14 @@ export interface OrbiEmbedOptions {
   onSurfaceChange: (open: boolean) => void
   /** Called in place of guide-mode navigation, inside the visitor's click. */
   onAction: (action: Exclude<OrbiAskAction, 'NO_ACTION'>) => void
-  /** The customer's sections, already sanitised. Empty offers only Ask ORBI. */
+  /** The customer's sections, already sanitised. */
   sections: readonly OrbiEmbedSection[]
+  /**
+   * Ask ORBI for this site: the token its questions travel with, and the
+   * panel's own opening line and suggestions. Null — every plan but
+   * Intelligence — means the panel is not offered at all.
+   */
+  ask: { token: string; intro: string; starters: readonly string[] } | null
 }
 
 /** Guide destination → the action that names it, for the embed's menu. */
@@ -2257,7 +2263,7 @@ export default function OrbiGuide({
    */
 
   const [askOpen, setAskOpen] = useState(false)
-  const ask = useOrbiAsk()
+  const ask = useOrbiAsk({ embedToken: embed?.ask?.token })
   const askPendingRef = useRef(false)
   useEffect(() => {
     askOpenRef.current = askOpen
@@ -4671,16 +4677,20 @@ export default function OrbiGuide({
               pointerEvents: 'none',
             }}
           >
-            <OrbiGuideControl
-              open={guide.open}
-              onToggle={guide.toggle}
-              revealed={proximity !== 'far' || !finePointer}
-              size={quietBody ? ORBI_GUIDE.control.mobileSize : ORBI_GUIDE.control.size}
-              theme={environment.theme}
-              dimmed={dimControls}
-              pulsing={guideHinted}
-              buttonRef={guideButtonRef}
-            />
+            {/* Embedded with no sections and no Ask ORBI, the menu would hold
+                nothing but "Close" — so there is no button to open it. */}
+            {!(embed && !embed.ask && embed.sections.length === 0) && (
+              <OrbiGuideControl
+                open={guide.open}
+                onToggle={guide.toggle}
+                revealed={proximity !== 'far' || !finePointer}
+                size={quietBody ? ORBI_GUIDE.control.mobileSize : ORBI_GUIDE.control.size}
+                theme={environment.theme}
+                dimmed={dimControls}
+                pulsing={guideHinted}
+                buttonRef={guideButtonRef}
+              />
+            )}
             <OrbiSoundToggle
               enabled={audio.preferred}
               onToggle={handleAudioToggle}
@@ -4706,7 +4716,7 @@ export default function OrbiGuide({
             theme={environment.theme}
             reducedMotion={reducedMotion}
             onSelect={embed ? chooseEmbeddedItem : guide.choose}
-            onAsk={openAsk}
+            onAsk={embed && !embed.ask ? undefined : openAsk}
             onClose={() => guide.close('dismissed')}
             controlRef={guideButtonRef}
           />
@@ -4810,6 +4820,8 @@ export default function OrbiGuide({
         onClose={closeAsk}
         onComposing={handleComposing}
         actionLabels={embedLabels}
+        intro={embed?.ask?.intro}
+        starters={embed?.ask?.starters}
       />
       {debugEnabled && (
         <OrbiDebug

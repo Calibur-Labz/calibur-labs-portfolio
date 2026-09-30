@@ -26,6 +26,7 @@ import {
   embedGuideItems,
   ORBI_EMBED_LIMITS,
   ORBI_EMBED_SECTION_KEYS,
+  customSectionKey,
   sanitizeEmbedSections,
   sectionForAction,
 } from './orbiEmbedSections.js'
@@ -71,6 +72,26 @@ test('an unknown section is dropped, and only it', () => {
     { key: 'about', label: 'About Us' },
   ])
   assert.deepEqual(sections, [{ key: 'about', label: 'About Us' }])
+})
+
+test('custom sections follow the five, in the order written, with no action', () => {
+  const sections = sanitizeEmbedSections([
+    { key: 'custom-pricing', label: 'Our Prices' },
+    { key: 'contact', label: 'Contact' },
+    { key: 'custom-faq', label: 'FAQ' },
+    { key: 'custom-', label: 'Empty slug' },
+    { key: 'custom-Bad Key', label: 'Bad' },
+  ])
+  assert.deepEqual(sections.map((s) => s.key), ['contact', 'custom-pricing', 'custom-faq'])
+  assert.deepEqual(Object.keys(embedActionLabels(sections)), ['SHOW_CONTACT'])
+  const many = Array.from({ length: 15 }, (_, i) => ({ key: `custom-s${i}`, label: `S${i}` }))
+  assert.equal(sanitizeEmbedSections(many).length, ORBI_EMBED_LIMITS.customMax)
+})
+
+test('a section name becomes a custom key', () => {
+  assert.equal(customSectionKey('Pricing'), 'custom-pricing')
+  assert.equal(customSectionKey('  Our Team & Culture! '), 'custom-our-team-culture')
+  assert.equal(customSectionKey('!!!'), '')
 })
 
 test('missing sections are simply not offered', () => {
@@ -320,6 +341,23 @@ test('embed.js: unknown and unconfigured sections go nowhere', async () => {
     page.fromFrame({ type: 'orbi:navigate', section })
   }
   assert.deepEqual(page.scrolled, [])
+})
+
+test('embed.js: custom sections are offered after the five and scroll the page', async () => {
+  const page = await runEmbed(
+    JSON.stringify({
+      'custom-work-with-us': { label: 'Careers', selector: '#portfolio' },
+      services: { label: 'What We Do', selector: '#services' },
+    }),
+  )
+  assert.deepEqual(page.hello?.message.sections, [
+    { key: 'services', label: 'What We Do' },
+    { key: 'custom-work-with-us', label: 'Careers' },
+  ])
+  page.fromFrame({ type: 'orbi:navigate', section: 'custom-work-with-us' })
+  assert.deepEqual(page.scrolled, [
+    { selector: '#portfolio', options: { behavior: 'smooth', block: 'start' } },
+  ])
 })
 
 test('embed.js: malformed configuration still installs ORBI, with no sections', async () => {

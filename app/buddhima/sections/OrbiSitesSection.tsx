@@ -19,6 +19,12 @@ import {
   wideFormGrid,
 } from '../ui'
 import { apiSend } from '../api'
+import {
+  ORBI_EMBED_LIMITS,
+  ORBI_EMBED_SECTION_KEYS,
+  customSectionKey,
+  isCustomSectionKey,
+} from '@/components/orbi/orbiEmbedSections'
 
 /** A site as the API returns it: the record plus its ready-made snippet. */
 export type OrbiSiteRow = OrbiSite & { embed_code: string }
@@ -29,12 +35,82 @@ const PLANS = [
   { value: 'intelligence', label: 'Intelligence' },
 ]
 
-const SECTIONS_EXAMPLE = `{
-  "about": {"label": "About Us", "selector": "#about"},
-  "services": {"label": "Services", "selector": "#services"},
-  "work": {"label": "Projects", "selector": "#projects"},
-  "contact": {"label": "Contact", "selector": "#contact"}
-}`
+/**
+ * Section names that mean one of ORBI's five built-in sections. A row named
+ * like this is saved under the built-in key, so ORBI's answers can still link
+ * to it; any other name becomes a `custom-<slug>` menu entry.
+ */
+const BUILT_IN_NAMES: Record<string, string> = {
+  services: 'services',
+  service: 'services',
+  'our-services': 'services',
+  work: 'work',
+  projects: 'work',
+  project: 'work',
+  portfolio: 'work',
+  'our-work': 'work',
+  testimonials: 'testimonials',
+  reviews: 'testimonials',
+  about: 'about',
+  'about-us': 'about',
+  contact: 'contact',
+  'contact-us': 'contact',
+}
+/** How a built-in key reads back in the Section column when editing. */
+const BUILT_IN_DISPLAY: Record<string, string> = {
+  services: 'Services',
+  work: 'Projects',
+  testimonials: 'Testimonials',
+  about: 'About',
+  contact: 'Contact',
+}
+
+/** One menu entry; `name` decides the key it is saved under. */
+type SectionRow = { name: string; label: string; selector: string }
+
+const BLANK_ROW: SectionRow = { name: '', label: '', selector: '' }
+const blankRows = (): SectionRow[] => [{ ...BLANK_ROW }, { ...BLANK_ROW }]
+const isBlank = (r: SectionRow) => !r.name.trim() && !r.label.trim() && !r.selector.trim()
+
+function keyForName(name: string): string {
+  const custom = customSectionKey(name)
+  return BUILT_IN_NAMES[custom.slice('custom-'.length)] ?? custom
+}
+
+/** Stored JSON → rows, always at least two. */
+function rowsFromConfig(config: string | null): SectionRow[] {
+  const rows: SectionRow[] = []
+  if (config) {
+    try {
+      const parsed = JSON.parse(config) as Record<string, { label?: string; selector?: string }>
+      for (const [k, v] of Object.entries(parsed)) {
+        let name = BUILT_IN_DISPLAY[k]
+        if (!name && isCustomSectionKey(k)) {
+          const words = k.slice('custom-'.length).replace(/-/g, ' ')
+          name = words.charAt(0).toUpperCase() + words.slice(1)
+        }
+        if (name) rows.push({ name, label: v.label ?? '', selector: v.selector ?? '' })
+      }
+    } catch {
+      /* unreadable config — start blank */
+    }
+  }
+  while (rows.length < 2) rows.push({ ...BLANK_ROW })
+  return rows
+}
+
+/** Filled rows → the JSON the API expects ('' when every row is blank). */
+function configFromRows(rows: SectionRow[]): string {
+  const picked: Record<string, { label: string; selector: string }> = {}
+  for (const r of rows) {
+    if (isBlank(r)) continue
+    const key = keyForName(r.name)
+    if (!key) throw new Error(`Section name "${r.name}" needs at least one letter or number`)
+    if (picked[key]) throw new Error(`Two rows are both the "${r.name.trim()}" section — give each a different name`)
+    picked[key] = { label: r.label, selector: r.selector }
+  }
+  return Object.keys(picked).length ? JSON.stringify(picked) : ''
+}
 
 const empty = {
   customer_name: '',
@@ -42,8 +118,17 @@ const empty = {
   plan: 'core',
   status: 'active',
   expires_on: '',
-  sections_config: '',
+  knowledge: '',
+  ask_intro: '',
+  ask_starters: '',
 }
+
+const KNOWLEDGE_EXAMPLE = `What the business does, in plain sentences:
+- Products / services and what they include
+- Prices exactly as published (ORBI only quotes figures written here)
+- Opening hours, locations, delivery areas
+- How to contact them
+- Common questions and their answers`
 
 const mini: React.CSSProperties = {
   background: 'transparent',
@@ -53,6 +138,14 @@ const mini: React.CSSProperties = {
   cursor: 'pointer',
   padding: 0,
   fontFamily: 'var(--font-poppins), system-ui, sans-serif',
+}
+
+const sectionGrid: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(150px, 1fr) minmax(140px, 1.3fr) minmax(140px, 1.3fr)',
+  gap: '12px',
+  alignItems: 'center',
+  padding: '10px 14px',
 }
 
 const code: React.CSSProperties = {
@@ -82,6 +175,7 @@ export default function OrbiSitesSection({
   reload: () => Promise<void>
 }) {
   const [form, setForm] = useState({ ...empty })
+  const [sectionRows, setSectionRows] = useState<SectionRow[]>(blankRows)
   const [editId, setEditId] = useState<number | null>(null)
   const [openId, setOpenId] = useState<number | null>(null)
   const [copiedId, setCopiedId] = useState<number | null>(null)
@@ -94,8 +188,12 @@ export default function OrbiSitesSection({
     setError(null)
     try {
       const url = editId ? `/api/buddhima/orbi-sites/${editId}` : '/api/buddhima/orbi-sites'
-      const { site } = await apiSend<{ site: OrbiSiteRow }>(url, editId ? 'PATCH' : 'POST', form)
+      const { site } = await apiSend<{ site: OrbiSiteRow }>(url, editId ? 'PATCH' : 'POST', {
+        ...form,
+        sections_config: configFromRows(sectionRows),
+      })
       setForm({ ...empty })
+      setSectionRows(blankRows())
       setEditId(null)
       setOpenId(site.id)
       await reload()
@@ -114,10 +212,11 @@ export default function OrbiSitesSection({
       plan: site.plan,
       status: site.status,
       expires_on: site.expires_on ?? '',
-      sections_config: site.sections_config
-        ? JSON.stringify(JSON.parse(site.sections_config), null, 2)
-        : '',
+      knowledge: site.knowledge ?? '',
+      ask_intro: site.ask_intro ?? '',
+      ask_starters: site.ask_starters ?? '',
     })
+    setSectionRows(rowsFromConfig(site.sections_config))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -153,7 +252,7 @@ export default function OrbiSitesSection({
   }
 
   return (
-    <section style={{ display: 'grid', gap: '20px' }}>
+    <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '20px' }}>
       {error && <div style={errorBox}>{error}</div>}
 
       <form onSubmit={submit} style={panel}>
@@ -201,15 +300,108 @@ export default function OrbiSitesSection({
               placeholder={'https://abccompany.com\nhttps://www.abccompany.com'}
             />
           </Field>
-          <Field label="Sections (optional JSON — keys: services, work, testimonials, about, contact)" full>
-            <textarea
-              rows={6}
-              value={form.sections_config}
-              onChange={(e) => setForm({ ...form, sections_config: e.target.value })}
-              style={{ ...input, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }}
-              placeholder={SECTIONS_EXAMPLE}
-            />
-          </Field>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--muted-text)' }}>
+              Menu sections (optional) — leave rows blank to skip
+            </span>
+            <div style={{ border: '1px solid var(--hairline)', borderRadius: '10px', overflow: 'hidden' }}>
+              <div style={{ ...sectionGrid, fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted-text)', borderBottom: '1px solid var(--hairline)' }}>
+                <span>Section</span>
+                <span>Menu label</span>
+                <span>Page anchor (CSS selector)</span>
+              </div>
+              {sectionRows.map((row, i) => {
+                const set = (patch: Partial<SectionRow>) =>
+                  setSectionRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+                const needed = !isBlank(row)
+                return (
+                  <div key={i} style={sectionGrid}>
+                    <input
+                      aria-label={`Section ${i + 1} name`}
+                      value={row.name}
+                      required={needed}
+                      maxLength={40}
+                      onChange={(e) => set({ name: e.target.value })}
+                      style={input}
+                      placeholder="e.g. Pricing"
+                    />
+                    <input
+                      aria-label={`Section ${i + 1} menu label`}
+                      value={row.label}
+                      required={needed}
+                      maxLength={ORBI_EMBED_LIMITS.labelMax}
+                      onChange={(e) => set({ label: e.target.value })}
+                      style={input}
+                      placeholder="e.g. Our Prices"
+                    />
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        aria-label={`Section ${i + 1} page anchor`}
+                        value={row.selector}
+                        required={needed}
+                        onChange={(e) => set({ selector: e.target.value })}
+                        style={{ ...input, fontFamily: 'ui-monospace, monospace' }}
+                        placeholder="e.g. #pricing"
+                      />
+                      {sectionRows.length > 2 && (
+                        <button
+                          type="button"
+                          aria-label={`Remove custom section ${i + 1}`}
+                          onClick={() => setSectionRows((rs) => rs.filter((_, j) => j !== i))}
+                          style={{ ...mini, color: 'var(--muted-text)', fontSize: '18px', lineHeight: 1 }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+              {sectionRows.length < ORBI_EMBED_SECTION_KEYS.length + ORBI_EMBED_LIMITS.customMax && (
+                <div style={{ padding: '4px 14px 12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSectionRows((rs) => [...rs, { ...BLANK_ROW }])}
+                    style={{ ...mini, fontSize: '14px' }}
+                  >
+                    + Add section
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Ask ORBI is what the Intelligence plan sells, so its inputs only
+              appear there. Switching plans keeps whatever was typed. */}
+          {form.plan === 'intelligence' && (
+            <>
+              <Field label="Ask ORBI — business knowledge. ORBI answers only from this text." full>
+                <textarea
+                  rows={8}
+                  value={form.knowledge}
+                  onChange={(e) => setForm({ ...form, knowledge: e.target.value })}
+                  style={{ ...input, resize: 'vertical' }}
+                  placeholder={KNOWLEDGE_EXAMPLE}
+                />
+              </Field>
+              <Field label="Ask ORBI — intro line (optional)" full>
+                <input
+                  value={form.ask_intro}
+                  onChange={(e) => setForm({ ...form, ask_intro: e.target.value })}
+                  style={input}
+                  placeholder={`Ask me anything about ${form.customer_name || 'this business'}.`}
+                />
+              </Field>
+              <Field label="Ask ORBI — starter questions (optional, up to 4, one per line)" full>
+                <textarea
+                  rows={3}
+                  value={form.ask_starters}
+                  onChange={(e) => setForm({ ...form, ask_starters: e.target.value })}
+                  style={{ ...input, resize: 'vertical' }}
+                  placeholder={'What does your app do?\nHow much does it cost?'}
+                />
+              </Field>
+            </>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
           <GhostButton type="submit" disabled={saving}>
@@ -220,6 +412,7 @@ export default function OrbiSitesSection({
               onClick={() => {
                 setEditId(null)
                 setForm({ ...empty })
+                setSectionRows(blankRows())
               }}
             >
               Cancel

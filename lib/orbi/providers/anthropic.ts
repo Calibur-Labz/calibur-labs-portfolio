@@ -7,7 +7,7 @@ import {
   type OrbiAskTurn,
 } from '../../../components/orbi/orbiAsk'
 import { ORBI_SYSTEM_PROMPT } from '../orbiKnowledge'
-import type { OrbiProvider } from './types'
+import type { OrbiAskOptions, OrbiProvider } from './types'
 
 /**
  * The Claude provider.
@@ -64,12 +64,13 @@ function getClient(): Anthropic {
 async function ask(
   turns: OrbiAskTurn[],
   signal?: AbortSignal,
+  options?: OrbiAskOptions,
 ): Promise<OrbiAskReply> {
   const response = await getClient().messages.parse(
     {
       model: 'claude-opus-5',
       max_tokens: 1024,
-      system: ORBI_SYSTEM_PROMPT,
+      system: options?.system ?? ORBI_SYSTEM_PROMPT,
       output_config: {
         effort: 'low',
         format: { type: 'json_schema', schema: REPLY_SCHEMA },

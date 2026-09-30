@@ -35,7 +35,32 @@ export const ORBI_EMBED_SECTION_KEYS: readonly string[] = [
 export const ORBI_EMBED_LIMITS = {
   /** Long enough for "Frequently Asked Questions", short enough for the menu. */
   labelMax: 40,
+  /** Extra sections a customer may add beyond the five above. */
+  customMax: 10,
 } as const
+
+/**
+ * A customer's own section ("Pricing", "FAQ"…): `custom-` plus a lowercase
+ * slug. The prefix keeps it clear of the five keys ORBI's answers point at and
+ * of anything on `Object.prototype`. Menu-only — no answer action leads there.
+ */
+export const ORBI_EMBED_CUSTOM_KEY = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/
+export const ORBI_EMBED_KEY_MAX = 48
+
+export function isCustomSectionKey(key: string): boolean {
+  return key.length <= ORBI_EMBED_KEY_MAX && ORBI_EMBED_CUSTOM_KEY.test(key)
+}
+
+/** A section name → its custom key ('' when nothing usable is left). */
+export function customSectionKey(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, ORBI_EMBED_KEY_MAX - 'custom-'.length)
+    .replace(/-+$/, '')
+  return slug ? `custom-${slug}` : ''
+}
 
 export interface OrbiEmbedSection {
   key: string
@@ -57,21 +82,25 @@ function cleanLabel(value: unknown): string | null {
  *
  * Unknown keys, duplicates, and any entry without a usable label are dropped
  * one at a time; anything that is not a list at all is no sections. Never
- * throws. The result is always in `ORBI_EMBED_SECTION_KEYS` order, so the
- * menu reads the same however the customer ordered their JSON.
+ * throws. The five known sections come first in `ORBI_EMBED_SECTION_KEYS`
+ * order, then up to `customMax` custom ones in the order the customer wrote.
  */
 export function sanitizeEmbedSections(raw: unknown): OrbiEmbedSection[] {
   if (!Array.isArray(raw)) return []
   const labels = new Map<string, string>()
+  const custom: string[] = []
   for (const entry of raw.slice(0, 20)) {
     if (!entry || typeof entry !== 'object') continue
     const { key, label } = entry as { key?: unknown; label?: unknown }
-    if (typeof key !== 'string' || !ORBI_EMBED_SECTION_KEYS.includes(key)) continue
-    if (labels.has(key)) continue
+    if (typeof key !== 'string' || labels.has(key)) continue
+    const known = ORBI_EMBED_SECTION_KEYS.includes(key)
+    if (!known && (!isCustomSectionKey(key) || custom.length >= ORBI_EMBED_LIMITS.customMax)) continue
     const clean = cleanLabel(label)
-    if (clean) labels.set(key, clean)
+    if (!clean) continue
+    labels.set(key, clean)
+    if (!known) custom.push(key)
   }
-  return ORBI_EMBED_SECTION_KEYS.filter((key) => labels.has(key)).map((key) => ({
+  return [...ORBI_EMBED_SECTION_KEYS.filter((key) => labels.has(key)), ...custom].map((key) => ({
     key,
     label: labels.get(key)!,
   }))

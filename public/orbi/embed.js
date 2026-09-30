@@ -47,12 +47,15 @@
 
   /**
    * `data-orbi-sections`, as data: parsed, never evaluated. Keys are the five
-   * destinations ORBI knows; each needs a short text label and a CSS selector
+   * destinations ORBI knows, plus up to ten `custom-<slug>` ones; each needs a short text label and a CSS selector
    * the browser accepts. Anything else is dropped on its own, and a broken
    * attribute simply means ORBI offers no sections. The same limits as
    * `components/orbi/orbiEmbedSections.ts`, which re-checks the labels.
    */
   var SECTION_KEYS = ['services', 'work', 'testimonials', 'about', 'contact']
+  var CUSTOM_KEY = /^custom-[a-z0-9]+(?:-[a-z0-9]+)*$/
+  var CUSTOM_MAX = 10
+  var order = []
   var CONTROL = new RegExp('[\\u0000-\\u001F\\u007F]', 'g')
   var HAS_CONTROL = new RegExp('[\\u0000-\\u001F\\u007F]')
 
@@ -67,8 +70,18 @@
       return found
     }
     if (!config || typeof config !== 'object' || Array.isArray(config)) return found
-    for (var i = 0; i < SECTION_KEYS.length; i++) {
-      var key = SECTION_KEYS[i]
+    // Known keys first in their fixed order, then custom ones as written.
+    var keys = SECTION_KEYS.slice()
+    var custom = 0
+    var own = Object.keys(config)
+    for (var j = 0; j < own.length && custom < CUSTOM_MAX; j++) {
+      if (own[j].length <= 48 && CUSTOM_KEY.test(own[j])) {
+        keys.push(own[j])
+        custom++
+      }
+    }
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i]
       if (!Object.prototype.hasOwnProperty.call(config, key)) continue
       var entry = config[key]
       if (!entry || typeof entry !== 'object') continue
@@ -83,6 +96,7 @@
         continue
       }
       found[key] = { label: label, selector: selector }
+      order.push(key)
     }
     return found
   }
@@ -92,9 +106,8 @@
   /** Only the names cross into the frame. The selectors stay here. */
   function sectionLabels() {
     var list = []
-    for (var i = 0; i < SECTION_KEYS.length; i++) {
-      var key = SECTION_KEYS[i]
-      if (sections[key]) list.push({ key: key, label: sections[key].label })
+    for (var i = 0; i < order.length; i++) {
+      list.push({ key: order[i], label: sections[order[i]].label })
     }
     return list
   }

@@ -10,6 +10,8 @@ import {
 } from '@/components/orbi/orbiAsk'
 import { resolveOrbiProvider } from '@/lib/orbi/providers'
 import { callerKey, checkOrbiRate } from '@/lib/orbi/orbiRateLimit'
+import { resolveEmbedChat } from '@/lib/orbi/orbiSites'
+import { findSiteBySiteId } from '@/lib/orbi/orbiSitesDb'
 
 /**
  * Ask ORBI.
@@ -68,6 +70,26 @@ export async function POST(request: Request) {
 
   const turns = raw as OrbiAskTurn[]
 
+  /* ── Whose ORBI ── */
+  // No token: this site's own companion, exactly as before. A token: a
+  // customer's Intelligence site, answered from *their* knowledge — or not at
+  // all. A bad or refused token never falls through to this site's prompt.
+  const embedToken = (body as { embedToken?: unknown })?.embedToken
+  let system: string | undefined
+  if (embedToken !== undefined) {
+    try {
+      const embed = await resolveEmbedChat(embedToken, {
+        findSite: findSiteBySiteId,
+        secret: process.env.SESSION_SECRET || null,
+      })
+      if (!embed.ok) return fallback(ORBI_ASK_MESSAGES.unavailable, 403)
+      system = embed.system
+    } catch (error) {
+      console.error('[orbi/chat] site lookup:', error instanceof Error ? error.message : error)
+      return fallback(ORBI_ASK_MESSAGES.error, 503)
+    }
+  }
+
   // Refused rather than truncated: answering a shortened version of someone's
   // question is worse than telling them it was too long.
   if (turns.some((turn) => turn.content.length > ORBI_ASK.maxInput)) {
@@ -96,7 +118,7 @@ export async function POST(request: Request) {
   const timer = setTimeout(() => abort.abort(), ORBI_ASK.serverTimeoutMs)
 
   try {
-    const reply = await provider.ask(trimmed, abort.signal)
+    const reply = await provider.ask(trimmed, abort.signal, system ? { system } : undefined)
     // Normalised once more on the way out. A provider is not trusted to
     // police its own action, whichever one answered.
     return NextResponse.json({

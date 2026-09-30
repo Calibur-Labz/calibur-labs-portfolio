@@ -27,5 +27,14 @@ export interface OrbiProvider {
    * Answer one question. Throws on any failure — the route turns every one of
    * them into the same single sentence.
    */
-  ask(turns: OrbiAskTurn[], signal?: AbortSignal): Promise<OrbiAskReply>
+  ask(turns: OrbiAskTurn[], signal?: AbortSignal, options?: OrbiAskOptions): Promise<OrbiAskReply>
+}
+
+export interface OrbiAskOptions {
+  /**
+   * The whole system prompt, when ORBI speaks for a customer's site rather
+   * than this one (see `buildOrbiSystemPrompt`). Absent, every provider uses
+   * `ORBI_SYSTEM_PROMPT` exactly as before.
+   */
+  system?: string
 }

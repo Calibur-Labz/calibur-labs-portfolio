@@ -75,7 +75,7 @@ export default function Overview({
   const recent = useMemo(() => transactions.slice(0, 6), [transactions])
 
   return (
-    <section style={{ display: 'grid', gap: '20px' }}>
+    <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '20px' }}>
       {/* currency toggle */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <p style={muted}>Financial snapshot in {cur}.</p>

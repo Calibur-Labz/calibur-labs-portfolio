@@ -41,6 +41,8 @@ export default function OrbiAskPanel({
   onComposing,
   reducedMotion,
   actionLabels,
+  intro = ORBI_ASK_MESSAGES.intro,
+  starters = ORBI_ASK_STARTERS,
 }: {
   open: boolean
   entries: OrbiAskEntry[]
@@ -69,6 +71,9 @@ export default function OrbiAskPanel({
    * entry gets no button. Absent, every action uses `ORBI_ACTION_LABELS`.
    */
   actionLabels?: Partial<Record<Exclude<OrbiAskAction, 'NO_ACTION'>, string>>
+  /** Embedded on a customer's site: their own opening line and questions. */
+  intro?: string
+  starters?: readonly string[]
 }) {
   const labelFor = (action: OrbiAskAction) =>
     action === 'NO_ACTION'
@@ -276,7 +281,7 @@ export default function OrbiAskPanel({
         */}
         {entries.length === 0 && !pending && (
           <>
-            <p style={{ margin: 0, color: '#6E8399' }}>{ORBI_ASK_MESSAGES.intro}</p>
+            <p style={{ margin: 0, color: '#6E8399' }}>{intro}</p>
             <div
               style={{
                 display: 'flex',
@@ -285,7 +290,7 @@ export default function OrbiAskPanel({
                 marginTop: '2px',
               }}
             >
-              {ORBI_ASK_STARTERS.map((question) => (
+              {starters.map((question) => (
                 <button
                   key={question}
                   type="button"
