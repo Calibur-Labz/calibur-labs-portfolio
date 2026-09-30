@@ -493,14 +493,16 @@ export const ORBI_THEME_COLORS = {
       '0 20px 44px rgba(0,0,0,0.5), 0 0 24px rgba(0,183,255,0.14), inset 0 1px 0 rgba(255,255,255,0.06)',
   },
   light: {
-    shellTop: '#FFFFFF',
-    shellBottom: '#D9E2EC',
-    limbTop: '#F4F7FA',
-    limbBottom: '#C3CEDB',
-    rim: 'rgba(20, 38, 60, 0.14)',
-    outline: 'rgba(20, 38, 60, 0.16)',
+    // Off-white, not pure white: softer against the black visor, and still
+    // separate from a white page behind him.
+    shellTop: '#ECEFF3',
+    shellBottom: '#C9D2DC',
+    limbTop: '#E4E8ED',
+    limbBottom: '#B7C2CE',
+    rim: 'rgba(20, 38, 60, 0.18)',
+    outline: 'rgba(20, 38, 60, 0.18)',
     antenna: '#A9B6C5',
-    sheen: 'rgba(255,255,255,0.7)',
+    sheen: 'rgba(255,255,255,0.35)',
     robotShadow:
       'drop-shadow(0 10px 16px rgba(20, 38, 60, 0.20)) drop-shadow(0 2px 4px rgba(20, 38, 60, 0.16))',
     bubbleBg: 'rgba(255, 255, 255, 0.96)',
