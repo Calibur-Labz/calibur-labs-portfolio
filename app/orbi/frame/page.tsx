@@ -12,11 +12,19 @@ import {
 /**
  * ORBI, inside the iframe `public/orbi/embed.js` puts on another website.
  *
- * The frame and the host page share exactly three messages:
+ * The frame and the host page share exactly four messages:
  *
- *   host  → frame  { type: 'orbi:hello', sections: [{ key, label }] }   once
+ *   host  → frame  { type: 'orbi:hello', token, sections: [{ key, label }] }   once
+ *   frame → host   { type: 'orbi:denied' }                  token refused; host removes the iframe
  *   frame → host   { type: 'orbi:resize', mode: 'idle' | 'open' }
  *   frame → host   { type: 'orbi:navigate', section: key }
+ *
+ * Nothing renders until the token checks out. `embed.js` got it from
+ * `/api/orbi/authorize`, which judged the host by its browser-sent Origin
+ * header; the frame has the server verify it and then requires the origin it
+ * names to be exactly the origin of the window that framed it. So ORBI runs
+ * only where the server authorized it, even for someone who iframes this page
+ * directly or copies a customer's snippet.
  *
  * The host's origin is never taken from the URL. It is read off the hello,
  * where the browser — not the sender — fills in `event.origin`, and the hello
@@ -61,20 +69,49 @@ export default function OrbiFramePage({
     post({ type: 'orbi:resize', mode: modeRef.current })
   }, [post])
 
+  /** Only after the server has vouched for this host does ORBI appear at all. */
+  const [authorized, setAuthorized] = useState(false)
+  /** One hello is checked; the host's retries while that happens are ignored. */
+  const checkingRef = useRef(false)
+
   useEffect(() => {
     // Opened directly rather than framed: there is nobody to talk to.
     if (window.parent === window) return
 
     const onMessage = (event: MessageEvent) => {
-      if (hostOriginRef.current) return
+      if (checkingRef.current || hostOriginRef.current) return
       if (event.source !== window.parent) return
-      const data = event.data as { type?: unknown; sections?: unknown } | null
+      const data = event.data as { type?: unknown; token?: unknown; sections?: unknown } | null
       if (data?.type !== 'orbi:hello') return
       // An opaque origin (a sandboxed or `file:` host) cannot be addressed.
       if (!/^https?:\/\/[^/]+$/.test(event.origin)) return
-      hostOriginRef.current = event.origin
-      setSections(sanitizeEmbedSections(data.sections))
-      report()
+      if (typeof data.token !== 'string') return
+
+      const framedBy = event.origin
+      const sections = sanitizeEmbedSections(data.sections)
+      checkingRef.current = true
+
+      fetch('/api/orbi/authorize/verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: data.token }),
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .catch(() => null)
+        .then((answer: { authorized?: unknown; origin?: unknown } | null) => {
+          // The token must be good *and* have been issued to the very origin
+          // that framed us — a token lifted from an authorized site names the
+          // wrong origin everywhere else.
+          const ok = answer?.authorized === true && answer.origin === framedBy
+          if (!ok) {
+            window.parent.postMessage({ type: 'orbi:denied' }, framedBy)
+            return
+          }
+          hostOriginRef.current = framedBy
+          setSections(sections)
+          setAuthorized(true)
+          report()
+        })
     }
 
     window.addEventListener('message', onMessage)
@@ -99,5 +136,5 @@ export default function OrbiFramePage({
     [breakpoint, sections, report, post],
   )
 
-  return <OrbiGuide embed={embed} />
+  return authorized ? <OrbiGuide embed={embed} /> : null
 }

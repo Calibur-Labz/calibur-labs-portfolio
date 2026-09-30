@@ -183,6 +183,22 @@ export function ensureSchema(): Promise<void> {
           updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `
+      // ORBI embed licences: which customer site may run ORBI, and on which
+      // exact origins. See lib/orbi/orbiSites.ts for the rules.
+      await sql`
+        CREATE TABLE IF NOT EXISTS orbi_sites (
+          id               SERIAL PRIMARY KEY,
+          site_id          TEXT NOT NULL UNIQUE,
+          customer_name    TEXT NOT NULL,
+          allowed_origins  TEXT[] NOT NULL DEFAULT '{}',
+          plan             TEXT NOT NULL DEFAULT 'core',
+          status           TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
+          sections_config  TEXT,
+          expires_on       DATE,
+          created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `
     })().catch((err) => {
       // Reset so a later request can retry after a transient failure.
       schemaReady = null

@@ -22,6 +22,7 @@ import SalariesSection from './sections/SalariesSection'
 import MessagesSection from './sections/MessagesSection'
 import DocumentsSection from './sections/DocumentsSection'
 import SettingsSection from './sections/SettingsSection'
+import OrbiSitesSection, { type OrbiSiteRow } from './sections/OrbiSitesSection'
 
 type Data = {
   projects: Project[]
@@ -31,6 +32,7 @@ type Data = {
   salaries: Salary[]
   messages: ContactMessage[]
   documents: Document[]
+  orbiSites: OrbiSiteRow[]
 }
 
 type SectionKey =
@@ -42,6 +44,7 @@ type SectionKey =
   | 'team'
   | 'salaries'
   | 'documents'
+  | 'orbi'
   | 'settings'
 
 const NAV: { key: SectionKey; label: string }[] = [
@@ -53,6 +56,7 @@ const NAV: { key: SectionKey; label: string }[] = [
   { key: 'team', label: 'Team' },
   { key: 'salaries', label: 'Salaries' },
   { key: 'documents', label: 'Documents' },
+  { key: 'orbi', label: 'ORBI Sites' },
   { key: 'settings', label: 'Settings' },
 ]
 
@@ -64,6 +68,7 @@ const EMPTY: Data = {
   salaries: [],
   messages: [],
   documents: [],
+  orbiSites: [],
 }
 
 /** How often the console re-checks the inbox for new contact-form messages. */
@@ -87,6 +92,7 @@ export default function Dashboard({ adminEmail }: { adminEmail: string }) {
         fetch('/api/buddhima/salaries'),
         fetch('/api/buddhima/messages'),
         fetch('/api/buddhima/documents'),
+        fetch('/api/buddhima/orbi-sites'),
       ])
       if (responses.some((r) => r.status === 401)) {
         router.replace('/buddhima/login')
@@ -97,7 +103,7 @@ export default function Dashboard({ adminEmail }: { adminEmail: string }) {
         const d = await bad.json().catch(() => ({}))
         throw new Error(d.error ?? 'Could not load data. Is the database configured?')
       }
-      const [p, t, i, tm, s, m, docs] = await Promise.all(responses.map((r) => r.json()))
+      const [p, t, i, tm, s, m, docs, orbi] = await Promise.all(responses.map((r) => r.json()))
       setData({
         projects: p.projects ?? [],
         transactions: t.transactions ?? [],
@@ -106,6 +112,7 @@ export default function Dashboard({ adminEmail }: { adminEmail: string }) {
         salaries: s.salaries ?? [],
         messages: m.messages ?? [],
         documents: docs.documents ?? [],
+        orbiSites: orbi.sites ?? [],
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load data')
@@ -260,6 +267,7 @@ export default function Dashboard({ adminEmail }: { adminEmail: string }) {
               {section === 'documents' && (
                 <DocumentsSection documents={data.documents} projects={data.projects} reload={refresh} />
               )}
+              {section === 'orbi' && <OrbiSitesSection sites={data.orbiSites} reload={refresh} />}
               {section === 'settings' && <SettingsSection />}
             </>
           )}

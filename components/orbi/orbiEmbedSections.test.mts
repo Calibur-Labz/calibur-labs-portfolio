@@ -148,11 +148,26 @@ const EMBED_SOURCE = readFileSync(resolve(process.cwd(), 'public/orbi/embed.js')
 
 interface Posted { message: { type: string; sections?: unknown }; origin: string }
 
+const SITE_ID = 'orbi_abcdefghij0123456789'
+
+/** What the fake `/api/orbi/authorize` answers: a JSON body, a status, or a network error. */
+type AuthorizeAnswer = { status?: number; body?: unknown } | 'network-error'
+
+interface EmbedOptions {
+  reducedMotion?: boolean
+  /** `data-orbi-site`; null leaves the attribute off. */
+  siteId?: string | null
+  authorize?: AuthorizeAnswer
+}
+
 /**
  * A page with a few elements, one ORBI script tag, and nothing else. `#broken`
- * stands in for a selector the browser rejects.
+ * stands in for a selector the browser rejects. Async because the iframe now
+ * appears only after the authorization request resolves.
  */
-function runEmbed(attribute: string | null, options: { reducedMotion?: boolean } = {}) {
+async function runEmbed(attribute: string | null, options: EmbedOptions = {}) {
+  const siteId = options.siteId === undefined ? SITE_ID : options.siteId
+  const answer: AuthorizeAnswer = options.authorize ?? { body: { authorized: true, token: 'v1.test.token' } }
   const scrolled: Array<{ selector: string; options: unknown }> = []
   const elements = new Map(
     ['#services', '#company', '#portfolio', '#contact'].map((selector) => [
@@ -165,6 +180,8 @@ function runEmbed(attribute: string | null, options: { reducedMotion?: boolean }
   )
   const posted: Posted[] = []
   const appended: unknown[] = []
+  const removed: unknown[] = []
+  const requests: Array<{ url: string; init: Record<string, unknown> }> = []
   const frameListeners: Record<string, () => void> = {}
   let onMessage: ((event: unknown) => void) | null = null
 
@@ -173,11 +190,16 @@ function runEmbed(attribute: string | null, options: { reducedMotion?: boolean }
     postMessage: (message: Posted['message'], origin: string) =>
       posted.push({ message: JSON.parse(JSON.stringify(message)), origin }),
   }
+  const body = {
+    appendChild: (node: unknown) => appended.push(node),
+    removeChild: (node: unknown) => removed.push(node),
+  }
   const frame = {
     style: {} as Record<string, string>,
     src: '',
     title: '',
     contentWindow,
+    parentNode: body,
     setAttribute: () => {},
     addEventListener: (type: string, fn: () => void) => {
       frameListeners[type] = fn
@@ -186,9 +208,10 @@ function runEmbed(attribute: string | null, options: { reducedMotion?: boolean }
   const document = {
     currentScript: {
       src: `${ORIGIN}/orbi/embed.js`,
-      getAttribute: (name: string) => (name === 'data-orbi-sections' ? attribute : null),
+      getAttribute: (name: string) =>
+        name === 'data-orbi-sections' ? attribute : name === 'data-orbi-site' ? siteId : null,
     },
-    body: { appendChild: (node: unknown) => appended.push(node) },
+    body,
     createElement: () => frame,
     addEventListener: () => {},
     querySelector: (selector: string) => {
@@ -199,8 +222,19 @@ function runEmbed(attribute: string | null, options: { reducedMotion?: boolean }
   const sandbox: Record<string, unknown> = {
     document,
     URL,
+    console: { warn: () => {} },
     setInterval: () => 1,
     clearInterval: () => {},
+    fetch: (url: string, init: Record<string, unknown>) => {
+      requests.push({ url, init: JSON.parse(JSON.stringify(init)) })
+      if (answer === 'network-error') return Promise.reject(new TypeError('Failed to fetch'))
+      const status = answer.status ?? 200
+      return Promise.resolve({
+        ok: status >= 200 && status < 300,
+        json: () =>
+          typeof answer.body === 'string' ? Promise.reject(new SyntaxError('bad json')) : Promise.resolve(answer.body),
+      })
+    },
     matchMedia: (query: string) => ({
       matches: query.includes('reduced-motion') ? Boolean(options.reducedMotion) : false,
     }),
@@ -210,11 +244,16 @@ function runEmbed(attribute: string | null, options: { reducedMotion?: boolean }
   }
   sandbox.window = sandbox
   vm.runInContext(EMBED_SOURCE, vm.createContext(sandbox))
+  // Let the authorization request settle, then the iframe "loads".
+  for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve))
   frameListeners.load?.()
 
   return {
     appended,
+    removed,
+    requests,
     scrolled,
+    frameSrc: () => frame.src,
     hello: posted.find((p) => p.message.type === 'orbi:hello'),
     /** A message as if the ORBI frame sent it. */
     fromFrame: (data: unknown, overrides: { origin?: string; source?: unknown } = {}) =>
@@ -229,8 +268,8 @@ const CUSTOMER = JSON.stringify({
   contact: { label: 'Get In Touch', selector: '#contact' },
 })
 
-test('embed.js: custom sections reach the frame as names only', () => {
-  const page = runEmbed(CUSTOMER)
+test('embed.js: custom sections reach the frame as names only', async () => {
+  const page = await runEmbed(CUSTOMER)
   assert.equal(page.appended.length, 1)
   assert.equal(page.hello?.origin, ORIGIN)
   assert.deepEqual(page.hello?.message.sections, [
@@ -242,8 +281,8 @@ test('embed.js: custom sections reach the frame as names only', () => {
   assert.ok(!JSON.stringify(page.hello).includes('#'), 'a selector left the page')
 })
 
-test('embed.js: navigating scrolls to the customer’s own selector', () => {
-  const page = runEmbed(CUSTOMER)
+test('embed.js: navigating scrolls to the customer’s own selector', async () => {
+  const page = await runEmbed(CUSTOMER)
   page.fromFrame({ type: 'orbi:navigate', section: 'services' })
   page.fromFrame({ type: 'orbi:navigate', section: 'about' })
   assert.deepEqual(page.scrolled, [
@@ -252,16 +291,16 @@ test('embed.js: navigating scrolls to the customer’s own selector', () => {
   ])
 })
 
-test('embed.js: reduced motion jumps instead of gliding', () => {
-  const page = runEmbed(CUSTOMER, { reducedMotion: true })
+test('embed.js: reduced motion jumps instead of gliding', async () => {
+  const page = await runEmbed(CUSTOMER, { reducedMotion: true })
   page.fromFrame({ type: 'orbi:navigate', section: 'contact' })
   assert.deepEqual(page.scrolled, [
     { selector: '#contact', options: { behavior: 'auto', block: 'start' } },
   ])
 })
 
-test('embed.js: a selector with nothing behind it does nothing', () => {
-  const page = runEmbed(
+test('embed.js: a selector with nothing behind it does nothing', async () => {
+  const page = await runEmbed(
     JSON.stringify({ testimonials: { label: 'Reviews', selector: '#reviews' } }),
   )
   assert.deepEqual(page.hello?.message.sections, [{ key: 'testimonials', label: 'Reviews' }])
@@ -269,8 +308,8 @@ test('embed.js: a selector with nothing behind it does nothing', () => {
   assert.deepEqual(page.scrolled, [])
 })
 
-test('embed.js: unknown and unconfigured sections go nowhere', () => {
-  const page = runEmbed(
+test('embed.js: unknown and unconfigured sections go nowhere', async () => {
+  const page = await runEmbed(
     JSON.stringify({
       services: { label: 'What We Do', selector: '#services' },
       pricing: { label: 'Pricing', selector: '#contact' },
@@ -283,7 +322,7 @@ test('embed.js: unknown and unconfigured sections go nowhere', () => {
   assert.deepEqual(page.scrolled, [])
 })
 
-test('embed.js: malformed configuration still installs ORBI, with no sections', () => {
+test('embed.js: malformed configuration still installs ORBI, with no sections', async () => {
   for (const attribute of [
     '{"services": {"label": "What We Do", "selector": "#services"',
     'alert(1)',
@@ -292,20 +331,20 @@ test('embed.js: malformed configuration still installs ORBI, with no sections', 
     'null',
     '',
   ]) {
-    const page = runEmbed(attribute)
+    const page = await runEmbed(attribute)
     assert.equal(page.appended.length, 1, attribute)
     assert.deepEqual(page.hello?.message.sections, [], attribute)
   }
 })
 
-test('embed.js: no attribute means the default — ORBI with no sections', () => {
-  const page = runEmbed(null)
+test('embed.js: no attribute means the default — ORBI with no sections', async () => {
+  const page = await runEmbed(null)
   assert.equal(page.appended.length, 1)
   assert.deepEqual(page.hello?.message.sections, [])
 })
 
-test('embed.js: bad entries are dropped one at a time', () => {
-  const page = runEmbed(
+test('embed.js: bad entries are dropped one at a time', async () => {
+  const page = await runEmbed(
     JSON.stringify({
       services: { label: 'What We Do', selector: 'div!!bad' },
       work: { label: 'Our Projects', selector: 42 },
@@ -317,9 +356,79 @@ test('embed.js: bad entries are dropped one at a time', () => {
   assert.deepEqual(page.hello?.message.sections, [{ key: 'contact', label: 'Get In Touch' }])
 })
 
-test('embed.js: only the ORBI frame, from ORBI’s origin, is listened to', () => {
-  const page = runEmbed(CUSTOMER)
+test('embed.js: only the ORBI frame, from ORBI’s origin, is listened to', async () => {
+  const page = await runEmbed(CUSTOMER)
   page.fromFrame({ type: 'orbi:navigate', section: 'services' }, { origin: 'https://evil.example' })
   page.fromFrame({ type: 'orbi:navigate', section: 'services' }, { source: {} })
   assert.deepEqual(page.scrolled, [])
+})
+
+/* ── embed.js: authorization before anything appears ─────────────────── */
+
+test('embed.js: an authorized site gets its iframe, and the token rides the hello', async () => {
+  const page = await runEmbed(CUSTOMER)
+  assert.equal(page.requests.length, 1)
+  const [request] = page.requests
+  assert.equal(request.url, `${ORIGIN}/api/orbi/authorize`)
+  assert.equal(request.init.method, 'POST')
+  assert.equal(request.init.credentials, 'omit')
+  // The body names the site and nothing else — never an origin.
+  assert.deepEqual(JSON.parse(String(request.init.body)), { siteId: SITE_ID })
+  assert.equal(page.appended.length, 1)
+  assert.match(page.frameSrc(), /^https:\/\/www\.caliburlabz\.com\/orbi\/frame\?bp=(desktop|tablet|mobile)$/)
+  assert.equal(page.hello?.origin, ORIGIN)
+  assert.equal((page.hello?.message as { token?: string }).token, 'v1.test.token')
+})
+
+test('embed.js: an unauthorized site gets no iframe', async () => {
+  const page = await runEmbed(CUSTOMER, { authorize: { body: { authorized: false } } })
+  assert.equal(page.appended.length, 0)
+  assert.equal(page.hello, undefined)
+})
+
+test('embed.js: a missing or malformed site id never even asks', async () => {
+  for (const siteId of [null, '', 'orbi_short', 'ORBI_ABCDEFGHIJ0123456789', 'orbi_abcdefghij0123456789"><script>', '<script>']) {
+    const page = await runEmbed(CUSTOMER, { siteId })
+    assert.equal(page.requests.length, 0, String(siteId))
+    assert.equal(page.appended.length, 0, String(siteId))
+  }
+})
+
+test('embed.js: anything but an explicit yes with a token fails closed', async () => {
+  const answers: AuthorizeAnswer[] = [
+    'network-error',
+    { status: 500, body: { authorized: true, token: 'x' } },
+    { status: 429, body: { authorized: false } },
+    { body: 'not json' },
+    { body: null },
+    { body: { authorized: 'true', token: 'x' } },
+    { body: { authorized: 1, token: 'x' } },
+    { body: { authorized: true } },
+    { body: { authorized: true, token: 42 } },
+    { body: { authorized: true, token: '' } },
+    { body: { authorized: true, token: 'x'.repeat(2000) } },
+  ]
+  for (const answer of answers) {
+    const page = await runEmbed(CUSTOMER, { authorize: answer })
+    assert.equal(page.appended.length, 0, JSON.stringify(answer))
+  }
+})
+
+test('embed.js: a frame that refuses the token takes the iframe away', async () => {
+  const page = await runEmbed(CUSTOMER)
+  page.fromFrame({ type: 'orbi:denied' })
+  assert.equal(page.removed.length, 1)
+})
+
+test('embed.js: a denial from anyone but the ORBI frame is ignored', async () => {
+  const page = await runEmbed(CUSTOMER)
+  page.fromFrame({ type: 'orbi:denied' }, { origin: 'https://evil.example' })
+  page.fromFrame({ type: 'orbi:denied' }, { source: {} })
+  assert.equal(page.removed.length, 0)
+})
+
+test('embed.js: no eval, no Function, no HTML injection', () => {
+  for (const banned of ['eval(', 'new Function', 'innerHTML', 'outerHTML', 'document.write', 'insertAdjacentHTML', "'*'", '"*"']) {
+    assert.ok(!EMBED_SOURCE.includes(banned), `embed.js contains ${banned}`)
+  }
 })

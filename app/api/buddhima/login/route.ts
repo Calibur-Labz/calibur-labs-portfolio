@@ -5,8 +5,25 @@ import {
   sessionCookieOptions,
   verifyCredentials,
 } from '@/lib/auth'
+import { callerKey } from '@/lib/orbi/orbiRateLimit'
+import { createRateLimiter } from '@/lib/rateLimit'
+
+/**
+ * Brute-force brake: ten attempts per address per fifteen minutes, counted
+ * whether they succeed or not. A person who mistypes a few times never meets
+ * it; a script guessing passwords meets it on its eleventh try.
+ */
+const attempts = createRateLimiter({ windowMs: 15 * 60_000, max: 10 })
 
 export async function POST(request: NextRequest) {
+  const verdict = attempts.check(callerKey(request.headers))
+  if (!verdict.allowed) {
+    return NextResponse.json(
+      { error: 'Too many attempts. Try again later.' },
+      { status: 429, headers: { 'retry-after': String(verdict.retryAfter) } }
+    )
+  }
+
   let email = ''
   let password = ''
   try {

@@ -2,10 +2,12 @@
  * ORBI — embed script.
  *
  *   <script src="https://www.caliburlabz.com/orbi/embed.js"
+ *     data-orbi-site="orbi_…"
  *     data-orbi-sections='{"services":{"label":"What We Do","selector":"#services"}}'
  *     defer></script>
  *
- * Adds one transparent iframe to the bottom-right corner of the page and
+ * Once ORBI's server has confirmed this website may use the site id, adds
+ * one transparent iframe to the bottom-right corner of the page and
  * nothing else: no global styles, no secrets. The only part of the page it
  * ever reads is the sections the site named on this tag, and only to scroll
  * to one when a visitor asks ORBI to go there. Everything
@@ -33,6 +35,13 @@
   // Loaded twice, installed once.
   if (window.__orbiEmbed) return
   window.__orbiEmbed = true
+
+  /**
+   * The customer's public site id. Not a secret — it identifies the licence;
+   * the server decides whether this website may use it.
+   */
+  var siteIdAttribute = script.getAttribute('data-orbi-site')
+  var siteId = siteIdAttribute && /^orbi_[a-z0-9]{20}$/.test(siteIdAttribute) ? siteIdAttribute : null
 
   /* ── The site's sections ── */
 
@@ -121,86 +130,145 @@
     mobile: { idle: ['210px', '240px'], open: ['100vw', '560px'] },
   }
 
-  var bp = breakpoint()
-  var frame = document.createElement('iframe')
-  var mode = null
+  /* ── Installing ── */
 
-  function size(next) {
-    if (next === mode) return
-    mode = next
-    var box = SIZES[bp][next]
-    frame.style.width = 'min(' + box[0] + ', 100vw)'
-    frame.style.height = 'min(' + box[1] + ', 100vh)'
-    // Where supported, the dynamic unit tracks a phone's collapsing toolbar.
-    frame.style.height = 'min(' + box[1] + ', 100dvh)'
-  }
+  /** Only called once the server has said yes, with the proof it gave. */
+  function install(token) {
+    var bp = breakpoint()
+    var frame = document.createElement('iframe')
+    var mode = null
 
-  frame.src = origin + '/orbi/frame?bp=' + bp
-  frame.title = 'ORBI assistant'
-  frame.setAttribute('allowtransparency', 'true')
-  frame.setAttribute('allow', 'autoplay')
-  frame.style.position = 'fixed'
-  frame.style.right = '0'
-  frame.style.bottom = '0'
-  frame.style.border = '0'
-  frame.style.margin = '0'
-  frame.style.padding = '0'
-  frame.style.background = 'transparent'
-  frame.style.colorScheme = 'normal'
-  frame.style.zIndex = '2147483000'
-  frame.style.maxWidth = '100vw'
-  size('idle')
-
-  /* ── Talking to the frame ── */
-
-  var introduced = false
-  var helloTimer = null
-
-  window.addEventListener('message', function (event) {
-    // Only the ORBI frame, and only from ORBI's origin.
-    if (event.source !== frame.contentWindow) return
-    if (event.origin !== origin) return
-    var data = event.data
-    if (!data) return
-    if (data.type === 'orbi:navigate') return navigate(data.section)
-    if (data.type !== 'orbi:resize') return
-    introduced = true
-    if (helloTimer) {
-      clearInterval(helloTimer)
-      helloTimer = null
+    function size(next) {
+      if (next === mode) return
+      mode = next
+      var box = SIZES[bp][next]
+      frame.style.width = 'min(' + box[0] + ', 100vw)'
+      frame.style.height = 'min(' + box[1] + ', 100vh)'
+      // Where supported, the dynamic unit tracks a phone's collapsing toolbar.
+      frame.style.height = 'min(' + box[1] + ', 100dvh)'
     }
-    if (data.mode === 'open' || data.mode === 'idle') size(data.mode)
-  })
 
-  /**
-   * The frame learns this page's origin from the hello — the browser, not us,
-   * stamps it on the message. Repeated for a few seconds, because the frame
-   * only starts listening once ORBI has hydrated, which can land after `load`.
-   */
-  function hello() {
-    if (introduced || !frame.contentWindow) return
-    frame.contentWindow.postMessage({ type: 'orbi:hello', sections: sectionLabels() }, origin)
-  }
+    frame.src = origin + '/orbi/frame?bp=' + bp
+    frame.title = 'ORBI assistant'
+    frame.setAttribute('allowtransparency', 'true')
+    frame.setAttribute('allow', 'autoplay')
+    frame.style.position = 'fixed'
+    frame.style.right = '0'
+    frame.style.bottom = '0'
+    frame.style.border = '0'
+    frame.style.margin = '0'
+    frame.style.padding = '0'
+    frame.style.background = 'transparent'
+    frame.style.colorScheme = 'normal'
+    frame.style.zIndex = '2147483000'
+    frame.style.maxWidth = '100vw'
+    size('idle')
 
-  frame.addEventListener('load', function () {
-    if (helloTimer) clearInterval(helloTimer)
-    var tries = 0
-    hello()
-    helloTimer = setInterval(function () {
-      tries += 1
-      if (introduced || tries > 40) {
+    /* ── Talking to the frame ── */
+
+    var introduced = false
+    var helloTimer = null
+
+    function stopHello() {
+      if (helloTimer) {
         clearInterval(helloTimer)
         helloTimer = null
+      }
+    }
+
+    window.addEventListener('message', function (event) {
+      // Only the ORBI frame, and only from ORBI's origin.
+      if (event.source !== frame.contentWindow) return
+      if (event.origin !== origin) return
+      var data = event.data
+      if (!data) return
+      if (data.type === 'orbi:navigate') return navigate(data.section)
+      if (data.type === 'orbi:denied') {
+        // The frame would not accept the token: take the iframe away again.
+        introduced = true
+        stopHello()
+        if (frame.parentNode) frame.parentNode.removeChild(frame)
         return
       }
-      hello()
-    }, 250)
-  })
+      if (data.type !== 'orbi:resize') return
+      introduced = true
+      stopHello()
+      if (data.mode === 'open' || data.mode === 'idle') size(data.mode)
+    })
 
-  function mount() {
-    document.body.appendChild(frame)
+    /**
+     * The frame learns this page's origin from the hello — the browser, not us,
+     * stamps it on the message — and checks it against the origin the token
+     * was issued to. Repeated for a few seconds, because the frame only starts
+     * listening once ORBI has hydrated, which can land after `load`.
+     */
+    function hello() {
+      if (introduced || !frame.contentWindow) return
+      frame.contentWindow.postMessage(
+        { type: 'orbi:hello', token: token, sections: sectionLabels() },
+        origin
+      )
+    }
+
+    frame.addEventListener('load', function () {
+      stopHello()
+      var tries = 0
+      hello()
+      helloTimer = setInterval(function () {
+        tries += 1
+        if (introduced || tries > 40) return stopHello()
+        hello()
+      }, 250)
+    })
+
+    function mount() {
+      document.body.appendChild(frame)
+    }
+
+    if (document.body) mount()
+    else document.addEventListener('DOMContentLoaded', mount)
   }
 
-  if (document.body) mount()
-  else document.addEventListener('DOMContentLoaded', mount)
+  /* ── Authorizing ── */
+
+  /**
+   * Ask ORBI's server whether this site may run here. The server identifies
+   * the page by the browser's own Origin header — nothing this script says
+   * about where it is counts. Anything but an explicit yes with a token,
+   * including a network error, means ORBI stays away.
+   *
+   * text/plain keeps this a CORS "simple request": one round trip, no
+   * preflight, and no cookies either way.
+   */
+  if (!siteId) {
+    if (window.console) console.warn('[ORBI] data-orbi-site is missing or invalid; ORBI will not load.')
+    return
+  }
+
+  fetch(origin + '/api/orbi/authorize', {
+    method: 'POST',
+    mode: 'cors',
+    credentials: 'omit',
+    headers: { 'content-type': 'text/plain' },
+    body: JSON.stringify({ siteId: siteId }),
+  })
+    .then(function (response) {
+      return response.ok ? response.json() : null
+    })
+    .then(function (answer) {
+      if (
+        answer &&
+        answer.authorized === true &&
+        typeof answer.token === 'string' &&
+        answer.token.length > 0 &&
+        answer.token.length < 1024
+      ) {
+        install(answer.token)
+      } else if (window.console) {
+        console.warn('[ORBI] This website is not authorized for site ' + siteId + '.')
+      }
+    })
+    .catch(function () {
+      /* Offline, blocked, or not ORBI answering: fail closed, quietly. */
+    })
 })()
