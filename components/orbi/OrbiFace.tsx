@@ -293,15 +293,34 @@ export default function OrbiFace({
       <defs>
         <linearGradient id="orbi-eye" x1="0" y1="-1" x2="0" y2="1">
           <stop offset="0%" stopColor={c.eyeTop} />
+          {c.eyeMid && <stop offset="45%" stopColor={c.eyeMid} />}
           <stop offset="100%" stopColor={c.eyeBottom} />
         </linearGradient>
-        <filter id="orbi-eye-glow" x="-120%" y="-120%" width="340%" height="340%">
-          <feGaussianBlur stdDeviation="2.4" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
+        {/* Light: a soft two-layer glow tinted with `glow`. Dark: the original
+            blur of the eye's own colour. Same id, so every user follows. */}
+        {c.glow ? (
+          <filter id="orbi-eye-glow" x="-120%" y="-120%" width="340%" height="340%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2.4" result="near" />
+            <feFlood floodColor={c.glow} floodOpacity="0.35" />
+            <feComposite in2="near" operator="in" result="nearGlow" />
+            <feGaussianBlur in="SourceAlpha" stdDeviation="5.6" result="far" />
+            <feFlood floodColor={c.glow} floodOpacity="0.18" />
+            <feComposite in2="far" operator="in" result="farGlow" />
+            <feMerge>
+              <feMergeNode in="farGlow" />
+              <feMergeNode in="nearGlow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        ) : (
+          <filter id="orbi-eye-glow" x="-120%" y="-120%" width="340%" height="340%">
+            <feGaussianBlur stdDeviation="2.4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        )}
       </defs>
 
       {/* Everything that follows ORBI's gaze travels together. GSAP owns the

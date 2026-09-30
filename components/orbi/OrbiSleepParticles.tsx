@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ORBI_COLORS, ORBI_SLEEP } from './orbiConfig'
+import { ORBI_SLEEP, ORBI_THEME_COLORS, type OrbiRegionTheme } from './orbiConfig'
 
 /**
  * The two sleep animations, carried by ORBI himself.
@@ -82,7 +82,9 @@ export default function OrbiSleepParticles({
   size,
   quiet = false,
   reducedMotion = false,
+  theme = 'dark',
 }: {
+  theme?: OrbiRegionTheme
   /** True while ORBI is properly asleep. Turning it off fades the Z's out. */
   active: boolean
   /** Which way to drift — always away from the nearer edge of the screen. */
@@ -161,8 +163,8 @@ export default function OrbiSleepParticles({
             fontWeight: 600,
             letterSpacing: '0.04em',
             fontFamily: 'var(--font-poppins), system-ui, sans-serif',
-            color: ORBI_COLORS.accentSoft,
-            textShadow: `0 0 8px ${ORBI_COLORS.accent}55`,
+            color: ORBI_THEME_COLORS[theme].markSoft,
+            textShadow: `0 0 8px ${ORBI_THEME_COLORS[theme].glow ?? ORBI_THEME_COLORS[theme].mark}55`,
             // With motion reduced the glyph simply sits there, quietly.
             opacity: reducedMotion ? ORBI_SLEEP.glyphOpacity * 0.8 : 0,
             userSelect: 'none',

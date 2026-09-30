@@ -176,13 +176,25 @@ export default function OrbiRobot({
           <stop offset="82%" stopColor={ORBI_COLORS.accentSoft} stopOpacity="0.38" />
           <stop offset="100%" stopColor={ORBI_COLORS.accent} stopOpacity="0" />
         </radialGradient>
-        <filter id="orbi-bloom" x="-140%" y="-140%" width="380%" height="380%">
-          <feGaussianBlur stdDeviation="3" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
+        {c.glow ? (
+          <filter id="orbi-bloom" x="-140%" y="-140%" width="380%" height="380%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="b" />
+            <feFlood floodColor={c.glow} floodOpacity="0.7" />
+            <feComposite in2="b" operator="in" result="g" />
+            <feMerge>
+              <feMergeNode in="g" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        ) : (
+          <filter id="orbi-bloom" x="-140%" y="-140%" width="380%" height="380%">
+            <feGaussianBlur stdDeviation="3" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        )}
       </defs>
 
       {/* Keyboard focus: a halo that follows ORBI's own shape rather than a
@@ -229,7 +241,7 @@ export default function OrbiRobot({
         cx={85}
         cy={13}
         r={4.6}
-        fill={ORBI_COLORS.accent}
+        fill={c.antennaTip}
         filter="url(#orbi-bloom)"
       />
 
@@ -308,7 +320,7 @@ export default function OrbiRobot({
         Deliberately not shown while ORBI is under: `dozing` and `asleep` own
         the face outright, and the Z's are already the sleep symbol.
       */}
-      <OrbiEmotionAccents expression={expression} awake={awake && !dozing && !asleep} />
+      <OrbiEmotionAccents theme={theme} expression={expression} awake={awake && !dozing && !asleep} />
 
       {/*
         The head. A separate hit region over the top of the shell and the visor,
@@ -344,7 +356,7 @@ export default function OrbiRobot({
         cy={110}
         rx={11}
         ry={2.6}
-        fill={ORBI_COLORS.accent}
+        fill={c.chestLight}
         opacity={awake ? 0.5 : 0.14}
         filter="url(#orbi-bloom)"
         style={{ transition: 'opacity 500ms ease' }}

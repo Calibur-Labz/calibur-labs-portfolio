@@ -4772,6 +4772,7 @@ export default function OrbiGuide({
             size={placement.size}
             quiet={quietBody}
             reducedMotion={reducedMotion}
+            theme={theme}
           />
           <div ref={tiltRef} style={layer}>
             <div ref={gestureRef} style={layer}>

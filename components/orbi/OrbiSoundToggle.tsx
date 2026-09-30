@@ -113,19 +113,19 @@ export default function OrbiSoundToggle({
           // Light: a solid white disc, not frosted glass — over a photo a
           // translucent white reads as a smudge rather than a button.
           background: light
-            ? 'rgba(255, 255, 255, 0.97)'
+            ? '#FFFFFF'
             : 'rgba(12, 18, 28, 0.72)',
           border: `1px solid ${
             enabled
               ? 'rgba(0, 183, 255, 0.42)'
               : light
-                ? 'rgba(20, 38, 60, 0.14)'
+                ? '#E2E8F0'
                 : 'rgba(255, 255, 255, 0.10)'
           }`,
           boxShadow: enabled
             ? `0 0 0 1px rgba(0, 183, 255, 0.10), 0 6px 18px -8px rgba(0, 183, 255, 0.55)`
             : light
-              ? '0 4px 12px -6px rgba(20, 38, 60, 0.30)'
+              ? '0 4px 12px -6px rgba(15, 23, 42, 0.18)'
               : '0 6px 16px -10px rgba(0, 0, 0, 0.7)',
           backdropFilter: 'blur(10px) saturate(140%)',
           WebkitBackdropFilter: 'blur(10px) saturate(140%)',
@@ -134,7 +134,7 @@ export default function OrbiSoundToggle({
               ? '#0077B6'
               : ORBI_COLORS.accent
             : light
-              ? '#3D4F63'
+              ? '#475569'
               : '#8FA2B7',
           transition:
             'color 220ms ease, border-color 220ms ease, box-shadow 220ms ease, background 320ms ease',

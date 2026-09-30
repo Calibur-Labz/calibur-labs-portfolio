@@ -9,7 +9,6 @@ import {
   type OrbiAskAction,
 } from './orbiAsk'
 import {
-  ORBI_COLORS,
   ORBI_THEME_COLORS,
   type OrbiBreakpoint,
   type OrbiPlacement,
@@ -533,7 +532,7 @@ function Thinking({ reducedMotion, theme }: { reducedMotion: boolean; theme: Orb
                 width: '4px',
                 height: '4px',
                 borderRadius: '50%',
-                background: ORBI_COLORS.accent,
+                background: ORBI_THEME_COLORS[theme].mark,
                 opacity: 0.5,
                 animation: `orbiAskDot 1.1s ease-in-out ${i * 0.16}s infinite`,
               }}

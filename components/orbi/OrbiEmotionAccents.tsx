@@ -1,6 +1,6 @@
 'use client'
 
-import { ORBI_COLORS, type OrbiExpression } from './orbiConfig'
+import { ORBI_THEME_COLORS, type OrbiExpression, type OrbiRegionTheme } from './orbiConfig'
 
 /**
  * ORBI — the three small marks that live *around* his head.
@@ -116,11 +116,14 @@ const ORBIT_STARS = [
 export default function OrbiEmotionAccents({
   expression,
   awake,
+  theme = 'dark',
 }: {
+  theme?: OrbiRegionTheme
   expression: OrbiExpression
   /** Nothing is drawn around a robot whose face has not switched on yet. */
   awake: boolean
 }) {
+  const c = ORBI_THEME_COLORS[theme]
   const showQuery = awake && expression === 'unsure'
   const showSparks = awake && expression === 'excited'
   const showOrbit = awake && expression === 'dizzy'
@@ -154,12 +157,12 @@ export default function OrbiEmotionAccents({
             <path
               d="M -4 -6 Q -4 -10.2 0 -10.2 Q 4.2 -10.2 4.2 -6.4 Q 4.2 -3.2 0.6 -1.6 Q 0 -1.2 0 0.9"
               fill="none"
-              stroke={ORBI_COLORS.accent}
+              stroke={c.mark}
               strokeWidth={2.4}
               strokeLinecap="round"
               filter="url(#orbi-eye-glow)"
             />
-            <circle cx={0} cy={4.6} r={1.5} fill={ORBI_COLORS.accent} filter="url(#orbi-eye-glow)" />
+            <circle cx={0} cy={4.6} r={1.5} fill={c.mark} filter="url(#orbi-eye-glow)" />
           </g>
         </g>
       )}
@@ -171,7 +174,7 @@ export default function OrbiEmotionAccents({
             className="orbi-accent-spark"
             style={{ animationDelay: `${s.delay}ms` }}
             d={spark(s.x, s.y, s.r)}
-            fill={ORBI_COLORS.accentSoft}
+            fill={c.markSoft}
             filter="url(#orbi-eye-glow)"
           />
         ))}
@@ -182,7 +185,7 @@ export default function OrbiEmotionAccents({
             <path
               key={s.x}
               d={spark(s.x, s.y, s.r)}
-              fill={ORBI_COLORS.accent}
+              fill={c.mark}
               opacity={0.85}
               filter="url(#orbi-eye-glow)"
             />
