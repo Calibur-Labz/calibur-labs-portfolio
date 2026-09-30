@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import OrbiGuide, { type OrbiEmbedOptions } from '@/components/orbi/OrbiGuide'
-import type { OrbiBreakpoint } from '@/components/orbi/orbiConfig'
+import type { OrbiBreakpoint, OrbiRegionTheme } from '@/components/orbi/orbiConfig'
 import {
   sanitizeEmbedSections,
   sectionForAction,
@@ -92,6 +92,8 @@ export default function OrbiFramePage({
   const [authorized, setAuthorized] = useState(false)
   /** Ask ORBI for this site, if its plan includes it. */
   const [ask, setAsk] = useState<EmbedAsk>(null)
+  /** The customer's page, as the admin described it. Dark unless told otherwise. */
+  const [theme, setTheme] = useState<OrbiRegionTheme>('dark')
   /** One hello is checked; the host's retries while that happens are ignored. */
   const checkingRef = useRef(false)
 
@@ -120,7 +122,7 @@ export default function OrbiFramePage({
       })
         .then((response) => (response.ok ? response.json() : null))
         .catch(() => null)
-        .then((answer: { authorized?: unknown; origin?: unknown; ask?: unknown } | null) => {
+        .then((answer: { authorized?: unknown; origin?: unknown; theme?: unknown; ask?: unknown } | null) => {
           // The token must be good *and* have been issued to the very origin
           // that framed us — a token lifted from an authorized site names the
           // wrong origin everywhere else.
@@ -132,6 +134,7 @@ export default function OrbiFramePage({
           hostOriginRef.current = framedBy
           setSections(sections)
           setAsk(readAsk(answer.ask, token))
+          setTheme(answer.theme === 'light' ? 'light' : 'dark')
           setAuthorized(true)
           report()
         })
@@ -146,6 +149,7 @@ export default function OrbiFramePage({
       breakpoint,
       sections,
       ask,
+      theme,
       onSurfaceChange: (open) => {
         modeRef.current = open ? 'open' : 'idle'
         report()
@@ -157,7 +161,7 @@ export default function OrbiFramePage({
         post({ type: 'orbi:navigate', section: key })
       },
     }),
-    [breakpoint, sections, ask, report, post],
+    [breakpoint, sections, ask, theme, report, post],
   )
 
   return authorized ? <OrbiGuide embed={embed} /> : null

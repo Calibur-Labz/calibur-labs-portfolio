@@ -95,6 +95,7 @@ import {
 } from './orbiAnimations'
 import {
   holdsEyes,
+  type OrbiRegionTheme,
   ORBI_ASK_FEELING,
   ORBI_ASK_PRESENCE,
   isLookAnimation,
@@ -246,6 +247,11 @@ export interface OrbiEmbedOptions {
    * Intelligence — means the panel is not offered at all.
    */
   ask: { token: string; intro: string; starters: readonly string[] } | null
+  /**
+   * The customer's page, as the admin set it. The frame cannot sample the
+   * page behind it, so this replaces the region reading entirely.
+   */
+  theme: OrbiRegionTheme
 }
 
 /** Guide destination → the action that names it, for the embed's menu. */
@@ -511,6 +517,8 @@ export default function OrbiGuide({
     companionRect: form.companion ? form.rect : null,
     mobile: quietBody,
   })
+  /** Embedded, the admin's choice; on this site, whatever ORBI is over. */
+  const theme = embed?.theme ?? environment.theme
 
   /** The dedicated travel layer — cinematic movement and nothing else. */
   const travelRef = useRef<HTMLDivElement>(null)
@@ -4685,7 +4693,7 @@ export default function OrbiGuide({
                 onToggle={guide.toggle}
                 revealed={proximity !== 'far' || !finePointer}
                 size={quietBody ? ORBI_GUIDE.control.mobileSize : ORBI_GUIDE.control.size}
-                theme={environment.theme}
+                theme={theme}
                 dimmed={dimControls}
                 pulsing={guideHinted}
                 buttonRef={guideButtonRef}
@@ -4696,7 +4704,7 @@ export default function OrbiGuide({
               onToggle={handleAudioToggle}
               revealed={proximity !== 'far' || !finePointer}
               size={quietBody ? ORBI_AUDIO_TOGGLE.mobileSize : ORBI_AUDIO_TOGGLE.size}
-              theme={environment.theme}
+              theme={theme}
               dimmed={dimControls}
             />
           </div>
@@ -4713,7 +4721,7 @@ export default function OrbiGuide({
             box={guide.box}
             breakpoint={breakpoint}
             placementMetrics={placement}
-            theme={environment.theme}
+            theme={theme}
             reducedMotion={reducedMotion}
             onSelect={embed ? chooseEmbeddedItem : guide.choose}
             onAsk={embed && !embed.ask ? undefined : openAsk}
@@ -4734,7 +4742,7 @@ export default function OrbiGuide({
           placement={placement}
           side={environment.bubble.placement}
           align={environment.bubble.align}
-          theme={environment.theme}
+          theme={theme}
           // The opening line pops like any other; the follow-ups exchange
           // their words inside the same panel. The first meeting's second line
           // is the same idea — read off the message itself, so it needs no
@@ -4774,7 +4782,7 @@ export default function OrbiGuide({
                   bright={bright}
                   dozing={drowsiness >= 2}
                   asleep={drowsiness === 3}
-                  theme={environment.theme}
+                  theme={theme}
                   gazeRef={gazeElementRef}
                   armRef={armRef}
                   leftArmRef={leftArmRef}

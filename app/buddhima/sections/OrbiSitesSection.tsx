@@ -117,6 +117,7 @@ const empty = {
   allowed_origins: '',
   plan: 'core',
   status: 'active',
+  theme: 'dark',
   expires_on: '',
   knowledge: '',
   ask_intro: '',
@@ -211,6 +212,7 @@ export default function OrbiSitesSection({
       allowed_origins: site.allowed_origins.join('\n'),
       plan: site.plan,
       status: site.status,
+      theme: site.theme === 'light' ? 'light' : 'dark',
       expires_on: site.expires_on ?? '',
       knowledge: site.knowledge ?? '',
       ask_intro: site.ask_intro ?? '',
@@ -274,6 +276,12 @@ export default function OrbiSitesSection({
                   {p.label}
                 </option>
               ))}
+            </select>
+          </Field>
+          <Field label="Theme — match the customer's website">
+            <select value={form.theme} onChange={(e) => setForm({ ...form, theme: e.target.value })} style={input}>
+              <option value="dark">Dark ORBI — for dark websites</option>
+              <option value="light">Light ORBI — for light websites</option>
             </select>
           </Field>
           <Field label="Status">
@@ -430,7 +438,7 @@ export default function OrbiSitesSection({
             <table style={table}>
               <thead>
                 <tr>
-                  {['Customer', 'Site ID', 'Domains', 'Plan', 'Status', 'Created', 'Expires', ''].map((h) => (
+                  {['Customer', 'Site ID', 'Domains', 'Plan', 'Theme', 'Status', 'Created', 'Expires', ''].map((h) => (
                     <th key={h} style={th}>
                       {h}
                     </th>
@@ -451,6 +459,7 @@ export default function OrbiSitesSection({
                         ))}
                       </td>
                       <td style={{ ...td, textTransform: 'capitalize' }}>{site.plan}</td>
+                      <td style={{ ...td, textTransform: 'capitalize' }}>{site.theme === 'light' ? 'light' : 'dark'}</td>
                       <td style={td}>
                         <StatusPill status={site.status === 'disabled' ? 'inactive' : 'active'} />
                       </td>
@@ -487,7 +496,7 @@ export default function OrbiSitesSection({
                     </tr>
                     {openId === site.id && (
                       <tr>
-                        <td colSpan={8} style={td}>
+                        <td colSpan={9} style={td}>
                           <div style={{ display: 'grid', gap: '10px' }}>
                             <span style={{ fontSize: '12px', color: 'var(--muted-text)' }}>
                               Installation code — paste before &lt;/body&gt; on {site.allowed_origins.join(', ')}

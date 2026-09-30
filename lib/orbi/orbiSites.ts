@@ -34,6 +34,14 @@ export type OrbiSitePlan = (typeof ORBI_SITE_PLANS)[number]
 export const ORBI_SITE_STATUSES = ['active', 'disabled'] as const
 export type OrbiSiteStatus = (typeof ORBI_SITE_STATUSES)[number]
 
+/**
+ * How ORBI is drawn on the customer's page. The frame cannot see the page
+ * behind it, so the admin says which it is: `dark` (the default) keeps the
+ * cyan glow; `light` trades it for real shadows and lighter controls.
+ */
+export const ORBI_SITE_THEMES = ['dark', 'light'] as const
+export type OrbiSiteTheme = (typeof ORBI_SITE_THEMES)[number]
+
 export interface OrbiSite {
   id: number
   site_id: string
@@ -41,6 +49,7 @@ export interface OrbiSite {
   allowed_origins: string[]
   plan: string
   status: string
+  theme: string
   /** The customer's `data-orbi-sections` JSON, for their snippet. Never used to authorize. */
   sections_config: string | null
   /** What Ask ORBI may say about this business. Intelligence plan only. */
@@ -160,7 +169,7 @@ export function parseAllowedOrigins(raw: unknown): { origins: string[]; errors: 
 
 /* ── The decision ─────────────────────────────────────────────────────── */
 
-type Authorizable = Pick<OrbiSite, 'status' | 'allowed_origins' | 'expires_on'>
+type Authorizable = Pick<OrbiSite, 'status' | 'allowed_origins' | 'expires_on'> & { theme?: string }
 
 /** Today's date in UTC, as `YYYY-MM-DD` — the unit expiry is written in. */
 function utcDay(now: Date): string {
@@ -295,7 +304,7 @@ export interface AuthorizeDeps {
 export type AuthorizeResult = { authorized: false } | { authorized: true; token: string }
 export type VerifyResult =
   | { authorized: false }
-  | { authorized: true; origin: string; ask: OrbiEmbedAsk | null }
+  | { authorized: true; origin: string; theme: OrbiSiteTheme; ask: OrbiEmbedAsk | null }
 export type EmbedChatResult = { ok: false } | { ok: true; system: string }
 
 const DENIED = { authorized: false } as const
@@ -331,7 +340,12 @@ export async function verifyEmbed(token: unknown, deps: AuthorizeDeps): Promise<
   if (!claim) return DENIED
   const site = await deps.findSite(claim.siteId)
   if (!isSiteAuthorized(site, claim.origin, deps.now)) return DENIED
-  return { authorized: true, origin: claim.origin, ask: embedAskConfig(site) }
+  return {
+    authorized: true,
+    origin: claim.origin,
+    theme: site?.theme === 'light' ? 'light' : 'dark',
+    ask: embedAskConfig(site),
+  }
 }
 
 /**
@@ -407,6 +421,7 @@ export interface OrbiSiteInput {
   allowed_origins: string[]
   plan: OrbiSitePlan
   status: OrbiSiteStatus
+  theme: OrbiSiteTheme
   sections_config: string | null
   knowledge: string | null
   ask_intro: string | null
@@ -454,6 +469,11 @@ export function validateSiteInput(body: unknown, partial = false): Validated<Par
     const status = b.status ?? 'active'
     if (!ORBI_SITE_STATUSES.includes(status as OrbiSiteStatus)) return { ok: false, error: 'Unknown status' }
     out.status = status as OrbiSiteStatus
+  }
+  if (has('theme')) {
+    const theme = b.theme ?? 'dark'
+    if (!ORBI_SITE_THEMES.includes(theme as OrbiSiteTheme)) return { ok: false, error: 'Unknown theme' }
+    out.theme = theme as OrbiSiteTheme
   }
   if (has('sections_config')) {
     const sections = validateSectionsConfig(b.sections_config)

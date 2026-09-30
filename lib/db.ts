@@ -203,6 +203,8 @@ export function ensureSchema(): Promise<void> {
       await sql`ALTER TABLE orbi_sites ADD COLUMN IF NOT EXISTS knowledge TEXT`
       await sql`ALTER TABLE orbi_sites ADD COLUMN IF NOT EXISTS ask_intro TEXT`
       await sql`ALTER TABLE orbi_sites ADD COLUMN IF NOT EXISTS ask_starters TEXT`
+      // Migration: whether ORBI is drawn for a dark or a light customer page.
+      await sql`ALTER TABLE orbi_sites ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'dark' CHECK (theme IN ('dark', 'light'))`
     })().catch((err) => {
       // Reset so a later request can retry after a transient failure.
       schemaReady = null

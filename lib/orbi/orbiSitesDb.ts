@@ -24,7 +24,7 @@ export async function findSiteBySiteId(siteId: string): Promise<OrbiSite | null>
   const fixture = await devFixture()
   if (fixture) return fixture.find((site) => site.site_id === siteId) ?? null
   await ensureSchema()
-  const [site] = (await sql`SELECT id, site_id, customer_name, allowed_origins, plan, status, sections_config, knowledge, ask_intro, ask_starters, expires_on::text AS expires_on, created_at, updated_at FROM orbi_sites WHERE site_id = ${siteId}`) as OrbiSite[]
+  const [site] = (await sql`SELECT id, site_id, customer_name, allowed_origins, plan, status, theme, sections_config, knowledge, ask_intro, ask_starters, expires_on::text AS expires_on, created_at, updated_at FROM orbi_sites WHERE site_id = ${siteId}`) as OrbiSite[]
   return site ?? null
 }
 
@@ -32,7 +32,7 @@ export async function listSites(): Promise<OrbiSite[]> {
   const fixture = await devFixture()
   if (fixture) return fixture
   await ensureSchema()
-  return (await sql`SELECT id, site_id, customer_name, allowed_origins, plan, status, sections_config, knowledge, ask_intro, ask_starters, expires_on::text AS expires_on, created_at, updated_at FROM orbi_sites ORDER BY created_at DESC`) as OrbiSite[]
+  return (await sql`SELECT id, site_id, customer_name, allowed_origins, plan, status, theme, sections_config, knowledge, ask_intro, ask_starters, expires_on::text AS expires_on, created_at, updated_at FROM orbi_sites ORDER BY created_at DESC`) as OrbiSite[]
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -46,14 +46,14 @@ export async function createSite(input: OrbiSiteInput): Promise<OrbiSite> {
     try {
       const [site] = (await sql`
         INSERT INTO orbi_sites
-          (site_id, customer_name, allowed_origins, plan, status, sections_config,
+          (site_id, customer_name, allowed_origins, plan, status, theme, sections_config,
            knowledge, ask_intro, ask_starters, expires_on)
         VALUES (
           ${generateSiteId()}, ${input.customer_name}, ${input.allowed_origins}::text[],
-          ${input.plan}, ${input.status}, ${input.sections_config},
+          ${input.plan}, ${input.status}, ${input.theme}, ${input.sections_config},
           ${input.knowledge}, ${input.ask_intro}, ${input.ask_starters}, ${input.expires_on}::date
         )
-        RETURNING id, site_id, customer_name, allowed_origins, plan, status, sections_config, knowledge, ask_intro, ask_starters, expires_on::text AS expires_on, created_at, updated_at
+        RETURNING id, site_id, customer_name, allowed_origins, plan, status, theme, sections_config, knowledge, ask_intro, ask_starters, expires_on::text AS expires_on, created_at, updated_at
       `) as OrbiSite[]
       return site
     } catch (error) {
@@ -66,17 +66,17 @@ export async function createSite(input: OrbiSiteInput): Promise<OrbiSite> {
 /** Merge-and-write: only the fields given change. Null when there is no such site. */
 export async function updateSite(id: number, changes: Partial<OrbiSiteInput>): Promise<OrbiSite | null> {
   await ensureSchema()
-  const [current] = (await sql`SELECT id, site_id, customer_name, allowed_origins, plan, status, sections_config, knowledge, ask_intro, ask_starters, expires_on::text AS expires_on, created_at, updated_at FROM orbi_sites WHERE id = ${id}`) as OrbiSite[]
+  const [current] = (await sql`SELECT id, site_id, customer_name, allowed_origins, plan, status, theme, sections_config, knowledge, ask_intro, ask_starters, expires_on::text AS expires_on, created_at, updated_at FROM orbi_sites WHERE id = ${id}`) as OrbiSite[]
   if (!current) return null
   const next = { ...current, ...changes }
   const [site] = (await sql`
     UPDATE orbi_sites
     SET customer_name = ${next.customer_name}, allowed_origins = ${next.allowed_origins}::text[],
-        plan = ${next.plan}, status = ${next.status}, sections_config = ${next.sections_config},
+        plan = ${next.plan}, status = ${next.status}, theme = ${next.theme}, sections_config = ${next.sections_config},
         knowledge = ${next.knowledge}, ask_intro = ${next.ask_intro}, ask_starters = ${next.ask_starters},
         expires_on = ${next.expires_on}::date, updated_at = now()
     WHERE id = ${id}
-    RETURNING id, site_id, customer_name, allowed_origins, plan, status, sections_config, knowledge, ask_intro, ask_starters, expires_on::text AS expires_on, created_at, updated_at
+    RETURNING id, site_id, customer_name, allowed_origins, plan, status, theme, sections_config, knowledge, ask_intro, ask_starters, expires_on::text AS expires_on, created_at, updated_at
   `) as OrbiSite[]
   return site ?? null
 }

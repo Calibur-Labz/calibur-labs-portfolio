@@ -50,6 +50,7 @@ function site(overrides: Partial<OrbiSite> = {}): OrbiSite {
     allowed_origins: ['https://abccompany.com', 'https://www.abccompany.com'],
     plan: 'core',
     status: 'active',
+    theme: 'dark',
     sections_config: null,
     knowledge: null,
     ask_intro: null,
@@ -169,7 +170,15 @@ test('no secret configured → nothing is authorized', async () => {
 test('the frame check re-verifies the token and returns only its origin', async () => {
   const token = signEmbedToken({ siteId: ABC.site_id, origin: 'https://abccompany.com' }, SECRET, NOW)
   const result = await verifyEmbed(token, deps())
-  assert.deepEqual(result, { authorized: true, origin: 'https://abccompany.com', ask: null })
+  assert.deepEqual(result, { authorized: true, origin: 'https://abccompany.com', theme: 'dark', ask: null })
+})
+
+test('the frame check carries the site theme, and anything unknown reads as dark', async () => {
+  const token = signEmbedToken({ siteId: ABC.site_id, origin: 'https://abccompany.com' }, SECRET, NOW)
+  const light = await verifyEmbed(token, deps([site({ theme: 'light' })]))
+  assert.equal(light.authorized && light.theme, 'light')
+  const odd = await verifyEmbed(token, deps([site({ theme: 'neon' })]))
+  assert.equal(odd.authorized && odd.theme, 'dark')
 })
 
 test('a token stops working when its site is disabled, deleted or expires', async () => {
@@ -296,6 +305,7 @@ test('admin can create a site: full input validates and normalises', () => {
       allowed_origins: ['https://abccompany.com', 'https://www.abccompany.com'],
       plan: 'core',
       status: 'active',
+      theme: 'dark',
       expires_on: null,
       sections_config: '{"services":{"label":"Services","selector":"#services"}}',
       knowledge: null,
@@ -303,6 +313,12 @@ test('admin can create a site: full input validates and normalises', () => {
       ask_starters: null,
     },
   })
+})
+
+test('admin picks a dark or light ORBI; nothing else is a theme', () => {
+  assert.deepEqual(validateSiteInput({ theme: 'light' }, true), { ok: true, value: { theme: 'light' } })
+  assert.deepEqual(validateSiteInput({ theme: 'dark' }, true), { ok: true, value: { theme: 'dark' } })
+  assert.equal(validateSiteInput({ theme: 'auto' }, true).ok, false)
 })
 
 test('admin can disable and enable a site with a one-field edit', () => {
@@ -471,6 +487,7 @@ test('the frame learns the Ask panel text for its site, and nothing more', async
   assert.deepEqual(result, {
     authorized: true,
     origin: 'https://shopbook.lk',
+    theme: 'dark',
     ask: { intro: 'Ask me anything about Shopbook.', starters: ['What is Shopbook?', 'Is it free?'] },
   })
   assert.ok(!JSON.stringify(result).includes('bookkeeping'), 'the knowledge itself never reaches the browser')
