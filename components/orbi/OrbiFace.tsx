@@ -1,6 +1,6 @@
 'use client'
 
-import type { RefObject } from 'react'
+import { useState, type RefObject } from 'react'
 import {
   ORBI_ART,
   ORBI_COLORS,
@@ -142,6 +142,40 @@ function eyePoses(expression: OrbiExpression): [EyePose, EyePose] {
 }
 
 /**
+ * The `soft` face style: rounder, more open, more like a character than a
+ * display. Only the faces that differ are listed; the rest keep `eyePoses`.
+ * Thinking and curious get big, level, round eyes — the looking is done by
+ * where the eyes sit, not by squinting — and the faces that draw their own
+ * eyes (excited `> <`, the wink, sleep arcs) clear the pupils out of the way.
+ */
+function softEyePoses(expression: OrbiExpression): [EyePose, EyePose] | null {
+  switch (expression) {
+    case 'thinking':
+      return [
+        { scaleX: 1.04, scaleY: 1.04, dx: 3, dy: -3.2, opacity: 1 },
+        { scaleX: 1.1, scaleY: 1.1, dx: 3, dy: -3.2, opacity: 1 },
+      ]
+    case 'curious':
+      return [
+        { scaleX: 1.16, scaleY: 1.16, dx: 0, dy: -0.4, opacity: 1 },
+        { scaleX: 1.16, scaleY: 1.16, dx: 0, dy: -0.4, opacity: 1 },
+      ]
+    case 'excited':
+      return [
+        { ...OPEN, opacity: 0 },
+        { ...OPEN, opacity: 0 },
+      ]
+    case 'wink':
+      return [
+        { ...OPEN, opacity: 0 },
+        { scaleX: 1.08, scaleY: 1.08, dx: 0, dy: -0.4, opacity: 1 },
+      ]
+    default:
+      return null
+  }
+}
+
+/**
  * A four-point sparkle, centred on an eye.
  *
  * Drawn rather than scaled from a font so it inherits the eye gradient and the
@@ -192,15 +226,92 @@ const DOZE_POSE: EyePose = { scaleX: 1, scaleY: 0.05, dx: 0, dy: 3, opacity: 1 }
 /** Deeply asleep: shut, not nearly shut, and sitting lower still. */
 const SLEEP_POSE: EyePose = { scaleX: 0.94, scaleY: 0.02, dx: 0, dy: 4, opacity: 1 }
 
-const EYE_TRANSITION =
-  'transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 150ms ease'
+/**
+ * A little overshoot is what makes a pose change feel alive rather than
+ * tweened: the eye lands, goes a touch past, and settles.
+ */
+const SPRING = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+
+const eyeTransition = (delayMs: number) =>
+  `transform 360ms ${SPRING} ${delayMs}ms, opacity 160ms ease ${delayMs}ms`
+/**
+ * Closing stays quick and never overshoots. A spring on the way down would
+ * carry `scaleY` through zero and flip the eye inside out for a frame.
+ */
+const CLOSE_TRANSITION =
+  'transform 110ms cubic-bezier(0.4, 0, 1, 1), opacity 120ms ease'
 const DOZE_TRANSITION =
   'transform 900ms cubic-bezier(0.4, 0, 0.2, 1), opacity 400ms ease'
 
 /** The gaze group's transform belongs to GSAP — only `filter` is animated here. */
 const GAZE_FILTER_TRANSITION = 'filter 320ms ease'
 
-function Eye({ pose, dozing }: { pose: EyePose; dozing: boolean }) {
+/**
+ * How every drawn feature (mouths, arcs, stars, `> <`, blush) comes and goes:
+ * the outgoing shape shrinks away fast, and the incoming one springs up from
+ * its own centre just behind it. That overlap reads as the mouth changing
+ * shape rather than as two drawings swapping.
+ */
+function pop(
+  on: boolean,
+  opacity: number,
+  { delayMs = 40, from = 'scale(0.6, 0.35)' }: { delayMs?: number; from?: string } = {},
+) {
+  return {
+    opacity: on ? opacity : 0,
+    transform: on ? 'scale(1)' : from,
+    transformBox: 'fill-box' as const,
+    transformOrigin: 'center',
+    transition: on
+      ? `opacity 170ms ease ${delayMs}ms, transform 420ms ${SPRING} ${delayMs}ms`
+      : 'opacity 120ms ease, transform 180ms cubic-bezier(0.4, 0, 1, 1)',
+  }
+}
+
+/**
+ * Two identical keyframes under different names. Swapping between them
+ * restarts the squash without remounting anything, so the eyes keep their
+ * transitions mid-flight.
+ */
+const FACE_KEYFRAMES = `
+@keyframes orbi-face-pop-a {
+  0% { transform: scale(1, 1); }
+  28% { transform: scale(1.07, 0.9); }
+  58% { transform: scale(0.97, 1.05); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes orbi-face-pop-b {
+  0% { transform: scale(1, 1); }
+  28% { transform: scale(1.07, 0.9); }
+  58% { transform: scale(0.97, 1.05); }
+  100% { transform: scale(1, 1); }
+}
+.orbi-face-pop-a { animation: orbi-face-pop-a 420ms cubic-bezier(0.22, 1, 0.36, 1); }
+.orbi-face-pop-b { animation: orbi-face-pop-b 420ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+@keyframes orbi-spiral-spin { to { transform: rotate(360deg); } }
+.orbi-spiral-spin { animation: orbi-spiral-spin 1.5s linear infinite; }
+
+@keyframes orbi-star-twinkle {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.14) rotate(14deg); }
+}
+.orbi-star-twinkle { animation: orbi-star-twinkle 1.3s ease-in-out infinite; }
+`
+
+const CENTRED = { transformBox: 'fill-box', transformOrigin: 'center' } as const
+
+function Eye({
+  pose,
+  dozing,
+  delayMs = 0,
+}: {
+  pose: EyePose
+  dozing: boolean
+  /** A few ms of lag on one eye stops the pair moving like a single part. */
+  delayMs?: number
+}) {
+  const closing = pose.scaleY < 0.15
   return (
     <g
       style={{
@@ -211,7 +322,7 @@ function Eye({ pose, dozing }: { pose: EyePose; dozing: boolean }) {
         transformBox: 'fill-box',
         transformOrigin: 'center',
         opacity: pose.opacity,
-        transition: dozing ? DOZE_TRANSITION : EYE_TRANSITION,
+        transition: dozing ? DOZE_TRANSITION : closing ? CLOSE_TRANSITION : eyeTransition(delayMs),
       }}
     >
       <ellipse
@@ -236,9 +347,16 @@ export default function OrbiFace({
   asleep = false,
   gazeRef,
   theme = 'dark',
+  faceStyle = 'classic',
 }: {
   /** Light: a pale face screen with deeper blue eyes and mouth. */
   theme?: OrbiRegionTheme
+  /**
+   * `soft`: rounder, more character-like faces — `> <` when excited, big
+   * round eyes when thinking or curious, a `>` wink, closed arcs asleep.
+   * `classic` (the default) is every face exactly as it has always been.
+   */
+  faceStyle?: 'classic' | 'soft'
   expression: OrbiExpression
   /** Eyes are dark until the entrance timeline switches them on. */
   awake: boolean
@@ -251,8 +369,10 @@ export default function OrbiFace({
   /** Handed to `orbiGaze`, which owns this group's transform. */
   gazeRef?: RefObject<SVGGElement | null>
 }) {
-  const posed = eyePoses(expression)
-  const shut = asleep ? SLEEP_POSE : DOZE_POSE
+  const soft = faceStyle === 'soft'
+  const posed = (soft && softEyePoses(expression)) || eyePoses(expression)
+  // Soft sleep draws its own closed arcs, so the pupils fade rather than squash.
+  const shut = soft ? { ...(asleep ? SLEEP_POSE : DOZE_POSE), opacity: 0 } : asleep ? SLEEP_POSE : DOZE_POSE
   const left = dozing || asleep ? shut : posed[0]
   const right = dozing || asleep ? shut : posed[1]
 
@@ -283,6 +403,22 @@ export default function OrbiFace({
   const { eyeLeft, eyeRight, mouth } = ORBI_ART
   const c = ORBI_THEME_COLORS[theme]
 
+  // A small squash-and-settle on every real change of face. Blinks are not a
+  // change of face, and nor is sinking into sleep, so neither triggers it.
+  // Derived during render (React's "previous value in state" pattern) rather
+  // than in an effect, so the squash starts on the same frame as the new pose.
+  const [prevExpression, setPrevExpression] = useState(expression)
+  const [popPhase, setPopPhase] = useState<0 | 1 | 2>(0)
+  if (prevExpression !== expression) {
+    setPrevExpression(expression)
+    if (up && expression !== 'blink' && prevExpression !== 'blink') {
+      setPopPhase((p) => (p === 1 ? 2 : 1))
+    }
+  }
+  const popClass =
+    popPhase === 1 ? 'orbi-face-pop-a' : popPhase === 2 ? 'orbi-face-pop-b' : undefined
+  const dozy = dozing || asleep
+
   return (
     <g
       style={{
@@ -290,6 +426,7 @@ export default function OrbiFace({
         transition: 'opacity 420ms cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
+      <style>{FACE_KEYFRAMES}</style>
       <defs>
         <linearGradient id="orbi-eye" x1="0" y1="-1" x2="0" y2="1">
           <stop offset="0%" stopColor={c.eyeTop} />
@@ -339,26 +476,20 @@ export default function OrbiFace({
           transition: GAZE_FILTER_TRANSITION,
         }}
       >
+        {/* The squash wrapper. GSAP still owns the gaze group above it. */}
+        <g className={popClass} style={CENTRED}>
         {/* Pupils */}
         <g transform={`translate(${eyeLeft.x} ${eyeLeft.y})`}>
-          <Eye pose={left} dozing={dozing || asleep} />
+          <Eye pose={left} dozing={dozy} />
         </g>
         <g transform={`translate(${eyeRight.x} ${eyeRight.y})`}>
-          <Eye pose={right} dozing={dozing || asleep} />
+          <Eye pose={right} dozing={dozy} delayMs={dozy ? 0 : 30} />
         </g>
 
         {/* Happy arcs. The pupils clear out fast and the arcs arrive just
             behind them, so the two never read as a double image. */}
-        <g
-          style={{
-            opacity: expression === 'happy' && !dozing && !asleep ? 1 : 0,
-            transition:
-              expression === 'happy'
-                ? 'opacity 190ms ease 60ms'
-                : 'opacity 120ms ease',
-          }}
-        >
-          {[eyeLeft, eyeRight].map((eye) => (
+        <g>
+          {[eyeLeft, eyeRight].map((eye, i) => (
             <path
               key={eye.x}
               d={`M ${eye.x - 8} ${eye.y + 3} Q ${eye.x} ${eye.y - 8} ${eye.x + 8} ${eye.y + 3}`}
@@ -367,6 +498,7 @@ export default function OrbiFace({
               strokeWidth={3.6}
               strokeLinecap="round"
               filter="url(#orbi-eye-glow)"
+              style={pop(expression === 'happy' && up, 1, { delayMs: 60 + i * 30, from: 'scale(0.8, 0.2)' })}
             />
           ))}
         </g>
@@ -379,23 +511,69 @@ export default function OrbiFace({
           and carrying the same glow, so it reads as ORBI's eyes catching
           light rather than as decoration laid on top of them.
         */}
-        <g
-          style={{
-            opacity: isExcited ? 1 : 0,
-            transition: isExcited
-              ? 'opacity 180ms ease 50ms'
-              : 'opacity 120ms ease',
-          }}
-        >
-          {[eyeLeft, eyeRight].map((eye) => (
-            <path
+        <g>
+          {[eyeLeft, eyeRight].map((eye, i) => (
+            <g
               key={eye.x}
-              d={starPath(eye.x, eye.y, 11)}
-              fill="url(#orbi-eye)"
-              filter="url(#orbi-eye-glow)"
-            />
+              style={pop(isExcited && !soft, 1, { delayMs: 50 + i * 40, from: 'scale(0.2) rotate(-90deg)' })}
+            >
+              <path
+                className={isExcited && !soft ? 'orbi-star-twinkle' : undefined}
+                d={starPath(eye.x, eye.y, 11)}
+                fill="url(#orbi-eye)"
+                filter="url(#orbi-eye-glow)"
+                style={{ ...CENTRED, animationDelay: `${i * -0.45}s` }}
+              />
+            </g>
           ))}
         </g>
+
+        {soft && (
+          <>
+            {/* Soft excited: eyes squeezed shut with delight — `>  <`. */}
+            <g
+              fill="none"
+              stroke="url(#orbi-eye)"
+              strokeWidth={3.4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              filter="url(#orbi-eye-glow)"
+            >
+              <path
+                d={`M ${eyeLeft.x - 6} ${eyeLeft.y - 6.5} L ${eyeLeft.x + 5} ${eyeLeft.y} L ${eyeLeft.x - 6} ${eyeLeft.y + 6.5}`}
+                style={pop(isExcited, 1, { delayMs: 50, from: 'scale(0.3, 1.2)' })}
+              />
+              <path
+                d={`M ${eyeRight.x + 6} ${eyeRight.y - 6.5} L ${eyeRight.x - 5} ${eyeRight.y} L ${eyeRight.x + 6} ${eyeRight.y + 6.5}`}
+                style={pop(isExcited, 1, { delayMs: 80, from: 'scale(0.3, 1.2)' })}
+              />
+            </g>
+            {/* Soft wink: the closed eye as a `>`. */}
+            <path
+              d={`M ${eyeLeft.x - 5.5} ${eyeLeft.y - 5.5} L ${eyeLeft.x + 4.5} ${eyeLeft.y} L ${eyeLeft.x - 5.5} ${eyeLeft.y + 5.5}`}
+              fill="none"
+              stroke="url(#orbi-eye)"
+              strokeWidth={3.2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              filter="url(#orbi-eye-glow)"
+              style={pop(expression === 'wink' && up, 1, { delayMs: 30, from: 'scale(0.3, 1.2)' })}
+            />
+            {/* Soft sleep: closed, contented arcs — the eyes of someone dreaming. */}
+            <g
+              fill="none"
+              stroke="url(#orbi-eye)"
+              strokeWidth={2.8}
+              strokeLinecap="round"
+              filter="url(#orbi-eye-glow)"
+              style={{ opacity: dozing || asleep ? 0.9 : 0, transition: 'opacity 600ms ease' }}
+            >
+              {[eyeLeft, eyeRight].map((eye) => (
+                <path key={eye.x} d={`M ${eye.x - 7.5} ${eye.y + 1} Q ${eye.x} ${eye.y + 7} ${eye.x + 7.5} ${eye.y + 1}`} />
+              ))}
+            </g>
+          </>
+        )}
 
         {/*
           Dizzy: spirals where the pupils were.
@@ -417,16 +595,21 @@ export default function OrbiFace({
             { eye: eyeRight, flip: -1 },
           ].map(({ eye, flip }) => (
             <g key={eye.x} transform={`translate(${eye.x} ${eye.y}) scale(${flip} 1)`}>
-              <path
-                d={spiralPath(0, 0, 9.5)}
-                fill="none"
-                stroke="url(#orbi-eye)"
-                strokeWidth={2}
-                strokeLinecap="round"
-                filter="url(#orbi-eye-glow)"
-              />
+              <g className={isDizzy ? 'orbi-spiral-spin' : undefined} style={CENTRED}>
+                {/* Invisible, but it centres the box the spin turns about. */}
+                <circle r={9.6} fill="none" />
+                <path
+                  d={spiralPath(0, 0, 9.5)}
+                  fill="none"
+                  stroke="url(#orbi-eye)"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  filter="url(#orbi-eye-glow)"
+                />
+              </g>
             </g>
           ))}
+        </g>
         </g>
       </g>
 
@@ -437,30 +620,22 @@ export default function OrbiFace({
         and caught. Strongest on `shy`, where the blush is not a garnish on the
         emotion but most of what the emotion *is*.
       */}
-      <g
-        style={{
-          opacity: blush,
-          transition: 'opacity 220ms ease',
-        }}
-      >
+      <g style={pop(blush > 0, blush, { delayMs: 90, from: 'scale(0.5)' })}>
         <ellipse cx={eyeLeft.x - 11} cy={eyeLeft.y + 15} rx={5.5} ry={3} fill={ORBI_COLORS.accent} />
         <ellipse cx={eyeRight.x + 11} cy={eyeRight.y + 15} rx={5.5} ry={3} fill={ORBI_COLORS.accent} />
       </g>
 
       {/* Mouth — fixed shapes cross-faded, so no path morphing is needed. */}
-      <g fill="none" stroke={c.mouth} strokeLinecap="round">
+      <g fill="none" stroke={c.mouth} strokeLinecap="round" className={popClass} style={CENTRED}>
         <path
           d={`M ${mouth.x - 8} ${mouth.y} Q ${mouth.x} ${mouth.y + 3.5} ${mouth.x + 8} ${mouth.y}`}
           strokeWidth={2.2}
-          style={{
-            opacity: mouthTaken ? 0 : 0.32,
-            transition: 'opacity 200ms ease',
-          }}
+          style={pop(!mouthTaken, 0.32)}
         />
         <path
           d={`M ${mouth.x - 9} ${mouth.y - 3} Q ${mouth.x} ${mouth.y + 7} ${mouth.x + 9} ${mouth.y - 3}`}
           strokeWidth={2.6}
-          style={{ opacity: isHappy ? 0.85 : 0, transition: 'opacity 200ms ease' }}
+          style={pop(isHappy, 0.85)}
         />
         {/*
           Excited: the happy smile, wider and deeper.
@@ -472,7 +647,7 @@ export default function OrbiFace({
         <path
           d={`M ${mouth.x - 11} ${mouth.y - 4} Q ${mouth.x} ${mouth.y + 11} ${mouth.x + 11} ${mouth.y - 4}`}
           strokeWidth={3}
-          style={{ opacity: isExcited ? 0.95 : 0, transition: 'opacity 200ms ease' }}
+          style={pop(isExcited, 0.95)}
         />
         {/* Surprised: a round, open O. */}
         <ellipse
@@ -481,7 +656,7 @@ export default function OrbiFace({
           rx={3.4}
           ry={4.2}
           strokeWidth={2.2}
-          style={{ opacity: isSurprised ? 0.75 : 0, transition: 'opacity 200ms ease' }}
+          style={pop(isSurprised, 0.75)}
         />
         {/*
           Dizzy: a small open mouth pulled off centre.
@@ -496,7 +671,7 @@ export default function OrbiFace({
           rx={2.6}
           ry={3.4}
           strokeWidth={2}
-          style={{ opacity: isDizzy ? 0.7 : 0, transition: 'opacity 200ms ease' }}
+          style={pop(isDizzy, 0.7)}
         />
         {/*
           Thinking: a short line, off centre and slightly tipped.
@@ -508,8 +683,24 @@ export default function OrbiFace({
         <path
           d={`M ${mouth.x - 6.5} ${mouth.y + 1.6} L ${mouth.x + 2.5} ${mouth.y - 0.4}`}
           strokeWidth={2.2}
-          style={{ opacity: isThinking ? 0.42 : 0, transition: 'opacity 200ms ease' }}
+          style={pop(isThinking && !soft, 0.42)}
         />
+        {/* Soft thinking and curious: a small, puzzled frown, set a little aside. */}
+        {soft && (
+          <path
+            d={`M ${mouth.x - 3} ${mouth.y + 2} Q ${mouth.x + 1} ${mouth.y - 2.2} ${mouth.x + 5} ${mouth.y + 2}`}
+            strokeWidth={2.4}
+            style={pop(isThinking || isCurious, 0.75)}
+          />
+        )}
+        {/* Soft sleep: a small, content smile instead of the open mouth. */}
+        {soft && (
+          <path
+            d={`M ${mouth.x - 4} ${mouth.y} Q ${mouth.x} ${mouth.y + 3.2} ${mouth.x + 4} ${mouth.y}`}
+            strokeWidth={2.2}
+            style={pop(dozing || asleep, 0.6)}
+          />
+        )}
         {/*
           Unsure: a wavering line.
 
@@ -525,7 +716,7 @@ export default function OrbiFace({
             `Q ${mouth.x + 4} ${mouth.y + 4} ${mouth.x + 8} ${mouth.y}`
           }
           strokeWidth={2.2}
-          style={{ opacity: isUnsure ? 0.7 : 0, transition: 'opacity 200ms ease' }}
+          style={pop(isUnsure, 0.7)}
         />
         {/*
           Curious: the resting curve, lifted at the end he is looking toward.
@@ -534,7 +725,7 @@ export default function OrbiFace({
         <path
           d={`M ${mouth.x - 7} ${mouth.y + 1.5} Q ${mouth.x - 1} ${mouth.y + 4} ${mouth.x + 7.5} ${mouth.y - 2}`}
           strokeWidth={2.2}
-          style={{ opacity: isCurious ? 0.5 : 0, transition: 'opacity 200ms ease' }}
+          style={pop(isCurious && !soft, 0.5)}
         />
         {/*
           Shy: a small smile, narrow and pushed away from the side he is
@@ -543,7 +734,7 @@ export default function OrbiFace({
         <path
           d={`M ${mouth.x - 2} ${mouth.y} Q ${mouth.x + 2.5} ${mouth.y + 4.5} ${mouth.x + 7} ${mouth.y - 0.5}`}
           strokeWidth={2.4}
-          style={{ opacity: isShy ? 0.7 : 0, transition: 'opacity 200ms ease' }}
+          style={pop(isShy, 0.7)}
         />
         {/*
           Concerned: the resting curve turned over.
@@ -557,19 +748,16 @@ export default function OrbiFace({
         <path
           d={`M ${mouth.x - 8} ${mouth.y + 1.5} Q ${mouth.x} ${mouth.y - 2.5} ${mouth.x + 8} ${mouth.y + 1.5}`}
           strokeWidth={2.2}
-          style={{ opacity: isConcerned ? 0.7 : 0, transition: 'opacity 200ms ease' }}
+          style={pop(isConcerned, 0.7)}
         />
 
         {/* Sleepy: a short flat line, softer than the resting smile. */}
         <path
           d={`M ${mouth.x - 5} ${mouth.y + 1} L ${mouth.x + 5} ${mouth.y + 1}`}
           strokeWidth={2}
-          style={{
-            // Once he is properly under, the flat line hands over to the
-            // sleeping mouth below.
-            opacity: isSleepy && !asleep ? 0.28 : 0,
-            transition: 'opacity 300ms ease',
-          }}
+          // Once he is properly under, the flat line hands over to the
+          // sleeping mouth below.
+          style={pop(isSleepy && !asleep && !(soft && dozing), 0.28, { from: 'scale(0.5, 1)' })}
         />
 
         {/*
@@ -606,7 +794,7 @@ export default function OrbiFace({
           fill={c.mouth}
           stroke="none"
           style={{
-            opacity: asleep ? 0.82 : 0,
+            opacity: asleep && !soft ? 0.82 : 0,
             transition: 'opacity 420ms ease',
             transformBox: 'fill-box',
             transformOrigin: 'center',

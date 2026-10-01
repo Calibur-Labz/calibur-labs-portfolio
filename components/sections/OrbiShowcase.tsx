@@ -14,7 +14,7 @@
  * running in the corner of the same page.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { fadeUp, stagger } from '@/lib/motion'
 import {
@@ -24,6 +24,8 @@ import {
   useReducedMotion,
   type OrbiExpression,
 } from '@/components/orbi'
+import OrbiShowcaseHands, { handPoseFor } from './OrbiShowcaseHands'
+import OrbiShowcaseVolume from './OrbiShowcaseVolume'
 
 const ACCENT = '#00B7FF'
 const MUTED = '#6E8399'
@@ -71,6 +73,8 @@ type Reaction = {
   wobble?: boolean
   /** A small flinch away, then back. */
   recoil?: boolean
+  /** Only with `gestures` on — it needs arms that can hold something. */
+  gesturesOnly?: boolean
 }
 
 /**
@@ -227,6 +231,15 @@ const REACTIONS: Reaction[] = [
     wobble: true,
     holdMs: 3000,
   },
+  {
+    id: 'thanks',
+    expression: 'happy',
+    label: 'Says thank you',
+    sub: 'Grateful when you get in touch',
+    lift: 4,
+    holdMs: 3200,
+    gesturesOnly: true,
+  },
 ]
 
 /** How long a reaction is held by default. Long enough to read the caption. */
@@ -241,8 +254,22 @@ const GAZE_Y = 3.5
  * robot, in the palette he takes on over a light page (`ORBI_THEME_COLORS`).
  * Off by default, so the homepage's product overview looks exactly as it did.
  */
-export default function OrbiShowcase({ showThemes = false }: { showThemes?: boolean } = {}) {
+export default function OrbiShowcase({
+  showThemes = false,
+  gestures = false,
+  volume = false,
+}: {
+  showThemes?: boolean
+  /** Prototype: ORBI's own arms, posed per reaction (`OrbiShowcaseHands`). */
+  gestures?: boolean
+  /** Prototype: the 3D look — shading, gloss, rim light, head turn (`OrbiShowcaseVolume`). */
+  volume?: boolean
+} = {}) {
   const reducedMotion = useReducedMotion()
+  const reactions = useMemo(
+    () => (gestures ? REACTIONS : REACTIONS.filter((r) => !r.gesturesOnly)),
+    [gestures],
+  )
   const [index, setIndex] = useState(0)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const light = showThemes && theme === 'light'
@@ -260,7 +287,8 @@ export default function OrbiShowcase({ showThemes = false }: { showThemes?: bool
   const gazeRef = useRef<SVGGElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
 
-  const reaction = REACTIONS[index]
+  const reaction = reactions[index]
+  const pose = gestures ? handPoseFor(reaction.id) : null
 
   /**
    * Cycle the reactions. One timer, re-armed per reaction rather than a fixed
@@ -270,11 +298,11 @@ export default function OrbiShowcase({ showThemes = false }: { showThemes?: bool
    */
   useEffect(() => {
     const id = setTimeout(
-      () => setIndex((current) => (current + 1) % REACTIONS.length),
-      REACTIONS[index].holdMs ?? HOLD_MS,
+      () => setIndex((current) => (current + 1) % reactions.length),
+      reactions[index].holdMs ?? HOLD_MS,
     )
     return () => clearTimeout(id)
-  }, [index])
+  }, [index, reactions])
 
   /**
    * The arm pivots at its shoulder, in viewBox coordinates. Set once on the
@@ -315,6 +343,16 @@ export default function OrbiShowcase({ showThemes = false }: { showThemes?: bool
       el.style.transform = out ? `rotate(${angle}deg)` : 'rotate(0deg)'
     }
   }, [index, reaction.armsOut, reducedMotion])
+
+  /**
+   * With gestures on, the posed arms (drawn identically) take over from the
+   * robot's own, which stay for everyone else.
+   */
+  useEffect(() => {
+    for (const el of [armRef.current, leftArmRef.current]) {
+      if (el) el.style.display = gestures ? 'none' : ''
+    }
+  }, [gestures])
 
   useEffect(() => {
     const layer = sleepLayerRef.current
@@ -407,7 +445,11 @@ export default function OrbiShowcase({ showThemes = false }: { showThemes?: bool
             transformStyle: 'preserve-3d',
           }}
         >
-          <div className={reaction.wave && !reducedMotion ? 'orbi-waving' : undefined}>
+          <div
+            className={reaction.wave && !reducedMotion ? 'orbi-waving' : undefined}
+            // Keeps the head turn below in the stage's 3D space.
+            style={volume ? { transformStyle: 'preserve-3d' } : undefined}
+          >
             {/*
               The lean gets its own element on purpose. `.orbi-float` owns the
               transform above it and the wave animates an arm below it, so a
@@ -432,8 +474,14 @@ export default function OrbiShowcase({ showThemes = false }: { showThemes?: bool
                 transform:
                   reducedMotion || reaction.wobble || reaction.recoil
                     ? undefined
-                    : `translateY(${-(reaction.lift ?? 0)}px) rotate(${reaction.tilt ?? 0}deg)`,
+                    : `translateY(${-(reaction.lift ?? 0)}px) rotate(${(reaction.tilt ?? 0) + (pose?.tilt ?? 0)}deg)` +
+                      // Turns his head toward the gesture, in the stage's perspective.
+                      (volume && pose?.turn ? ` rotateY(${pose.turn}deg)` : '') +
+                      // The body gives a little: squashes into happy, stretches up for excited.
+                      (pose?.squash ? ` scale(${2 - pose.squash}, ${pose.squash})` : ''),
                 transformOrigin: '50% 85%',
+                transformStyle: volume ? 'preserve-3d' : undefined,
+                position: 'relative',
                 transition: 'transform 520ms cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
@@ -447,7 +495,21 @@ export default function OrbiShowcase({ showThemes = false }: { showThemes?: bool
               gazeRef={gazeRef}
               armRef={armRef}
               leftArmRef={leftArmRef}
+              faceStyle={volume ? 'soft' : undefined}
             />
+            {volume && (
+              <OrbiShowcaseVolume
+                theme={light ? 'light' : 'dark'}
+                turn={reducedMotion ? 0 : pose?.turn ?? 0}
+              />
+            )}
+            {gestures && (
+              <OrbiShowcaseHands
+                poseId={reaction.id}
+                theme={light ? 'light' : 'dark'}
+                reducedMotion={reducedMotion}
+              />
+            )}
             </div>
           </div>
         </div>
@@ -491,11 +553,14 @@ export default function OrbiShowcase({ showThemes = false }: { showThemes?: bool
           style={{
             position: 'absolute',
             bottom: '8%',
-            width: '44%',
-            height: '14px',
+            width: volume ? '58%' : '44%',
+            height: volume ? '22px' : '14px',
             borderRadius: '50%',
-            background:
-              'radial-gradient(ellipse, rgba(0,183,255,0.34) 0%, transparent 70%)',
+            // The 3D look: his light falling on the floor, not just a shadow.
+            background: volume
+              ? 'radial-gradient(ellipse, rgba(79,195,255,0.55) 0%, rgba(0,120,255,0.18) 45%, transparent 72%)'
+              : 'radial-gradient(ellipse, rgba(0,183,255,0.34) 0%, transparent 70%)',
+            filter: volume ? 'blur(2px)' : undefined,
             pointerEvents: 'none',
           }}
         />
@@ -541,7 +606,7 @@ export default function OrbiShowcase({ showThemes = false }: { showThemes?: bool
         */
         style={{ display: 'flex', marginTop: '8px' }}
       >
-        {REACTIONS.map((item, i) => (
+        {reactions.map((item, i) => (
           <button
             key={item.id}
             type="button"

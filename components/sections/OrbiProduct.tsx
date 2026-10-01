@@ -385,7 +385,7 @@ export default function OrbiProduct() {
           }}
         >
           <motion.div variants={slideInLeft}>
-            <OrbiShowcase showThemes />
+            <OrbiShowcase showThemes gestures volume />
           </motion.div>
 
           <div>

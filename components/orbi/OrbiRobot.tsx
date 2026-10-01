@@ -36,6 +36,7 @@ export default function OrbiRobot({
   onHead,
   onHoverStart,
   onHoverEnd,
+  faceStyle = 'classic',
 }: {
   expression: OrbiExpression
   awake: boolean
@@ -68,6 +69,8 @@ export default function OrbiRobot({
    */
   onHoverStart?: () => void
   onHoverEnd?: () => void
+  /** See `OrbiFace`. The companion keeps `classic`; the /orbi showcase tries `soft`. */
+  faceStyle?: 'classic' | 'soft'
 }) {
   /**
    * Keyboard focus only. `:focus-visible` is the browser's own
@@ -308,6 +311,7 @@ export default function OrbiRobot({
         dozing={dozing}
         asleep={asleep}
         gazeRef={gazeRef}
+        faceStyle={faceStyle}
       />
 
       {/*

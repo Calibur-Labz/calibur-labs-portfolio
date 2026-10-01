@@ -505,17 +505,18 @@ export const ORBI_THEME_COLORS = {
       '0 20px 44px rgba(0,0,0,0.5), 0 0 24px rgba(0,183,255,0.14), inset 0 1px 0 rgba(255,255,255,0.06)',
   },
   light: {
-    // The reference Light ORBI: a white glossy body with soft ice-blue
-    // shading, a dark navy screen framed in bright blue, and glowing cyan
-    // eyes. The soft shadow below keeps him separate from a white page.
-    shellTop: '#FFFFFF',
-    shellBottom: '#E0F2FE',
-    limbTop: '#FFFFFF',
-    limbBottom: '#DCEBF7',
-    rim: '#CFE0EE',
-    outline: '#CFE0EE',
+    // Light ORBI: a graphite glossy body — mid-grey on top, settling into a
+    // deep graphite underneath — with a dark navy screen framed in bright blue
+    // and glowing cyan eyes. A dark body on a white page gives him a solid
+    // silhouette, and leaves the cyan as the only colour.
+    shellTop: '#9AA1AB',
+    shellBottom: '#4B5360',
+    limbTop: '#8E959F',
+    limbBottom: '#434A56',
+    rim: '#3A414C',
+    outline: '#353C47',
     antenna: '#1E293B',
-    sheen: 'rgba(255, 255, 255, 0.7)',
+    sheen: 'rgba(255, 255, 255, 0.28)',
     visor: '#0F172A',
     visorRim: '#0EA5FF',
     eyeTop: '#67E8F9',
@@ -530,7 +531,7 @@ export const ORBI_THEME_COLORS = {
     mark: '#0EA5FF',
     markSoft: '#38BDF8',
     robotShadow:
-      'drop-shadow(0 10px 18px rgba(14, 165, 255, 0.18)) drop-shadow(0 3px 6px rgba(15, 23, 42, 0.12))',
+      'drop-shadow(0 10px 18px rgba(15, 23, 42, 0.22)) drop-shadow(0 3px 6px rgba(15, 23, 42, 0.16))',
     bubbleBg: '#FFFFFF',
     panelBg: '#FFFFFF',
     border: '#E2E8F0',

@@ -54,7 +54,7 @@ export default function ServiceDetail({ service }: { service: Service }) {
               Home
             </Link>
             <span aria-hidden="true">/</span>
-            <Link href="/services" style={{ color: MUTED, textDecoration: 'none' }}>
+            <Link href="/#services" style={{ color: MUTED, textDecoration: 'none' }}>
               Services
             </Link>
             <span aria-hidden="true">/</span>
